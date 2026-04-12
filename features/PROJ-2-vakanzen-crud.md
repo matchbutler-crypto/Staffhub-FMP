@@ -4,6 +4,19 @@
 **Created:** 2026-04-12
 **Last Updated:** 2026-04-12
 
+## Implementation Notes (Backend — 2026-04-12)
+- Migration erstellt: `supabase/migrations/20260412_proj2_vakanzen.sql`
+  - Tabelle `vakanzen` mit allen Feldern laut PRD §3.2.1
+  - RLS aktiviert: SELECT für alle authenticated, INSERT/UPDATE nur Admin/Manager
+  - Trigger `vakanzen_updated_at` für automatisches `updated_at`
+  - Stub-Tabelle `kandidaten_profile` für Profil-Zähler (wird in PROJ-3 erweitert)
+- API-Routen erstellt:
+  - `GET /api/vakanzen` — Liste mit Profil-Anzahl; `budget_intern` wird für Agentur-Rolle serverseitig entfernt
+  - `POST /api/vakanzen` — Erstellen (nur Admin/Manager); Status wird immer auf "Offen" gesetzt
+  - `PUT /api/vakanzen/[id]` — Bearbeiten aller Felder inkl. Status
+  - `PATCH /api/vakanzen/[id]/status` — Nur Status ändern (für "Schließen"-Dialog)
+- Integrationstests: 7/7 grün (`src/app/api/vakanzen/route.test.ts`)
+
 ## Dependencies
 - Requires: PROJ-1 (Auth & Rollenverwaltung) — für Authentifizierung, Rollenprüfung und `useUser()` Hook
 
@@ -252,7 +265,110 @@ Seite lädt
 Keine neuen npm-Pakete nötig — alle benötigten UI-Komponenten (Sheet, AlertDialog, Select, DatePicker/Calendar) sind bereits installiert.
 
 ## QA Test Results
-_To be added by /qa_
+
+**QA Re-Run:** 2026-04-12 (2. Lauf — Playwright-Config Port-Fix + neue Bugs gefunden)  
+**Tester:** /qa Skill  
+**Status nach QA:** In Review (1 Medium Bug offen, 1 weiterer Medium Bug neu gefunden)
+
+---
+
+### Testergebnisse: Acceptance Criteria
+
+| # | Kriterium | Status | Anmerkung |
+|---|-----------|--------|-----------|
+| 1 | Vakanzen-Tabelle zeigt Supabase-Daten | ✅ Pass | API implementiert, Code-Review |
+| 2 | Profil-Anzahl per COUNT-JOIN | ✅ Pass | `kandidaten_profile(count)` im SELECT |
+| 3 | Lade-Indikator (Skeleton/Spinner) | ✅ Pass | Im Frontend vorhanden |
+| 4 | Fehlerstate bei API-Fehler | ✅ Pass | Error-Banner implementiert |
+| 5 | "Neue Vakanz"-Button nur für Manager/Admin | ✅ Pass | `useUser()` Rollenprüfung |
+| 6 | Formular mit allen Pflichtfeldern | ✅ Pass | Alle Felder laut PRD §3.2.1 vorhanden |
+| 7 | Pflichtfeld-Validierung blockiert Speichern | ✅ Pass | Zod + react-hook-form |
+| 8 | Nach Speichern: Toast + Sheet schließt sich | ✅ Pass | Implementiert |
+| 9 | Bearbeiten-Formular vorausgefüllt | ✅ Pass | Reset mit vakanz-Daten |
+| 10 | Vakanz schließen: AlertDialog | ✅ Pass | AlertDialog mit Bestätigungstext |
+| 11 | AlertDialog-Text korrekt | ✅ Pass | "Vakanz wirklich schließen? Alle offenen Einreichungen bleiben bestehen." |
+| 12 | Abbrechen schließt Dialog ohne Änderung | ✅ Pass | E2E-Test bestätigt |
+| 13 | Agentur sieht kein Bearbeiten/Schließen | ✅ Pass | Rollenprüfung im Frontend |
+| 14 | budget_intern nur für Admin/Manager | ✅ Pass | Serverseitige Filterung in GET |
+| 15 | RLS: Agentur kann nicht INSERT/UPDATE | ✅ Pass | Supabase RLS-Policies vorhanden |
+| 16 | Freitextsuche funktioniert | ✅ Pass | Bestehende Logik erhalten |
+| 17 | Status-Filter mit echten Daten | ✅ Pass | Client-seitig, funktioniert mit API |
+| 18 | Kombinierter Filter korrekt | ✅ Pass | Logik unverändert |
+
+**Acceptance Criteria: 18/18 bestanden** (Code-Review + automatisierte Tests)
+
+> Hinweis: 17 E2E-Tests sind mit `TEST_USER_REQUIRED` markiert (skipped ohne `.env.local` Credentials).  
+> Vollständiger E2E-Lauf erfordert: `TEST_MANAGER_EMAIL/PASSWORD`, `TEST_AGENTUR_EMAIL/PASSWORD`, `TEST_ADMIN_EMAIL/PASSWORD`.
+
+---
+
+### Automatisierte Tests
+
+| Suite | Tests | Ergebnis |
+|-------|-------|---------|
+| Vitest Unit (rbac.test.ts + route.test.ts) | 37 | ✅ 37/37 Pass |
+| Vitest — Playwright-Specs fälschlicherweise inkludiert | 2 Files | ⚠️ PROJ-2-BUG-03 (kein echter Testfehler) |
+| Playwright E2E PROJ-2 (chromium, Port 3010) | 5 aktiv / 17 skipped | ✅ 5/5 Pass |
+
+---
+
+### Bugs gefunden
+
+#### PROJ-2-BUG-01 — Medium (offen)
+**Titel:** Middleware gibt 307 Redirect statt 401 JSON für unauthentifizierte API-Requests  
+**Severity:** Medium  
+**Beschreibung:** `src/middleware.ts` interceptiert alle Routen inkl. `/api/*`. Bei fehlender Session gibt sie 307 Redirect zu `/login` zurück statt `401 { error: "..." }`. Für Browser-Clients kein Problem, für API-Clients (curl, externe Services) unerwartet.  
+**Steps to reproduce:**
+```bash
+curl -i --max-redirs 0 http://localhost:3010/api/vakanzen
+# Erwartet: 401 { "error": "Nicht authentifiziert" }
+# Erhalten:  307 Location: /login
+```
+**Fix:** In `middleware.ts` prüfen ob `pathname.startsWith('/api/')` → bei fehlender Session `NextResponse.json({ error: '...' }, { status: 401 })` zurückgeben statt Redirect. (Identischer Fix wie in resplan-Projekt bereits umgesetzt.)  
+**Workaround:** Browser-Clients werden korrekt zu /login weitergeleitet — kein Blocker für interne Nutzung.
+
+#### PROJ-2-BUG-02 — Low (offen)
+**Titel:** `startdatum` wird nicht als gültiges Datum validiert  
+**Severity:** Low  
+**Beschreibung:** Zod-Schema validiert `startdatum` nur als `z.string().min(1)`. Werte wie `"abc"` bestehen die Validierung, scheitern aber beim Supabase INSERT mit einem DB-Error statt einer sauberen 400-Antwort.  
+**Fix:** `z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Ungültiges Datum (YYYY-MM-DD)')` oder `z.coerce.date()`.
+
+#### PROJ-2-BUG-03 — Medium (neu)
+**Titel:** Vitest inkludiert Playwright-Specs aus `tests/` — 2 Test-Files als "failed" gemeldet  
+**Severity:** Medium  
+**Beschreibung:** `vitest.config.ts` hat kein `exclude`-Pattern für `tests/`. Vitest versucht `tests/PROJ-1-auth.spec.ts` und `tests/PROJ-2-vakanzen-crud.spec.ts` als Unit-Tests auszuführen, was wegen `test.describe()` (Playwright-Syntax) fehlschlägt. `npm test` meldet irreführend "2 failed" — obwohl alle echten Unit-Tests (37/37) grün sind.  
+**Fix:** In `vitest.config.ts` unter `test:` hinzufügen: `exclude: ['tests/**', 'node_modules/**']`.
+
+#### PROJ-2-BUG-04 — ✅ Behoben (Infrastruktur-Fix)
+**Titel:** `playwright.config.ts` verwendete Port 3000 — Konflikt mit resplan-Projekt  
+**Severity:** High (vor Fix)  
+**Beschreibung:** Beide Projekte (resplan + StaffHub FMP) nutzten `baseURL: http://localhost:3000`. Bei gleichzeitig laufendem resplan-Server liefen FMP-E2E-Tests gegen das falsche Projekt.  
+**Fix (umgesetzt):** `playwright.config.ts` auf Port 3010 geändert (`PORT=3010 npm run dev`, `baseURL: http://localhost:3010`). Mobile Safari Project entfernt (nur chromium für lokales Testing).
+
+---
+
+### Security Audit
+
+| Bereich | Status | Anmerkung |
+|---------|--------|-----------|
+| Authentifizierung | ✅ Sicher | `getUser()` auf allen API Routes |
+| Autorisierung | ✅ Sicher | Rollenprüfung in jeder Route + Supabase RLS als 2. Ebene |
+| SQL Injection | ✅ Sicher | Supabase parameterisierte Queries |
+| Input Injection (XSS) | ✅ Sicher | JSON-only Responses, kein HTML-Rendering |
+| budget_intern Leakage | ✅ Sicher | Serverseitige Filterung — nicht über Client manipulierbar |
+| CSRF | ✅ Sicher | HttpOnly Session-Cookies + SameSite |
+| Open Redirect | ✅ Sicher | `isSafeRedirect()` validiert alle redirectTo-Parameter (Unit-Tests) |
+| Sensitive Daten in Fehlermeldungen | ✅ Sicher | Generische Fehlermeldungen ohne Stack-Traces |
+| Rate Limiting | ⚠️ Nicht implementiert | Akzeptiert für internes MVP-Tool |
+| Unauthentifizierte API-Calls | ⚠️ 307 statt 401 | PROJ-2-BUG-01 — Medium, kein Sicherheits-Blocker |
+
+---
+
+### Produktionsreife-Entscheidung
+
+**NICHT READY** — 2 Medium Bugs offen (PROJ-2-BUG-01, PROJ-2-BUG-03)
+
+Keine Critical oder High Bugs. PROJ-2-BUG-01 (Middleware 307→401) sollte vor Deployment gefixt werden — Fix ist bekannt und in resplan bereits umgesetzt. PROJ-2-BUG-03 (Vitest/Playwright Konflikt) ist ein Infrastruktur-Fix der `npm test` korrekt macht.
 
 ## Deployment
 _To be added by /deploy_
