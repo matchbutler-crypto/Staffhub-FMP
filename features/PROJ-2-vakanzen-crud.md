@@ -1,6 +1,6 @@
 # PROJ-2: Vakanzen-CRUD
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-04-12
 **Last Updated:** 2026-04-12
 
@@ -115,7 +115,141 @@ Die bestehende Vakanzen-Seite (`/vakanzen`) wird von statischen Mock-Daten auf e
 ---
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Übersicht
+
+Die bestehende `/vakanzen`-Seite bleibt strukturell erhalten — TanStack Table, Filter, Sidebar. Es wird lediglich die Datenquelle ausgetauscht (Mock → Supabase API) und drei neue Interaktionen ergänzt (Erstellen/Bearbeiten/Schließen). Kein Rewrite, sondern ein gezieltes Upgrade.
+
+---
+
+### Komponenten-Struktur
+
+```
+/vakanzen (VakanzenPage)
+├── SiteHeader ("Vakanzen")
+├── Toolbar
+│   ├── Freitextsuche (bestehend, bleibt)
+│   ├── Status-Filter (bestehend, bleibt)
+│   └── [Neue Vakanz]-Button  ← nur Manager/Admin sichtbar
+│
+├── VakanzenTabelle (TanStack Table — bestehend)
+│   ├── Spalten: Titel, Rolle, Skills, Level, Start, Modell, Profile, Status
+│   ├── Spalte "Budget" ← nur Manager/Admin sichtbar
+│   └── Aktions-Dropdown pro Zeile
+│       ├── Manager/Admin: Bearbeiten | Schließen
+│       └── Agentur: Details anzeigen (read-only)
+│
+├── Lade-Zustand (Skeleton-Rows während API lädt)
+├── Fehler-Zustand (Alert-Banner wenn API fehlschlägt)
+├── Leer-Zustand (Hinweis wenn keine Vakanzen vorhanden)
+│
+├── VakanzFormSheet (NEU — Schiebepanel rechts)
+│   ├── Modus "Erstellen": leeres Formular
+│   └── Modus "Bearbeiten": vorausgefülltes Formular
+│       ├── Titel*, Rolle*, Beschreibung* (Textarea)
+│       ├── Skills* (Tag-Input — bestehend wiederverwenden)
+│       ├── Erfahrungslevel* (Select)
+│       ├── Startdatum* (Datepicker)
+│       ├── Laufzeit* (Text)
+│       ├── Auslastung %* (Number 1–100)
+│       ├── Arbeitsmodell* (Select)
+│       ├── Status* (Select — nur im Bearbeiten-Modus)
+│       ├── Standort (optional)
+│       └── Internes Budget € (optional — nur Manager/Admin)
+│
+└── VakanzSchließenDialog (NEU — AlertDialog)
+    ├── Text: "Vakanz wirklich schließen? Alle offenen Einreichungen bleiben bestehen."
+    ├── [Bestätigen] → Status = "Geschlossen"
+    └── [Abbrechen] → kein Effekt
+```
+
+---
+
+### Neue API-Routen
+
+```
+src/app/api/vakanzen/
+  route.ts          ← GET (Liste) + POST (Erstellen)
+  [id]/
+    route.ts        ← PUT (Bearbeiten — alle Felder)
+    status/
+      route.ts      ← PATCH (nur Status ändern — für "Schließen")
+```
+
+Jede Route:
+1. Prüft Session (eingeloggter User?)
+2. Liest Rolle aus `profiles`
+3. Prüft Berechtigung (Schreib-Operationen: nur Manager/Admin)
+4. Validiert Eingabe mit Zod
+5. Führt Supabase-Abfrage aus
+6. Filtert `budget_intern` aus Antwort wenn Rolle = Agentur
+
+---
+
+### Datenspeicherung
+
+| Was | Wo | Details |
+|-----|----|---------|
+| Vakanzen | Supabase `vakanzen`-Tabelle | Bereits angelegt mit PROJ-0 Migration |
+| Profil-Anzahl | JOIN auf `kandidaten_profile` | COUNT per `vakanz_id` — kein eigenes Feld |
+| Budget | `vakanzen.budget_intern` | Wird serverseitig herausgefiltert für Agentur-Rolle |
+
+---
+
+### Datenfluss
+
+```
+Seite lädt
+  → GET /api/vakanzen
+  → Supabase: SELECT vakanzen + COUNT(kandidaten_profile)
+  → Tabelle füllt sich (vorher: Skeleton-Rows)
+
+"Neue Vakanz" Formular abgeschickt
+  → POST /api/vakanzen (mit Zod-Validierung)
+  → Supabase INSERT
+  → GET /api/vakanzen erneut (re-fetch)
+  → Toast "Vakanz erstellt"
+
+"Bearbeiten" Formular gespeichert
+  → PUT /api/vakanzen/[id]
+  → Supabase UPDATE
+  → Re-fetch → Toast "Vakanz aktualisiert"
+
+"Schließen" bestätigt
+  → PATCH /api/vakanzen/[id]/status  { status: "Geschlossen" }
+  → Supabase UPDATE
+  → Re-fetch → Toast "Vakanz geschlossen"
+```
+
+---
+
+### Wiederverwendung bestehender Komponenten
+
+| Komponente | Aktion |
+|------------|--------|
+| `TagInput` (vakanzen/page.tsx) | Wird aus der Seite extrahiert oder direkt im Sheet wiederverwendet |
+| `SkillTags` | Bleibt als Anzeige-Komponente in der Tabelle |
+| Bestehende Filter-Logik | Bleibt 1:1 erhalten — funktioniert mit echten Daten genauso |
+| `useUser()` aus PROJ-1 | Rolle für Sichtbarkeits-Steuerung (Button, Budget-Spalte) |
+| AlertDialog | Aus `src/components/ui/alert-dialog.tsx` — kein Install nötig |
+| Sheet | Aus `src/components/ui/sheet.tsx` — bereits vorhanden |
+
+---
+
+### Tech-Entscheidungen
+
+| Entscheidung | Begründung |
+|---|---|
+| API Routes statt direktem Supabase-Client im Browser | Budget-Filterung und Rollenprüfung laufen server-seitig — nicht manipulierbar |
+| Re-fetch nach Mutation (kein optimistic update) | Einfacher, korrekt für ein internes Tool mit wenigen gleichzeitigen Usern |
+| Zod-Validierung auf API-Ebene | Verhindert inkonsistente Daten auch bei direkten API-Aufrufen |
+| Formular als Sheet (Schiebepanel) | Bestehender UX-Pattern in der App — kein neues Muster einführen |
+
+---
+
+### Neue Abhängigkeiten
+
+Keine neuen npm-Pakete nötig — alle benötigten UI-Komponenten (Sheet, AlertDialog, Select, DatePicker/Calendar) sind bereits installiert.
 
 ## QA Test Results
 _To be added by /qa_
