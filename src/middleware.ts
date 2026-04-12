@@ -1,25 +1,8 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { isAllowedRoute, isSafeRedirect } from '@/lib/rbac'
 
 const PUBLIC_ROUTES = ['/login']
-
-// Routes each role is allowed to access (prefix match)
-const ROLE_ROUTES: Record<string, string[]> = {
-  'Admin': ['/dashboard', '/vakanzen', '/profile', '/agenturen', '/abrechnung', '/admin', '/meine-profile'],
-  'Staffhub Manager': ['/dashboard', '/vakanzen', '/profile', '/agenturen', '/abrechnung'],
-  'Agentur': ['/dashboard', '/vakanzen', '/meine-profile'],
-}
-
-function isAllowedRoute(pathname: string, rolle: string): boolean {
-  const allowed = ROLE_ROUTES[rolle] ?? []
-  return allowed.some(
-    (route) => pathname === route || pathname.startsWith(route + '/')
-  )
-}
-
-function isSafeRedirect(url: string): boolean {
-  return url.startsWith('/') && !url.startsWith('//')
-}
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
