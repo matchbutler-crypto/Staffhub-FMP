@@ -1,6 +1,6 @@
 # PROJ-1: Auth & Rollenverwaltung
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-04-12
 **Last Updated:** 2026-04-12
 
@@ -219,6 +219,24 @@ Der Logout-Button in `nav-user.tsx` ruft Supabase `signOut()` auf und leitet zu 
 - **Rolle wird server-seitig geprüft**: Die Middleware läuft auf dem Server — ein User kann seine Rolle nicht im Browser manipulieren
 - **RLS als zweite Verteidigungslinie**: Auch wenn jemand die Middleware umgeht, verhindert die Datenbank-RLS unautorisierten Datenzugriff
 - **Kein Self-Signup**: `signUp()` wird nirgendwo in der App aufgerufen
+
+## Implementation Notes
+
+### Implementierte Dateien
+- `middleware.ts` — Routenschutz + RBAC + Deaktivierungs-Check (alle Routen außer /login)
+- `src/lib/supabase/server.ts` — Supabase SSR-Client für Server Components
+- `src/context/user-context.tsx` — UserProvider + useUser Hook (client-seitig)
+- `src/app/login/page.tsx` — Login-Formular (Email/Passwort, kein Self-Signup)
+- `src/components/app-sidebar.tsx` — Rollenbasierte Nav-Filterung via useUser
+- `src/components/nav-user.tsx` — Echter Name, Rolle, Logout (signOut + redirect /login)
+- `src/components/unauthorized-toast.tsx` — Toast bei ?unauthorized=1 auf /dashboard
+- `src/app/layout.tsx` — UserProvider + ThemeProvider + Toaster
+
+### Abweichungen vom Design
+- Keine: Implementierung folgt dem Tech Design 1:1
+
+### Build
+- `npm run build` → ✅ 10 Routen, keine Fehler
 
 ## QA Test Results
 _To be added by /qa_

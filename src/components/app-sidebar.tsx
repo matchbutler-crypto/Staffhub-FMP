@@ -1,18 +1,20 @@
-"use client"
+'use client'
 
-import * as React from "react"
+import * as React from 'react'
 import {
   IconBriefcase,
   IconBuilding,
   IconLayoutDashboard,
   IconReceipt,
   IconSettings,
+  IconUserCheck,
   IconUsers,
-} from "@tabler/icons-react"
+} from '@tabler/icons-react'
 
-import { NavMain } from "@/components/nav-main"
-import { NavSecondary } from "@/components/nav-secondary"
-import { NavUser } from "@/components/nav-user"
+import { NavMain } from '@/components/nav-main'
+import { NavSecondary } from '@/components/nav-secondary'
+import { NavUser } from '@/components/nav-user'
+import { useUser } from '@/context/user-context'
 import {
   Sidebar,
   SidebarContent,
@@ -21,51 +23,74 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@/components/ui/sidebar"
+} from '@/components/ui/sidebar'
 
-const data = {
-  user: {
-    name: "Max Muster",
-    email: "manager@staffhub.de",
-    avatar: "",
+const ALL_NAV_MAIN = [
+  {
+    title: 'Dashboard',
+    url: '/dashboard',
+    icon: IconLayoutDashboard,
+    roles: ['Admin', 'Staffhub Manager', 'Agentur'],
   },
-  navMain: [
-    {
-      title: "Dashboard",
-      url: "/dashboard",
-      icon: IconLayoutDashboard,
-    },
-    {
-      title: "Vakanzen",
-      url: "/vakanzen",
-      icon: IconBriefcase,
-    },
-    {
-      title: "Profile",
-      url: "/profile",
-      icon: IconUsers,
-    },
-    {
-      title: "Agenturen",
-      url: "/agenturen",
-      icon: IconBuilding,
-    },
-    {
-      title: "Abrechnung",
-      url: "/abrechnung",
-      icon: IconReceipt,
-    },
-  ],
-  navSecondary: [
-    {
-      title: "Admin",
-      url: "/admin",
-      icon: IconSettings,
-    },
-  ],
-}
+  {
+    title: 'Vakanzen',
+    url: '/vakanzen',
+    icon: IconBriefcase,
+    roles: ['Admin', 'Staffhub Manager', 'Agentur'],
+  },
+  {
+    title: 'Profile',
+    url: '/profile',
+    icon: IconUsers,
+    roles: ['Admin', 'Staffhub Manager'],
+  },
+  {
+    title: 'Agenturen',
+    url: '/agenturen',
+    icon: IconBuilding,
+    roles: ['Admin', 'Staffhub Manager'],
+  },
+  {
+    title: 'Abrechnung',
+    url: '/abrechnung',
+    icon: IconReceipt,
+    roles: ['Admin', 'Staffhub Manager'],
+  },
+  {
+    title: 'Meine Profile',
+    url: '/meine-profile',
+    icon: IconUserCheck,
+    roles: ['Admin', 'Agentur'],
+  },
+]
+
+const ALL_NAV_SECONDARY = [
+  {
+    title: 'Admin',
+    url: '/admin',
+    icon: IconSettings,
+    roles: ['Admin'],
+  },
+]
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const { user } = useUser()
+  const rolle = user?.rolle ?? 'Agentur'
+
+  const navMain = ALL_NAV_MAIN.filter((item) => item.roles.includes(rolle))
+  const navSecondary = ALL_NAV_SECONDARY.filter((item) =>
+    item.roles.includes(rolle)
+  )
+
+  const initials = user?.name
+    ? user.name
+        .split(' ')
+        .map((n) => n[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2)
+    : 'U'
+
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
@@ -86,11 +111,21 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navMain} />
-        <NavSecondary items={data.navSecondary} className="mt-auto" />
+        <NavMain items={navMain} />
+        {navSecondary.length > 0 && (
+          <NavSecondary items={navSecondary} className="mt-auto" />
+        )}
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser
+          user={{
+            name: user?.name ?? '…',
+            email: user?.email ?? '',
+            avatar: '',
+            rolle: user?.rolle ?? '',
+            initials,
+          }}
+        />
       </SidebarFooter>
     </Sidebar>
   )

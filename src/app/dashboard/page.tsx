@@ -11,6 +11,7 @@ import {
 
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
+import { UnauthorizedToast } from "@/components/unauthorized-toast"
 import {
   Card,
   CardContent,
@@ -176,6 +177,7 @@ export default function DashboardPage() {
     >
       <AppSidebar variant="inset" />
       <SidebarInset>
+        <UnauthorizedToast />
         <SiteHeader title="Dashboard" />
         <div className="flex flex-1 flex-col">
           <div className="@container/main flex flex-1 flex-col gap-2">
