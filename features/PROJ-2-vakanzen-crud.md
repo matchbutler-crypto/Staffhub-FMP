@@ -1,6 +1,6 @@
 # PROJ-2: Vakanzen-CRUD
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-04-12
 **Last Updated:** 2026-04-12
 
