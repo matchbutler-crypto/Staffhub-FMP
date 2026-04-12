@@ -1,6 +1,6 @@
 # PROJ-1: Auth & Rollenverwaltung
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-04-12
 **Last Updated:** 2026-04-12
 
@@ -100,7 +100,125 @@ Login-System via Supabase Auth (Email/Passwort). Kein Self-Signup — Accounts w
 ---
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Übersicht
+
+Die Authentifizierung läuft vollständig über **Supabase Auth** (Email/Passwort). Der Schutz aller Routen erfolgt zentral in einer **Next.js Middleware** — einer einzigen Datei, die bei jedem Request ausgeführt wird, bevor die Seite gerendert wird. Die Rolle des Users wird aus der `profiles`-Datenbanktabelle gelesen.
+
+---
+
+### Neue Dateien & Komponenten
+
+```
+middleware.ts                          ← NEU: Routenschutz + RBAC (läuft serverseitig vor jeder Seite)
+src/
+  lib/
+    supabase/
+      server.ts                        ← NEU: Supabase-Client für Server Components
+      middleware.ts                    ← NEU: Supabase-Client speziell für Middleware
+  app/
+    login/
+      page.tsx                         ← NEU: Login-Seite (Email + Passwort Formular)
+    (protected)/
+      layout.tsx                       ← NEU: Wrapper für alle geschützten Seiten (prüft Auth)
+      dashboard/page.tsx               ← VERSCHOBEN (von src/app/dashboard/)
+      vakanzen/page.tsx                ← VERSCHOBEN
+      profile/page.tsx                 ← VERSCHOBEN
+      agenturen/page.tsx               ← VERSCHOBEN
+      abrechnung/page.tsx              ← VERSCHOBEN
+      admin/page.tsx                   ← VERSCHOBEN
+      meine-profile/page.tsx           ← VERSCHOBEN
+  components/
+    app-sidebar.tsx                    ← ANGEPASST: Zeigt nur rollenerlaubte Nav-Einträge
+    nav-user.tsx                       ← ANGEPASST: Echter Name, Rolle, Logout-Button
+  context/
+    user-context.tsx                   ← NEU: Stellt User + Rolle client-seitig bereit
+```
+
+---
+
+### Wie die einzelnen Teile zusammenspielen
+
+#### 1. Middleware (Torwächter)
+Die Middleware sitzt vor **jeder** Seite. Bei jedem Request prüft sie:
+
+1. Hat der User eine gültige Session? → Nein → Weiterleitung zu `/login?redirectTo=<aktuelle URL>`
+2. Ruft ein eingeloggter User `/login` auf? → Weiterleitung zu `/dashboard`
+3. Hat der User die nötige Rolle für diese Route? → Nein → Weiterleitung zu `/dashboard` (Unauthorized-Flag wird als URL-Parameter übergeben)
+4. Ist der Account deaktiviert (`aktiv = false`)? → Weiterleitung zu `/login?error=deactivated`
+
+Die Middleware liest die Rolle einmalig aus `profiles` und entscheidet anhand der Rollenmatrix.
+
+#### 2. Login-Seite (`/login`)
+- Einfaches Formular: E-Mail + Passwort + Submit-Button
+- Clientseitige Validierung (Felder dürfen nicht leer sein)
+- Bei Fehler: Fehlermeldung direkt unter dem Formular
+- Kein "Registrieren"-Link (kein Self-Signup)
+- Nach erfolgreichem Login: Weiterleitung zu `redirectTo` oder `/dashboard`
+
+#### 3. Route-Gruppierung `(protected)`
+Alle geschützten Seiten werden in einer Route-Gruppe zusammengefasst. Diese Gruppe hat ein eigenes Layout, das die Sidebar + Header einbindet. Die Login-Seite liegt **außerhalb** dieser Gruppe — sie hat kein Sidebar-Layout.
+
+```
+src/app/
+  login/page.tsx          ← kein Sidebar-Layout
+  (protected)/
+    layout.tsx            ← Sidebar + Header für alle geschützten Seiten
+    dashboard/page.tsx
+    vakanzen/page.tsx
+    ...
+```
+
+#### 4. User Context
+Damit alle Client-Komponenten (Sidebar, Nav-User) auf den eingeloggten User zugreifen können, ohne bei jeder Komponente neu die DB abzufragen, wird der User einmalig im `(protected)/layout.tsx` aus der DB geladen und über einen React Context weitergegeben.
+
+```
+Layout lädt User aus DB
+    ↓
+UserContext stellt { name, rolle, agentur_id } bereit
+    ↓
+app-sidebar.tsx liest Rolle → zeigt erlaubte Nav-Einträge
+nav-user.tsx liest Name + Rolle → zeigt User-Info + Logout
+```
+
+#### 5. Rollenbasierte Sidebar-Navigation
+Die Sidebar-Komponente erhält die Rolle aus dem Context und filtert die Nav-Einträge:
+
+| Rolle | Sichtbare Nav-Einträge |
+|-------|----------------------|
+| Admin | Dashboard, Vakanzen, Profile, Agenturen, Abrechnung, Admin |
+| Staffhub Manager | Dashboard, Vakanzen, Profile, Agenturen, Abrechnung |
+| Agentur | Dashboard, Vakanzen, Meine Profile |
+
+#### 6. Logout
+Der Logout-Button in `nav-user.tsx` ruft Supabase `signOut()` auf und leitet zu `/login` weiter. Die Middleware schützt danach automatisch alle Routen.
+
+---
+
+### Datenspeicherung
+
+| Was | Wo | Warum |
+|-----|----|-------|
+| Session (JWT Token) | Browser `localStorage` | Supabase Standard — bleibt nach Browser-Neustart bestehen |
+| User-Profil (Name, Rolle) | Supabase `profiles`-Tabelle | Zentrale Verwaltung, RLS-geschützt |
+| Aktiv-Status | `profiles.aktiv` (Boolean) | Ermöglicht Deaktivierung ohne Supabase Auth zu berühren |
+
+---
+
+### Neue Abhängigkeit
+
+| Paket | Zweck |
+|-------|-------|
+| `@supabase/ssr` | Supabase-Client für Next.js Server Components und Middleware (Cookie-basiertes Session-Handling statt localStorage) |
+
+---
+
+### Sicherheitsüberlegungen
+
+- **`redirectTo`-Validierung**: Nur Pfade, die mit `/` beginnen und keine `//` oder externe Domains enthalten, werden akzeptiert
+- **Rolle wird server-seitig geprüft**: Die Middleware läuft auf dem Server — ein User kann seine Rolle nicht im Browser manipulieren
+- **RLS als zweite Verteidigungslinie**: Auch wenn jemand die Middleware umgeht, verhindert die Datenbank-RLS unautorisierten Datenzugriff
+- **Kein Self-Signup**: `signUp()` wird nirgendwo in der App aufgerufen
 
 ## QA Test Results
 _To be added by /qa_

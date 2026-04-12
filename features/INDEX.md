@@ -14,7 +14,7 @@
 
 | ID | Feature | Status | Spec | Created |
 |----|---------|--------|------|---------|
-| PROJ-1 | Auth & Rollenverwaltung (Login, RBAC via Supabase Auth) | Planned | [PROJ-1](PROJ-1-auth-rollenverwaltung.md) | 2026-04-12 |
+| PROJ-1 | Auth & Rollenverwaltung (Login, RBAC via Supabase Auth) | Architected | [PROJ-1](PROJ-1-auth-rollenverwaltung.md) | 2026-04-12 |
 | PROJ-2 | Vakanzen-CRUD (echte Supabase-Daten statt Mock) | Planned | – | 2026-04-12 |
 | PROJ-3 | Profil-Einreichung + CV-Upload (Supabase Storage) | Planned | – | 2026-04-12 |
 | PROJ-4 | KI-Bewertung via Ollama (lokal, automatisch nach Profil-Upload) | Planned | – | 2026-04-12 |
