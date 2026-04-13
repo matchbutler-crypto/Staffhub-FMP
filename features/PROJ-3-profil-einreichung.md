@@ -1,6 +1,6 @@
 # PROJ-3: Profil-Einreichung + CV-Upload
 
-## Status: Planned
+## Status: In Progress
 **Created:** 2026-04-13
 **Last Updated:** 2026-04-13
 

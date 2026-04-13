@@ -203,8 +203,8 @@ export default function AgenturenPage() {
     <SidebarProvider
       style={
         {
-          "--sidebar-width": "calc(var(--spacing) * 72)",
-          "--header-height": "calc(var(--spacing) * 12)",
+          "--sidebar-width": "18rem",
+          "--header-height": "3rem",
         } as React.CSSProperties
       }
     >

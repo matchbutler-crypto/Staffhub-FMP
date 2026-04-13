@@ -105,20 +105,17 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-sm space-y-6">
-        {/* Brand */}
-        <div className="flex items-center gap-2 justify-center">
-          <div className="flex size-8 items-center justify-center rounded bg-primary">
-            <IconBriefcase className="size-4 text-primary-foreground" />
-          </div>
-          <span className="text-xl font-semibold">Staffhub FMP</span>
+        <div className="flex flex-col items-center gap-2 text-center">
+          <IconBriefcase className="size-8" />
+          <h1 className="text-2xl font-semibold">Staffhub FMP</h1>
+          <p className="text-muted-foreground text-sm">Freelancer Management Platform</p>
         </div>
-
         <Card>
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-xl">Anmelden</CardTitle>
-            <CardDescription>Gib deine Zugangsdaten ein</CardDescription>
+          <CardHeader>
+            <CardTitle>Anmelden</CardTitle>
+            <CardDescription>Gib deine Zugangsdaten ein.</CardDescription>
           </CardHeader>
           <CardContent>
             <Suspense>
@@ -126,10 +123,6 @@ export default function LoginPage() {
             </Suspense>
           </CardContent>
         </Card>
-
-        <p className="text-center text-xs text-muted-foreground">
-          Kein Account? Wende dich an den Administrator.
-        </p>
       </div>
     </div>
   )
