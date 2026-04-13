@@ -1,8 +1,8 @@
 # PROJ-2: Vakanzen-CRUD
 
-## Status: In Progress
+## Status: Deployed
 **Created:** 2026-04-12
-**Last Updated:** 2026-04-12
+**Last Updated:** 2026-04-13
 
 ## Implementation Notes (Backend — 2026-04-12)
 - Migration erstellt: `supabase/migrations/20260412_proj2_vakanzen.sql`
