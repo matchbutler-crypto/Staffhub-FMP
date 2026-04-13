@@ -314,7 +314,7 @@ Keine neuen npm-Pakete nötig — alle benötigten UI-Komponenten (Sheet, AlertD
 
 ### Bugs gefunden
 
-#### PROJ-2-BUG-01 — Medium (offen)
+#### PROJ-2-BUG-01 — ✅ Behoben
 **Titel:** Middleware gibt 307 Redirect statt 401 JSON für unauthentifizierte API-Requests  
 **Severity:** Medium  
 **Beschreibung:** `src/middleware.ts` interceptiert alle Routen inkl. `/api/*`. Bei fehlender Session gibt sie 307 Redirect zu `/login` zurück statt `401 { error: "..." }`. Für Browser-Clients kein Problem, für API-Clients (curl, externe Services) unerwartet.  
@@ -333,7 +333,7 @@ curl -i --max-redirs 0 http://localhost:3010/api/vakanzen
 **Beschreibung:** Zod-Schema validiert `startdatum` nur als `z.string().min(1)`. Werte wie `"abc"` bestehen die Validierung, scheitern aber beim Supabase INSERT mit einem DB-Error statt einer sauberen 400-Antwort.  
 **Fix:** `z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Ungültiges Datum (YYYY-MM-DD)')` oder `z.coerce.date()`.
 
-#### PROJ-2-BUG-03 — Medium (neu)
+#### PROJ-2-BUG-03 — ✅ Behoben
 **Titel:** Vitest inkludiert Playwright-Specs aus `tests/` — 2 Test-Files als "failed" gemeldet  
 **Severity:** Medium  
 **Beschreibung:** `vitest.config.ts` hat kein `exclude`-Pattern für `tests/`. Vitest versucht `tests/PROJ-1-auth.spec.ts` und `tests/PROJ-2-vakanzen-crud.spec.ts` als Unit-Tests auszuführen, was wegen `test.describe()` (Playwright-Syntax) fehlschlägt. `npm test` meldet irreführend "2 failed" — obwohl alle echten Unit-Tests (37/37) grün sind.  
@@ -366,9 +366,7 @@ curl -i --max-redirs 0 http://localhost:3010/api/vakanzen
 
 ### Produktionsreife-Entscheidung
 
-**NICHT READY** — 2 Medium Bugs offen (PROJ-2-BUG-01, PROJ-2-BUG-03)
-
-Keine Critical oder High Bugs. PROJ-2-BUG-01 (Middleware 307→401) sollte vor Deployment gefixt werden — Fix ist bekannt und in resplan bereits umgesetzt. PROJ-2-BUG-03 (Vitest/Playwright Konflikt) ist ein Infrastruktur-Fix der `npm test` korrekt macht.
+**READY** — Keine Critical oder High Bugs. PROJ-2-BUG-01 + BUG-03 behoben. BUG-02 (Low) bleibt offen, kein Deployment-Blocker.
 
 ## Deployment
 _To be added by /deploy_

@@ -46,8 +46,11 @@ export async function middleware(request: NextRequest) {
 
   // ── Protected routes ───────────────────────────────��─────────────────────
 
-  // No session → redirect to login with return URL
+  // No session → API: 401 JSON, Seiten: Redirect /login
   if (!user) {
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 })
+    }
     const loginUrl = new URL('/login', request.url)
     const redirectTo = pathname + request.nextUrl.search
     if (isSafeRedirect(redirectTo)) {
