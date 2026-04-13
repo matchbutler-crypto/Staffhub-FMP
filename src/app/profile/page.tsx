@@ -1,9 +1,11 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import {
   IconDownload,
+  IconMessage,
   IconSearch,
 } from "@tabler/icons-react"
 
@@ -76,6 +78,7 @@ function TableSkeletonRows({ cols, rows = 5 }: { cols: number; rows?: number }) 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function ProfilePage() {
+  const router = useRouter()
   const [profile, setProfile] = React.useState<KandidatenProfil[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
@@ -216,10 +219,13 @@ export default function ProfilePage() {
                         </TableRow>
                       ) : (
                         filtered.map((p) => (
-                          <TableRow key={p.id}>
+                          <TableRow
+                            key={p.id}
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() => router.push(`/profile/${p.id}`)}
+                          >
                             <TableCell className="font-medium">{p.kandidatenname}</TableCell>
                             <TableCell className="text-sm text-muted-foreground">
-                              {/* agentur_name wird in PROJ-3 Backend via JOIN geliefert */}
                               {(p as KandidatenProfil & { agentur_name?: string }).agentur_name ?? "–"}
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
@@ -237,19 +243,30 @@ export default function ProfilePage() {
                             <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                               {new Date(p.created_at).toLocaleDateString("de-DE")}
                             </TableCell>
-                            <TableCell>
-                              {p.cv_pfad && (
+                            <TableCell onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center gap-1">
                                 <Button
                                   variant="ghost"
                                   size="icon"
                                   className="size-7"
-                                  disabled={downloadingId === p.id}
-                                  onClick={() => handleCvDownload(p.id, p.kandidatenname)}
-                                  title="Lebenslauf herunterladen"
+                                  onClick={() => router.push(`/profile/${p.id}`)}
+                                  title="Kommentare & Details"
                                 >
-                                  <IconDownload className="size-3.5" />
+                                  <IconMessage className="size-3.5" />
                                 </Button>
-                              )}
+                                {p.cv_pfad && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="size-7"
+                                    disabled={downloadingId === p.id}
+                                    onClick={() => handleCvDownload(p.id, p.kandidatenname)}
+                                    title="Lebenslauf herunterladen"
+                                  >
+                                    <IconDownload className="size-3.5" />
+                                  </Button>
+                                )}
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))
