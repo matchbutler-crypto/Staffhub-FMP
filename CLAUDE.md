@@ -1,6 +1,13 @@
-# AI Coding Starter Kit
+# StaffHub FMP — Freelancer Management Platform
 
-> A Next.js template with an AI-powered development workflow using specialized skills for Requirements, Architecture, Frontend, Backend, QA, and Deployment.
+> ⚠️ DIESES PROJEKT IST NICHT RESPLAN.
+> resplan liegt unter: /Users/A200296225/Desktop/Projekt/Ressourcenmgmt/resplan/
+> StaffHub FMP (dieses Projekt) liegt unter: /Users/A200296225/Desktop/Projekt/StaffHub FMP/template_ui_extracted/
+
+StaffHub FMP ist eine Web-Plattform zur Verwaltung von Freelancer-Vakanzen und Kandidaten-Profilen.
+Sie verbindet den Staffhub Manager mit externen Freelancer-Agenturen (Vakanz → Profil-Einreichung → KI-Bewertung → Beauftragung → Abrechnung).
+
+**Stack:** Next.js 16, Supabase (Auth + DB + Storage), Tailwind CSS, shadcn/ui, Ollama (KI lokal)
 
 ## Tech Stack
 
