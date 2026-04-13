@@ -15,6 +15,7 @@ import {
 import { useUser } from "@/context/user-context"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
+import { ProfilEinreichenSheet } from "@/components/profil-einreichen-sheet"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -757,6 +758,9 @@ export default function VakanzenPage() {
   const [closeDialogOpen, setCloseDialogOpen] = React.useState(false)
   const [closingVakanz, setClosingVakanz] = React.useState<Vakanz | null>(null)
 
+  const [profilSheetOpen, setProfilSheetOpen] = React.useState(false)
+  const [profilVakanz, setProfilVakanz] = React.useState<Vakanz | null>(null)
+
   // ── Data fetching ──────────────────────────────────────────────────────────
 
   async function fetchVakanzen() {
@@ -820,8 +824,8 @@ export default function VakanzenPage() {
     <SidebarProvider
       style={
         {
-          "--sidebar-width": "calc(var(--spacing) * 72)",
-          "--header-height": "calc(var(--spacing) * 12)",
+          "--sidebar-width": "18rem",
+          "--header-height": "3rem",
         } as React.CSSProperties
       }
     >
@@ -998,6 +1002,16 @@ export default function VakanzenPage() {
                                         Schließen
                                       </DropdownMenuItem>
                                     </>
+                                  ) : isAgentur ? (
+                                    <DropdownMenuItem
+                                      disabled={v.status !== "Offen"}
+                                      onClick={() => {
+                                        setProfilVakanz(v)
+                                        setProfilSheetOpen(true)
+                                      }}
+                                    >
+                                      Profil einreichen
+                                    </DropdownMenuItem>
                                   ) : (
                                     <DropdownMenuItem>Details anzeigen</DropdownMenuItem>
                                   )}
@@ -1034,6 +1048,17 @@ export default function VakanzenPage() {
         vakanz={closingVakanz}
         onSuccess={fetchVakanzen}
       />
+
+      {/* ProfilEinreichenSheet */}
+      {profilVakanz && (
+        <ProfilEinreichenSheet
+          open={profilSheetOpen}
+          onOpenChange={setProfilSheetOpen}
+          vakanzId={profilVakanz.id}
+          vakanzTitel={profilVakanz.titel}
+          onSuccess={fetchVakanzen}
+        />
+      )}
     </SidebarProvider>
   )
 }
