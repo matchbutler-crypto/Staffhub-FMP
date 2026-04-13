@@ -5,8 +5,12 @@ import { useParams, useRouter } from "next/navigation"
 import { toast } from "sonner"
 import {
   IconArrowLeft,
+  IconBrain,
+  IconCircleCheck,
+  IconCircleX,
   IconDownload,
   IconMessage,
+  IconRefresh,
   IconSend,
 } from "@tabler/icons-react"
 
@@ -27,6 +31,17 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Textarea } from "@/components/ui/textarea"
 
 // ── Types ──────────────────────────────────────────────────────────────────────
+
+interface KiBewertung {
+  id: string
+  score: number
+  empfehlung: string
+  begruendung: string
+  skill_vorhanden: string[]
+  skill_fehlend: string[]
+  model: string
+  created_at: string
+}
 
 interface Kommentar {
   id: string
@@ -104,6 +119,9 @@ export default function ProfilDetailPage() {
   const [sendingKommentar, setSendingKommentar] = React.useState(false)
   const [updatingStatus, setUpdatingStatus] = React.useState(false)
   const [downloadingCv, setDownloadingCv] = React.useState(false)
+  const [kiBewertung, setKiBewertung] = React.useState<KiBewertung | null>(null)
+  const [triggeringKi, setTriggeringKi] = React.useState(false)
+  const [kiExpanded, setKiExpanded] = React.useState(false)
   const kommentarEndRef = React.useRef<HTMLDivElement>(null)
 
   async function fetchProfil() {
@@ -131,9 +149,43 @@ export default function ProfilDetailPage() {
     }
   }
 
+  async function fetchKiBewertung() {
+    try {
+      const res = await fetch(`/api/profile/${id}/ki-bewertung`)
+      if (res.ok) {
+        const data = await res.json()
+        setKiBewertung(data.bewertung ?? null)
+      }
+    } catch {
+      // silent
+    }
+  }
+
+  async function handleTriggerKi() {
+    setTriggeringKi(true)
+    try {
+      const res = await fetch(`/api/profile/${id}/ki-bewertung`, { method: "POST" })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        toast.error(body.error ?? "KI-Bewertung fehlgeschlagen.")
+        return
+      }
+      const data = await res.json()
+      setKiBewertung(data.bewertung)
+      setProfil((p) => p ? { ...p, ki_score: data.bewertung.score } : p)
+      setKiExpanded(true)
+      toast.success("KI-Bewertung abgeschlossen.")
+    } catch {
+      toast.error("Ollama nicht erreichbar.")
+    } finally {
+      setTriggeringKi(false)
+    }
+  }
+
   React.useEffect(() => {
     fetchProfil()
     fetchKommentare()
+    fetchKiBewertung()
   }, [id])
 
   React.useEffect(() => {
@@ -343,6 +395,89 @@ export default function ProfilDetailPage() {
                   <div>
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Profiltext</p>
                     <p className="text-sm whitespace-pre-wrap leading-relaxed">{profil.profiltext}</p>
+                  </div>
+
+                  {/* KI-Bewertung */}
+                  <div className="rounded-lg border p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <IconBrain className="size-4 text-muted-foreground" />
+                        <p className="text-sm font-medium">KI-Bewertung</p>
+                        {kiBewertung && (
+                          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${
+                            kiBewertung.score >= 70
+                              ? "bg-green-100 text-green-700 border-green-200"
+                              : kiBewertung.score >= 40
+                              ? "bg-yellow-100 text-yellow-700 border-yellow-200"
+                              : "bg-red-100 text-red-700 border-red-200"
+                          }`}>
+                            {kiBewertung.score}/100
+                          </span>
+                        )}
+                        {kiBewertung && (
+                          <span className="text-xs text-muted-foreground">{kiBewertung.empfehlung}</span>
+                        )}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={triggeringKi}
+                        onClick={handleTriggerKi}
+                        className="gap-1.5"
+                      >
+                        <IconRefresh className={`size-3.5 ${triggeringKi ? "animate-spin" : ""}`} />
+                        {triggeringKi ? "Läuft…" : kiBewertung ? "Neu bewerten" : "Bewerten"}
+                      </Button>
+                    </div>
+
+                    {kiBewertung ? (
+                      <>
+                        <p className="text-sm text-muted-foreground">{kiBewertung.begruendung}</p>
+                        <button
+                          className="text-xs text-muted-foreground underline underline-offset-2 cursor-pointer"
+                          onClick={() => setKiExpanded((v) => !v)}
+                        >
+                          {kiExpanded ? "Details ausblenden" : "Skill-Coverage anzeigen"}
+                        </button>
+                        {kiExpanded && (
+                          <div className="grid grid-cols-2 gap-3 pt-1">
+                            <div>
+                              <p className="text-xs font-medium text-green-700 mb-1">Vorhanden</p>
+                              <div className="flex flex-wrap gap-1">
+                                {kiBewertung.skill_vorhanden.length > 0
+                                  ? kiBewertung.skill_vorhanden.map((s) => (
+                                    <span key={s} className="inline-flex items-center gap-0.5 rounded-full bg-green-50 border border-green-200 px-2 py-0.5 text-xs text-green-700">
+                                      <IconCircleCheck className="size-3" />{s}
+                                    </span>
+                                  ))
+                                  : <span className="text-xs text-muted-foreground">–</span>
+                                }
+                              </div>
+                            </div>
+                            <div>
+                              <p className="text-xs font-medium text-red-700 mb-1">Fehlend</p>
+                              <div className="flex flex-wrap gap-1">
+                                {kiBewertung.skill_fehlend.length > 0
+                                  ? kiBewertung.skill_fehlend.map((s) => (
+                                    <span key={s} className="inline-flex items-center gap-0.5 rounded-full bg-red-50 border border-red-200 px-2 py-0.5 text-xs text-red-700">
+                                      <IconCircleX className="size-3" />{s}
+                                    </span>
+                                  ))
+                                  : <span className="text-xs text-muted-foreground">–</span>
+                                }
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                          Bewertet mit {kiBewertung.model} · {new Date(kiBewertung.created_at).toLocaleDateString("de-DE")}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        Noch keine KI-Bewertung. Klicke „Bewerten" um Ollama zu starten.
+                      </p>
+                    )}
                   </div>
 
                   {/* Kommentar Agentur */}

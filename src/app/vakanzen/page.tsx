@@ -1056,7 +1056,12 @@ export default function VakanzenPage() {
           onOpenChange={setProfilSheetOpen}
           vakanzId={profilVakanz.id}
           vakanzTitel={profilVakanz.titel}
-          onSuccess={fetchVakanzen}
+          onSuccess={(newProfilId?: string) => {
+            fetchVakanzen()
+            if (newProfilId) {
+              fetch(`/api/profile/${newProfilId}/ki-bewertung`, { method: "POST" }).catch(() => {})
+            }
+          }}
         />
       )}
     </SidebarProvider>

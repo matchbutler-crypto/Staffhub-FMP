@@ -126,6 +126,14 @@ export default function MeineProfilePage() {
     }
   }
 
+  async function handleProfilSuccess(newProfilId?: string) {
+    await fetchProfile()
+    // KI-Bewertung asynchron triggern (fire-and-forget)
+    if (newProfilId) {
+      fetch(`/api/profile/${newProfilId}/ki-bewertung`, { method: "POST" }).catch(() => {})
+    }
+  }
+
   React.useEffect(() => {
     fetchProfile()
   }, [])
@@ -334,7 +342,7 @@ export default function MeineProfilePage() {
           vakanzId={editingProfil.vakanz_id}
           vakanzTitel={editingProfil.vakanz_titel ?? ""}
           editProfil={editingProfil}
-          onSuccess={fetchProfile}
+          onSuccess={handleProfilSuccess}
         />
       )}
 

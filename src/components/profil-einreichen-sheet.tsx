@@ -210,7 +210,7 @@ interface ProfilEinreichenSheetProps {
   vakanzId: string
   vakanzTitel: string
   editProfil?: KandidatenProfil | null
-  onSuccess: () => void
+  onSuccess: (newProfilId?: string) => void
 }
 
 export function ProfilEinreichenSheet({
@@ -322,7 +322,8 @@ export function ProfilEinreichenSheet({
 
       toast.success(isEdit ? 'Profil aktualisiert.' : 'Profil eingereicht.')
       onOpenChange(false)
-      onSuccess()
+      const body = await res.json().catch(() => ({}))
+      onSuccess(!isEdit ? body.profil?.id : undefined)
     } catch {
       toast.error('Verbindungsfehler — bitte erneut versuchen.')
     } finally {
