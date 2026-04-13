@@ -34,7 +34,7 @@ DROP POLICY IF EXISTS "Agentur sieht eigene Profile" ON kandidaten_profile;
 CREATE POLICY "Agentur sieht eigene Profile" ON kandidaten_profile
   FOR SELECT USING (
     agentur_id = get_my_agentur_id()
-    OR get_my_rolle() IN ('Manager', 'Admin')
+    OR get_my_rolle() IN ('Staffhub Manager', 'Admin')
   );
 
 -- INSERT: Nur Agenturen dürfen einreichen (eigene agentur_id)
@@ -59,7 +59,7 @@ CREATE POLICY "Agentur kann eigene Profile bearbeiten" ON kandidaten_profile
 DROP POLICY IF EXISTS "Manager kann Status aktualisieren" ON kandidaten_profile;
 CREATE POLICY "Manager kann Status aktualisieren" ON kandidaten_profile
   FOR UPDATE USING (
-    get_my_rolle() IN ('Manager', 'Admin')
+    get_my_rolle() IN ('Staffhub Manager', 'Admin')
   );
 
 -- DELETE: Nur eigene Profile, nur wenn Status = 'Eingereicht'
@@ -101,7 +101,7 @@ VALUES
     'cv-uploads',
     'SELECT',
     $policy$
-    get_my_rolle() IN ('Manager', 'Admin')
+    get_my_rolle() IN ('Staffhub Manager', 'Admin')
     OR EXISTS (
       SELECT 1 FROM kandidaten_profile kp
       WHERE kp.cv_pfad = storage.objects.name

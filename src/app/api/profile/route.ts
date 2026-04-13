@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Account deaktiviert' }, { status: 403 })
   }
 
-  const isManager = profile.rolle === 'Manager' || profile.rolle === 'Admin'
+  const isManager = profile.rolle === 'Staffhub Manager' || profile.rolle === 'Admin'
 
   // Manager/Admin sehen alle; Agentur sieht nur eigene (via RLS)
   const query = supabase

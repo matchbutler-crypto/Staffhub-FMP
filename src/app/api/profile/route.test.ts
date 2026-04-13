@@ -161,7 +161,7 @@ describe('GET /api/profile', () => {
   it('gibt agentur_name zurück für Manager', async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: 'user-2' } }, error: null })
     mockProfileSelect.mockResolvedValue({
-      data: { rolle: 'Manager', aktiv: true, agentur_id: null },
+      data: { rolle: 'Staffhub Manager', aktiv: true, agentur_id: null },
       error: null,
     })
     mockProfileListSelect.mockResolvedValue({
