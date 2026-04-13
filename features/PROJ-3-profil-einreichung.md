@@ -1,6 +1,6 @@
 # PROJ-3: Profil-Einreichung + CV-Upload
 
-## Status: In Progress
+## Status: In Review
 **Created:** 2026-04-13
 **Last Updated:** 2026-04-13
 
@@ -255,7 +255,161 @@ Storage RLS: Zugriff auf `cv-uploads/{profil_id}/*` nur wenn Profil zur eigenen 
 Alle anderen benötigten Komponenten (Sheet, Form, Select, Textarea, Badge, etc.) sind bereits im Projekt vorhanden.
 
 ## QA Test Results
-_To be added by /qa_
+
+**QA-Datum:** 2026-04-13
+**QA-Engineer:** Claude Code (automatisiert)
+**Ergebnis:** ❌ NOT READY — 1 Critical Bug, 3 Low Bugs
+
+---
+
+### Acceptance Criteria Ergebnis
+
+| # | Kriterium | Status | Anmerkung |
+|---|-----------|--------|-----------|
+| AC-01 | Agentur sieht auf `/vakanzen` nur Vakanzen mit Status „Offen" | ✅ PASS | Via RLS + GET /api/vakanzen (aus PROJ-2) |
+| AC-02 | „Profil einreichen"-Button nur für Agentur-Rolle sichtbar | ✅ PASS | Überprüft in vakanzen/page.tsx |
+| AC-03 | Formular enthält alle Pflichtfelder (Name, Verfügbarkeit, Datum, Preis, Skills, Level, Text, PDF, Kommentar) | ✅ PASS | ProfilEinreichenSheet vollständig implementiert |
+| AC-04 | Nach Upload: Profil erscheint sofort in Profilliste | ✅ PASS | `onSuccess()` → fetchProfile() nach POST |
+| AC-05 | Initialer Status nach Einreichung: „Eingereicht" | ✅ PASS | Hardcoded in POST /api/profile |
+| AC-06 | PDF-Upload via Supabase Storage (Bucket: `cv-uploads`) | ✅ PASS | Implementiert in POST /api/profile |
+| AC-07 | Max. 10 MB — Fehler bei Überschreitung | ✅ PASS | Client + Server validiert |
+| AC-08 | Nur PDF-Dateien erlaubt | ✅ PASS | MIME-Type Prüfung serverseitig |
+| AC-09 | Dateiname normalisiert (`{id}/{uuid}.pdf`) | ✅ PASS | `tempId/uuidv4().pdf` bei POST; `id/uuidv4().pdf` bei PUT |
+| AC-10 | CV-Datei nicht öffentlich, nur signed URL | ✅ PASS | Bucket privat, signed URL Route implementiert |
+| AC-11 | Duplikat-Warnung bei gleichem Name + Vakanz | ✅ PASS | DuplikatWarnung-Komponente + /api/profile/duplicate-check |
+| AC-12 | Trotz Warnung einreichen möglich | ✅ PASS | Kein harter Block implementiert |
+| AC-13 | Profil bearbeiten (solange Status = „Eingereicht") | ✅ PASS | PUT /api/profile/[id] mit Status-Check |
+| AC-14 | Bearbeiten-Button deaktiviert + Tooltip bei Status ≥ „In Prüfung" | ✅ PASS | meine-profile/page.tsx — `canEdit = status === 'Eingereicht'` |
+| AC-15 | Neuer CV ersetzt alten in Storage | ✅ PASS | PUT löscht altes File nach erfolgreichem Upload |
+| AC-16 | Agentur kann Profil löschen (Status = „Eingereicht") | ✅ PASS | DELETE /api/profile/[id] mit Status-Check |
+| AC-17 | Löschen entfernt CV aus Storage | ✅ PASS | best-effort Storage.remove() nach DB-Delete |
+| AC-18 | Bestätigungs-Dialog vor dem Löschen | ✅ PASS | AlertDialog in meine-profile/page.tsx |
+| AC-19 | Löschen bei Status ≥ „In Prüfung" nicht möglich | ✅ PASS | API gibt 403; Button deaktiviert |
+| AC-20 | Agenturen sehen nur eigene Profile (RLS) | ✅ PASS | RLS Policy + agentur_id Filter |
+| AC-21 | Staffhub Manager sieht alle Profile | ❌ FAIL | **BUG-01**: `isManager` prüft `'Manager'` statt `'Staffhub Manager'` → Manager bekommt kein `agentur_name` |
+| AC-22 | Agentur A sieht nie Profile von Agentur B | ✅ PASS | RLS auf DB-Ebene |
+| AC-23 | `budget_intern` nicht für Agenturen sichtbar | ✅ PASS | Aus PROJ-2 bereits korrekt gefiltert |
+| AC-24 | `/meine-profile` — alle eigenen Profile mit Spalten | ✅ PASS | Vollständig implementiert |
+| AC-25 | Filterbar nach Vakanz, Status, Datum | ⚠️ PARTIAL | Vakanz + Status filterbar; Datum-Filter fehlt (nur Suche) |
+| AC-26 | Leerer Zustand wenn keine Profile | ✅ PASS | Leer-Zustand implementiert |
+| AC-27 | `/profile` — alle Profile aller Agenturen | ❌ FAIL | **BUG-01**: `agentur_name` wird für Manager nicht zurückgegeben (zeigt „–") |
+| AC-28 | Spalten: Kandidat, Agentur, Vakanz, Status, KI-Score, Datum | ❌ FAIL | **BUG-01**: „Agentur"-Spalte zeigt immer „–" für Manager |
+| AC-29 | Download-Button für CV (signed URL, 60 Min) | ✅ PASS | GET /api/profile/[id]/cv → 3600s signed URL |
+
+**Ergebnis:** 25 ✅ PASS | 3 ❌ FAIL (alle BUG-01) | 1 ⚠️ PARTIAL
+
+---
+
+### Bugs
+
+#### BUG-01 — CRITICAL: Manager sieht keine Agenturnamen (falsche Rollenprüfung)
+
+**Schwere:** Critical
+**Betroffen:** `GET /api/profile` → `isManager`-Check; RLS-Migration SQL
+
+**Problem:**
+In `src/app/api/profile/route.ts` (Zeile 53):
+```ts
+const isManager = profile.rolle === 'Manager' || profile.rolle === 'Admin'
+```
+Der korrekte Rollenwert in der DB ist **`'Staffhub Manager'`**, nicht `'Manager'`.
+
+**Auswirkung:**
+- `isManager` ist immer `false` für Staffhub Manager
+- API-Response enthält kein `agentur_name`
+- `/profile`-Seite zeigt in der Agentur-Spalte durchgängig „–"
+- Managers können Profile nicht einer Agentur zuordnen
+- Dasselbe Problem besteht in der lokalen Migrations-SQL (`'Manager'` statt `'Staffhub Manager'` in RLS-Policies)
+
+**Schritte zur Reproduktion:**
+1. Als Staffhub Manager einloggen
+2. `/profile` aufrufen
+3. Agentur-Spalte zeigt überall „–" statt Agenturname
+
+**Fix:** In `route.ts` Zeile 53 ersetzen:
+```ts
+const isManager = profile.rolle === 'Staffhub Manager' || profile.rolle === 'Admin'
+```
+Außerdem Migration-SQL für RLS-Policies korrigieren (`'Manager'` → `'Staffhub Manager'`).
+
+---
+
+#### BUG-02 — LOW: Datums-Filter auf `/meine-profile` fehlt
+
+**Schwere:** Low
+**Betroffen:** `src/app/meine-profile/page.tsx`
+
+**Problem:**
+Die Spec fordert: „Filterbar nach: Vakanz, Status, Datum". Es gibt einen Freitext-Suchfilter und einen Status-Filter, aber keinen expliziten Datum-Filter.
+
+**Auswirkung:** Agentur kann Profile nicht nach Einreichungsdatum filtern. Kein Datenverlust.
+
+---
+
+#### BUG-03 — LOW: Skills-Array ohne Max-Länge pro Element
+
+**Schwere:** Low
+**Betroffen:** `src/app/api/profile/route.ts` — Zod Schema
+
+**Problem:**
+```ts
+skills: z.array(z.string()).min(1)
+```
+Einzelne Skill-Strings haben kein `max()`-Limit. Ein Angreifer könnte extrem lange Strings senden.
+
+**Fix:** `z.array(z.string().max(100)).min(1).max(20)`
+
+---
+
+#### BUG-04 — LOW: `verfuegbar_ab` nicht als valides Datum validiert
+
+**Schwere:** Low
+**Betroffen:** `src/app/api/profile/route.ts` + `src/app/api/profile/[id]/route.ts`
+
+**Problem:**
+```ts
+verfuegbar_ab: z.string().min(1, 'Datum ist erforderlich'),
+```
+Kein Datum-Format-Check. `"abc"` würde Zod-Validierung passieren und erst auf DB-Ebene (Typ `DATE`) abgelehnt, was einen 500er statt 400er zurückgibt.
+
+**Fix:** `z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Datum im Format JJJJ-MM-TT erforderlich')`
+
+---
+
+### Security Audit
+
+| Check | Ergebnis |
+|-------|----------|
+| Alle API-Routen erfordern Auth | ✅ |
+| RLS auf kandidaten_profile | ✅ |
+| Manager kann nicht einreichen/löschen | ✅ |
+| Agentur kann nicht fremde Profile lesen | ✅ (RLS) |
+| CV-Bucket ist privat (kein Public Access) | ✅ |
+| MIME-Type-Validierung serverseitig | ✅ |
+| Dateigröße serverseitig validiert | ✅ |
+| Upload-before-insert mit Cleanup | ✅ |
+| Signed URL statt direktem Storage-Zugriff | ✅ |
+| Kein Original-Dateiname in Storage | ✅ |
+| SQL-Injection (Supabase parameterisiert) | ✅ |
+| XSS (React escaped by default) | ✅ |
+| Vakanz-Status wird bei POST geprüft | ✅ |
+
+---
+
+### Automated Tests
+
+| Suite | Tests | Ergebnis |
+|-------|-------|---------|
+| Vitest Unit/Integration (`npm test`) | 48 | ✅ Alle bestanden |
+| Playwright E2E (`npm run test:e2e`) | 20 (5 pass, 15 skip — keine Test-Credentials) | ✅ Keine Fehler |
+
+---
+
+### Produktionsreife-Entscheidung
+
+**❌ NOT READY** — BUG-01 (Critical) muss behoben werden.
+
+Nach dem Fix von BUG-01 ist die Entscheidung: **READY** (BUG-02/03/04 sind Low-Priorität und können im Nachgang behoben werden).
 
 ## Deployment
 _To be added by /deploy_
