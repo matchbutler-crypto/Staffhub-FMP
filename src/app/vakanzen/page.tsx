@@ -6,6 +6,8 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { toast } from "sonner"
 import {
+  IconBrandSlack,
+  IconCheck,
   IconDotsVertical,
   IconPlus,
   IconSearch,
@@ -86,6 +88,7 @@ interface Vakanz {
   budget_intern?: number | null
   profile_anzahl: number
   created_at: string
+  slack_ts?: string | null
 }
 
 // ── Zod Schema ─────────────────────────────────────────────────────────────────
@@ -817,6 +820,23 @@ export default function VakanzenPage() {
     setCloseDialogOpen(true)
   }
 
+  async function handleSlackPost(vakanz: Vakanz) {
+    try {
+      const res = await fetch(`/api/vakanzen/${vakanz.id}/slack`, { method: "POST" })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(body.error ?? "Slack-Posting fehlgeschlagen.")
+        return
+      }
+      toast.success("Vakanz in Slack gepostet.")
+      setVakanzen((prev) =>
+        prev.map((v) => v.id === vakanz.id ? { ...v, slack_ts: body.slack_ts } : v)
+      )
+    } catch {
+      toast.error("Verbindungsfehler beim Slack-Posting.")
+    }
+  }
+
   // ── Column count for skeleton (budget column conditional) ──────────────────
   const colCount = isManagerOrAdmin ? 10 : 9
 
@@ -992,6 +1012,17 @@ export default function VakanzenPage() {
                                         onClick={() => handleBearbeiten(v)}
                                       >
                                         Bearbeiten
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        onClick={() => handleSlackPost(v)}
+                                        disabled={!!v.slack_ts}
+                                      >
+                                        <span className="flex items-center gap-2">
+                                          {v.slack_ts
+                                            ? <><IconCheck className="size-3.5 text-green-600" />In Slack gepostet</>
+                                            : <><IconBrandSlack className="size-3.5" />In Slack posten</>
+                                          }
+                                        </span>
                                       </DropdownMenuItem>
                                       <DropdownMenuSeparator />
                                       <DropdownMenuItem

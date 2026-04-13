@@ -63,6 +63,7 @@ export async function GET(request: NextRequest) {
       status,
       standort,
       budget_intern,
+      slack_ts,
       created_at,
       kandidaten_profile(count)
     `)
@@ -73,13 +74,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Fehler beim Laden der Vakanzen' }, { status: 500 })
   }
 
-  // budget_intern für Agentur-Rolle herausfiltern + profile_anzahl normalisieren
+  // budget_intern + slack_ts für Agentur-Rolle herausfiltern + profile_anzahl normalisieren
   const result = (vakanzen ?? []).map((v) => {
-    const { budget_intern, kandidaten_profile, ...rest } = v
+    const { budget_intern, slack_ts, kandidaten_profile, ...rest } = v
     return {
       ...rest,
       profile_anzahl: (kandidaten_profile as { count: number }[])?.[0]?.count ?? 0,
-      ...(isAgentur ? {} : { budget_intern }),
+      ...(isAgentur ? {} : { budget_intern, slack_ts }),
     }
   })
 
