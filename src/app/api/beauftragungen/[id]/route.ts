@@ -1,0 +1,58 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { createClient } from '@/lib/supabase/server'
+
+const updateSchema = z.object({
+  einkaufspreis: z.number().min(0),
+  margenaufschlag: z.number().min(0).default(0),
+  startdatum: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  stunden_woche: z.number().int().min(1).max(168),
+})
+
+async function requireManager(supabase: Awaited<ReturnType<typeof createClient>>) {
+  const { data: { user }, error } = await supabase.auth.getUser()
+  if (error || !user) return { error: 'auth' as const }
+  const { data: profile } = await supabase
+    .from('profiles').select('rolle, aktiv').eq('id', user.id).single()
+  if (!profile?.aktiv) return { error: 'inactive' as const }
+  if (profile.rolle !== 'Staffhub Manager' && profile.rolle !== 'Admin') return { error: 'forbidden' as const }
+  return { error: null }
+}
+
+// ── PUT /api/beauftragungen/[id] ───────────────────────────────────────────────
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const supabase = await createClient()
+  const { error: authErr } = await requireManager(supabase)
+  if (authErr === 'auth') return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 })
+  if (authErr) return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
+
+  const body = await request.json().catch(() => null)
+  const parsed = updateSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Validierungsfehler', details: parsed.error.flatten().fieldErrors }, { status: 400 })
+  }
+
+  const { data, error } = await supabase
+    .from('beauftragungen')
+    .update({
+      einkaufspreis: parsed.data.einkaufspreis,
+      margenaufschlag: parsed.data.margenaufschlag,
+      startdatum: parsed.data.startdatum,
+      stunden_woche: parsed.data.stunden_woche,
+    })
+    .eq('id', id)
+    .select('id, einkaufspreis, margenaufschlag, verkaufspreis, updated_at')
+    .single()
+
+  if (error) {
+    if (error.code === 'PGRST116') return NextResponse.json({ error: 'Beauftragung nicht gefunden' }, { status: 404 })
+    return NextResponse.json({ error: 'Fehler beim Aktualisieren' }, { status: 500 })
+  }
+
+  return NextResponse.json({ beauftragung: data })
+}

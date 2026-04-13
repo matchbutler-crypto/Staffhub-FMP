@@ -2,11 +2,9 @@
 
 import * as React from "react"
 import {
-  IconBuilding,
   IconCurrencyEuro,
   IconLock,
   IconUserCheck,
-  IconUsers,
 } from "@tabler/icons-react"
 
 import { AppSidebar } from "@/components/app-sidebar"
@@ -17,196 +15,99 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import {
   Table,
   TableBody,
   TableCell,
-  TableFoot,
   TableFooter,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
 
+// ── Types ──────────────────────────────────────────────────────────────────────
+
 interface Beauftragung {
   id: string
-  agentur: string
-  kandidat: string
-  vakanz: string
-  stunden: number
+  profil_id: string
+  agentur_id: string
+  kandidatenname: string
+  erfahrungslevel: string
+  vakanz_titel: string
+  agentur_name: string
   einkaufspreis: number
   margenaufschlag: number
-  beauftragSeit: string
-  stundenMonat: number
+  verkaufspreis: number
+  marge_prozent: number
+  startdatum: string
+  stunden_woche: number
+  aktiv: boolean
 }
 
-const mockBeauftragungen: Beauftragung[] = [
-  {
-    id: "1",
-    agentur: "TechTalents GmbH",
-    kandidat: "A. Wagner",
-    vakanz: "Senior React Developer",
-    stunden: 40,
-    einkaufspreis: 680,
-    margenaufschlag: 120,
-    beauftragSeit: "01.04.2026",
-    stundenMonat: 160,
-  },
-  {
-    id: "2",
-    agentur: "TechTalents GmbH",
-    kandidat: "P. Richter",
-    vakanz: "Data Scientist",
-    stunden: 32,
-    einkaufspreis: 720,
-    margenaufschlag: 130,
-    beauftragSeit: "15.03.2026",
-    stundenMonat: 128,
-  },
-  {
-    id: "3",
-    agentur: "TechTalents GmbH",
-    kandidat: "J. Klein",
-    vakanz: "Cloud Architect",
-    stunden: 40,
-    einkaufspreis: 820,
-    margenaufschlag: 150,
-    beauftragSeit: "01.02.2026",
-    stundenMonat: 160,
-  },
-  {
-    id: "4",
-    agentur: "ProStaff AG",
-    kandidat: "T. Schulz",
-    vakanz: "Cloud Architect",
-    stunden: 40,
-    einkaufspreis: 750,
-    margenaufschlag: 140,
-    beauftragSeit: "01.04.2026",
-    stundenMonat: 160,
-  },
-  {
-    id: "5",
-    agentur: "ProStaff AG",
-    kandidat: "M. Hoffmann",
-    vakanz: "Senior React Developer",
-    stunden: 40,
-    einkaufspreis: 700,
-    margenaufschlag: 125,
-    beauftragSeit: "15.03.2026",
-    stundenMonat: 160,
-  },
-  {
-    id: "6",
-    agentur: "ProStaff AG",
-    kandidat: "C. Braun",
-    vakanz: "Backend Java Developer",
-    stunden: 32,
-    einkaufspreis: 640,
-    margenaufschlag: 110,
-    beauftragSeit: "01.03.2026",
-    stundenMonat: 128,
-  },
-  {
-    id: "7",
-    agentur: "Digital Experts",
-    kandidat: "R. Neumann",
-    vakanz: "DevOps Engineer",
-    stunden: 40,
-    einkaufspreis: 710,
-    margenaufschlag: 135,
-    beauftragSeit: "15.02.2026",
-    stundenMonat: 160,
-  },
-  {
-    id: "8",
-    agentur: "Digital Experts",
-    kandidat: "E. Schwarz",
-    vakanz: "UI/UX Designer",
-    stunden: 24,
-    einkaufspreis: 580,
-    margenaufschlag: 95,
-    beauftragSeit: "01.04.2026",
-    stundenMonat: 96,
-  },
-]
+// ── Helpers ────────────────────────────────────────────────────────────────────
 
-function calcVerkaufspreis(b: Beauftragung) {
-  return b.einkaufspreis + b.margenaufschlag
-}
-
-function calcMarge(b: Beauftragung) {
-  return b.margenaufschlag
-}
-
-function calcMargePercent(b: Beauftragung) {
-  const vp = calcVerkaufspreis(b)
-  return vp > 0 ? ((b.margenaufschlag / vp) * 100).toFixed(1) : "0.0"
+function fmt(n: number) {
+  return n.toLocaleString("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })
 }
 
 function calcMonatsumsatz(b: Beauftragung) {
-  return calcVerkaufspreis(b) * b.stundenMonat
+  // Stunden/Woche × 4,33 Wochen/Monat × Tagessatz/8h ≈ vereinfacht: stunden_woche × 4 × verkaufspreis/8
+  // Einfacher für MVP: Monatsstunden = stunden_woche × 4
+  return b.verkaufspreis * b.stunden_woche * 4
 }
 
 function calcMonatskosten(b: Beauftragung) {
-  return b.einkaufspreis * b.stundenMonat
+  return b.einkaufspreis * b.stunden_woche * 4
 }
 
-function calcMonatsmarge(b: Beauftragung) {
-  return calcMonatsumsatz(b) - calcMonatskosten(b)
+function TableSkeletonRows({ cols, rows = 5 }: { cols: number; rows?: number }) {
+  return (
+    <>
+      {Array.from({ length: rows }).map((_, i) => (
+        <TableRow key={i}>
+          {Array.from({ length: cols }).map((_, j) => (
+            <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
+          ))}
+        </TableRow>
+      ))}
+    </>
+  )
 }
 
-function fmt(n: number) {
-  return n.toLocaleString("de-DE", {
-    style: "currency",
-    currency: "EUR",
-    maximumFractionDigits: 0,
-  })
-}
+// ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function AgenturenPage() {
-  const totalUmsatz = mockBeauftragungen.reduce(
-    (s, b) => s + calcMonatsumsatz(b),
-    0
-  )
-  const totalKosten = mockBeauftragungen.reduce(
-    (s, b) => s + calcMonatskosten(b),
-    0
-  )
+  const [beauftragungen, setBeauftragungen] = React.useState<Beauftragung[]>([])
+  const [loading, setLoading] = React.useState(true)
+  const [error, setError] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    fetch("/api/beauftragungen?aktiv=true")
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      })
+      .then(setBeauftragungen)
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const totalUmsatz = beauftragungen.reduce((s, b) => s + calcMonatsumsatz(b), 0)
+  const totalKosten = beauftragungen.reduce((s, b) => s + calcMonatskosten(b), 0)
   const totalMarge = totalUmsatz - totalKosten
 
   const summaryCards = [
-    {
-      title: "Gesamt-Umsatz / Monat",
-      value: fmt(totalUmsatz),
-      icon: IconCurrencyEuro,
-    },
-    {
-      title: "Gesamt-Kosten / Monat",
-      value: fmt(totalKosten),
-      icon: IconCurrencyEuro,
-    },
-    {
-      title: "Gesamt-Marge / Monat",
-      value: fmt(totalMarge),
-      icon: IconCurrencyEuro,
-    },
-    {
-      title: "Aktive Beauftragungen",
-      value: String(mockBeauftragungen.length),
-      icon: IconUserCheck,
-    },
+    { title: "Gesamt-Umsatz / Monat", value: loading ? "–" : fmt(totalUmsatz), icon: IconCurrencyEuro },
+    { title: "Gesamt-Kosten / Monat", value: loading ? "–" : fmt(totalKosten), icon: IconCurrencyEuro },
+    { title: "Gesamt-Marge / Monat",  value: loading ? "–" : fmt(totalMarge),  icon: IconCurrencyEuro },
+    { title: "Aktive Beauftragungen", value: loading ? "–" : String(beauftragungen.length), icon: IconUserCheck },
   ]
 
   return (
     <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "18rem",
-          "--header-height": "3rem",
-        } as React.CSSProperties
-      }
+      style={{ "--sidebar-width": "18rem", "--header-height": "3rem" } as React.CSSProperties}
     >
       <AppSidebar variant="inset" />
       <SidebarInset>
@@ -217,28 +118,33 @@ export default function AgenturenPage() {
 
               {/* Header */}
               <div className="px-4 lg:px-6">
-                <h2 className="text-xl font-semibold">
-                  Agentur-Übersicht – Aktive Beauftragungen
-                </h2>
-                <p className="text-sm text-muted-foreground">April 2026</p>
+                <h2 className="text-xl font-semibold">Agentur-Übersicht – Aktive Beauftragungen</h2>
+                <p className="text-sm text-muted-foreground">
+                  {loading ? "Lädt…" : `${beauftragungen.length} aktive Beauftragungen`}
+                </p>
               </div>
 
               {/* Summary Cards */}
-              <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
+              <div className="grid grid-cols-1 gap-4 px-4 lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
                 {summaryCards.map((c) => (
                   <Card key={c.title} className="@container/card">
                     <CardHeader>
                       <CardDescription>{c.title}</CardDescription>
                       <div className="flex items-end justify-between gap-2">
-                        <CardTitle className="text-2xl font-semibold tabular-nums">
-                          {c.value}
-                        </CardTitle>
+                        <CardTitle className="text-2xl font-semibold tabular-nums">{c.value}</CardTitle>
                         <c.icon className="mb-1 size-5 text-muted-foreground" />
                       </div>
                     </CardHeader>
                   </Card>
                 ))}
               </div>
+
+              {/* Error */}
+              {error && (
+                <div className="mx-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive lg:mx-6">
+                  Fehler beim Laden: {error}
+                </div>
+              )}
 
               {/* Table */}
               <div className="px-4 lg:px-6">
@@ -248,111 +154,93 @@ export default function AgenturenPage() {
                       <TableRow>
                         <TableHead>Agentur</TableHead>
                         <TableHead>Kandidat</TableHead>
-                        <TableHead>Vakanz / Rolle</TableHead>
+                        <TableHead>Vakanz</TableHead>
                         <TableHead className="text-right">h/Woche</TableHead>
                         <TableHead className="text-right">
                           <span className="inline-flex items-center gap-1">
-                            <IconLock className="size-3 text-muted-foreground" />
-                            EK €/Tag
+                            <IconLock className="size-3 text-muted-foreground" />EK €/Tag
                           </span>
                         </TableHead>
                         <TableHead className="text-right">
                           <span className="inline-flex items-center gap-1">
-                            <IconLock className="size-3 text-muted-foreground" />
-                            Aufschlag €
+                            <IconLock className="size-3 text-muted-foreground" />Aufschlag €
                           </span>
                         </TableHead>
                         <TableHead className="text-right">VK €/Tag</TableHead>
                         <TableHead className="text-right">
                           <span className="inline-flex items-center gap-1">
-                            <IconLock className="size-3 text-muted-foreground" />
-                            Marge
+                            <IconLock className="size-3 text-muted-foreground" />Marge
                           </span>
                         </TableHead>
                         <TableHead>Seit</TableHead>
-                        <TableHead className="text-right">h/Monat</TableHead>
-                        <TableHead className="text-right">Umsatz</TableHead>
+                        <TableHead className="text-right">Umsatz/Mo</TableHead>
                         <TableHead className="text-right">
                           <span className="inline-flex items-center gap-1">
-                            <IconLock className="size-3 text-muted-foreground" />
-                            Kosten
+                            <IconLock className="size-3 text-muted-foreground" />Kosten/Mo
                           </span>
                         </TableHead>
                         <TableHead className="text-right">
                           <span className="inline-flex items-center gap-1">
-                            <IconLock className="size-3 text-muted-foreground" />
-                            Monatsmarge
+                            <IconLock className="size-3 text-muted-foreground" />Marge/Mo
                           </span>
                         </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {mockBeauftragungen.map((b) => {
-                        const vk = calcVerkaufspreis(b)
-                        const marge = calcMarge(b)
-                        const margeP = calcMargePercent(b)
-                        const umsatz = calcMonatsumsatz(b)
-                        const kosten = calcMonatskosten(b)
-                        const monatsmarge = calcMonatsmarge(b)
-                        return (
-                          <TableRow key={b.id}>
-                            <TableCell className="font-medium">
-                              {b.agentur}
-                            </TableCell>
-                            <TableCell>{b.kandidat}</TableCell>
-                            <TableCell className="text-sm text-muted-foreground max-w-[160px] truncate">
-                              {b.vakanz}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {b.stunden}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums text-muted-foreground">
-                              {b.einkaufspreis} €
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums text-muted-foreground">
-                              {b.margenaufschlag} €
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums font-medium">
-                              {vk} €
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums text-muted-foreground">
-                              {marge} € / {margeP}%
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                              {b.beauftragSeit}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {b.stundenMonat}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums font-medium">
-                              {fmt(umsatz)}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums text-muted-foreground">
-                              {fmt(kosten)}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums font-medium text-green-700">
-                              {fmt(monatsmarge)}
-                            </TableCell>
-                          </TableRow>
-                        )
-                      })}
+                      {loading ? (
+                        <TableSkeletonRows cols={12} />
+                      ) : beauftragungen.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={12} className="h-32 text-center text-muted-foreground">
+                            Keine aktiven Beauftragungen vorhanden.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        beauftragungen.map((b) => {
+                          const umsatz = calcMonatsumsatz(b)
+                          const kosten = calcMonatskosten(b)
+                          const monatsmarge = umsatz - kosten
+                          return (
+                            <TableRow key={b.id}>
+                              <TableCell className="font-medium">{b.agentur_name}</TableCell>
+                              <TableCell>{b.kandidatenname}</TableCell>
+                              <TableCell className="text-sm text-muted-foreground max-w-[160px] truncate">
+                                {b.vakanz_titel}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums">{b.stunden_woche}</TableCell>
+                              <TableCell className="text-right tabular-nums text-muted-foreground">
+                                {Number(b.einkaufspreis).toLocaleString("de-DE")} €
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums text-muted-foreground">
+                                {Number(b.margenaufschlag).toLocaleString("de-DE")} €
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums font-medium">
+                                {Number(b.verkaufspreis).toLocaleString("de-DE")} €
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums text-muted-foreground">
+                                {Number(b.margenaufschlag).toLocaleString("de-DE")} € / {b.marge_prozent}%
+                              </TableCell>
+                              <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                                {new Date(b.startdatum).toLocaleDateString("de-DE")}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums font-medium">{fmt(umsatz)}</TableCell>
+                              <TableCell className="text-right tabular-nums text-muted-foreground">{fmt(kosten)}</TableCell>
+                              <TableCell className="text-right tabular-nums font-medium text-green-700">{fmt(monatsmarge)}</TableCell>
+                            </TableRow>
+                          )
+                        })
+                      )}
                     </TableBody>
-                    <TableFooter>
-                      <TableRow className="bg-muted/60 font-semibold">
-                        <TableCell colSpan={10} className="text-right">
-                          Gesamt
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {fmt(totalUmsatz)}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums text-muted-foreground">
-                          {fmt(totalKosten)}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums text-green-700">
-                          {fmt(totalMarge)}
-                        </TableCell>
-                      </TableRow>
-                    </TableFooter>
+                    {!loading && beauftragungen.length > 0 && (
+                      <TableFooter>
+                        <TableRow className="bg-muted/60 font-semibold">
+                          <TableCell colSpan={9} className="text-right">Gesamt</TableCell>
+                          <TableCell className="text-right tabular-nums">{fmt(totalUmsatz)}</TableCell>
+                          <TableCell className="text-right tabular-nums text-muted-foreground">{fmt(totalKosten)}</TableCell>
+                          <TableCell className="text-right tabular-nums text-green-700">{fmt(totalMarge)}</TableCell>
+                        </TableRow>
+                      </TableFooter>
+                    )}
                   </Table>
                 </div>
               </div>

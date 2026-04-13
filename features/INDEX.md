@@ -19,8 +19,8 @@
 | PROJ-3 | Profil-Einreichung + CV-Upload (Supabase Storage) | Approved | [PROJ-3](PROJ-3-profil-einreichung.md) | 2026-04-12 |
 | PROJ-4 | KI-Bewertung via Ollama (lokal, automatisch nach Profil-Upload) | Planned | – | 2026-04-12 |
 | PROJ-5 | Profil-Status-Workflow + Kommentarfunktion (echte DB) | In Progress | [PROJ-5](PROJ-5-profil-status-workflow.md) | 2026-04-12 |
-| PROJ-6 | Beauftragungen + Margenberechnung (echte DB) | Planned | – | 2026-04-12 |
-| PROJ-7 | Monatliche Abrechnung + CSV/PDF-Export (echte DB) | Planned | – | 2026-04-12 |
+| PROJ-6 | Beauftragungen + Margenberechnung (echte DB) | In Progress | [PROJ-6](PROJ-6-beauftragungen.md) | 2026-04-12 |
+| PROJ-7 | Monatliche Abrechnung + CSV/PDF-Export (echte DB) | In Progress | [PROJ-7](PROJ-7-monatliche-abrechnung.md) | 2026-04-12 |
 | PROJ-8 | Slack-Integration (Vakanz-Posting via Webhook/Bot) | Planned | – | 2026-04-12 |
 
 <!-- Add features above this line -->
