@@ -21,7 +21,7 @@
 | PROJ-5 | Profil-Status-Workflow + Kommentarfunktion (echte DB) | In Progress | [PROJ-5](PROJ-5-profil-status-workflow.md) | 2026-04-12 |
 | PROJ-6 | Beauftragungen + Margenberechnung (echte DB) | In Progress | [PROJ-6](PROJ-6-beauftragungen.md) | 2026-04-12 |
 | PROJ-7 | Monatliche Abrechnung + CSV/PDF-Export (echte DB) | In Progress | [PROJ-7](PROJ-7-monatliche-abrechnung.md) | 2026-04-12 |
-| PROJ-8 | Slack-Integration (Vakanz-Posting via Webhook/Bot) | In Progress | [PROJ-8](PROJ-8-slack-integration.md) | 2026-04-12 |
+| PROJ-8 | Slack-Integration (Detailpost + Updatepost + Channel-Auswahl + Posting-Log) | Approved | [PROJ-8](PROJ-8-slack-integration.md) | 2026-04-12 |
 
 <!-- Add features above this line -->
 

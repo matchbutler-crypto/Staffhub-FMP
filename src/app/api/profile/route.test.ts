@@ -87,6 +87,8 @@ function makePostRequest(fields: Record<string, string>, cv?: File): NextRequest
 
 function makePdfFile(sizeBytes = 1024): File {
   const buf = new Uint8Array(sizeBytes)
+  // Set %PDF magic bytes so magic-byte check passes
+  buf[0] = 0x25; buf[1] = 0x50; buf[2] = 0x44; buf[3] = 0x46
   return new File([buf], 'lebenslauf.pdf', { type: 'application/pdf' })
 }
 

@@ -6,16 +6,23 @@ import { createClient } from '@/lib/supabase/server'
 
 const createVakanzSchema = z.object({
   titel: z.string().min(1, 'Titel ist erforderlich'),
+  branche: z.string().min(1, 'Branche ist erforderlich'),
+  kunde: z.string().nullable().optional(),
   rolle: z.string().min(1, 'Rolle ist erforderlich'),
-  beschreibung: z.string().min(1, 'Beschreibung ist erforderlich'),
-  skills: z.array(z.string()).min(1, 'Mindestens ein Skill erforderlich').max(20),
+  beschreibung: z.string().min(1, 'Projektkontext ist erforderlich'),
+  skills: z.array(z.string()).min(1, 'Mindestens ein Must-Have-Skill erforderlich').max(20),
+  skills_nice_have: z.array(z.string()).max(20).optional().default([]),
   erfahrungslevel: z.enum(['Junior', 'Mid', 'Senior', 'Expert']),
-  startdatum: z.string().min(1, 'Startdatum ist erforderlich'),
-  laufzeit: z.string().min(1, 'Laufzeit ist erforderlich'),
-  auslastung: z.number().int().min(1).max(100),
+  startdatum: z.string().min(1, 'Projektstart ist erforderlich'),
+  laufzeit: z.string().min(1, 'Beauftragungsdauer ist erforderlich'),
+  teamgroesse: z.number().int().min(1).nullable().optional(),
+  fte_anzahl: z.number().min(0.1, 'FTE Anzahl ist erforderlich'),
+  auslastung: z.number().int().min(1).max(100).optional().default(100),
   arbeitsmodell: z.enum(['Remote', 'Hybrid', 'Onsite']),
+  ansprechpartner: z.string().min(1, 'Ansprechpartner ist erforderlich'),
   standort: z.string().nullable().optional(),
   budget_intern: z.number().nullable().optional(),
+  weitere_kommentare: z.string().nullable().optional(),
 })
 
 // ── Hilfsfunktion: Rolle aus Profil laden ──────────────────────────────────────
@@ -52,23 +59,31 @@ export async function GET(request: NextRequest) {
     .select(`
       id,
       titel,
+      branche,
+      kunde,
       rolle,
       beschreibung,
       skills,
+      skills_nice_have,
       erfahrungslevel,
       startdatum,
       laufzeit,
+      teamgroesse,
+      fte_anzahl,
       auslastung,
       arbeitsmodell,
+      ansprechpartner,
       status,
       standort,
       budget_intern,
+      weitere_kommentare,
       slack_ts,
+      slack_detail_posted_at,
       created_at,
       kandidaten_profile(count)
     `)
     .order('created_at', { ascending: false })
-    .limit(500)
+    .limit(200)
 
   if (error) {
     return NextResponse.json({ error: 'Fehler beim Laden der Vakanzen' }, { status: 500 })
@@ -76,11 +91,11 @@ export async function GET(request: NextRequest) {
 
   // budget_intern + slack_ts für Agentur-Rolle herausfiltern + profile_anzahl normalisieren
   const result = (vakanzen ?? []).map((v) => {
-    const { budget_intern, slack_ts, kandidaten_profile, ...rest } = v
+    const { budget_intern, slack_ts, slack_detail_posted_at, weitere_kommentare, kandidaten_profile, ...rest } = v
     return {
       ...rest,
       profile_anzahl: (kandidaten_profile as { count: number }[])?.[0]?.count ?? 0,
-      ...(isAgentur ? {} : { budget_intern, slack_ts }),
+      ...(isAgentur ? {} : { budget_intern, slack_ts, slack_detail_posted_at, weitere_kommentare }),
     }
   })
 

@@ -8,13 +8,17 @@ import { toast } from "sonner"
 import {
   IconBrandSlack,
   IconCheck,
+  IconClock,
   IconDotsVertical,
   IconPlus,
+  IconRefresh,
   IconSearch,
   IconX,
 } from "@tabler/icons-react"
 
 import { useUser } from "@/context/user-context"
+import { BRANCHEN, ERFAHRUNGSLEVEL, ARBEITSMODELL, VAKANZ_STATUS } from "@/lib/constants"
+import type { VakanzStatus, Erfahrungslevel, Arbeitsmodell } from "@/lib/constants"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { ProfilEinreichenSheet } from "@/components/profil-einreichen-sheet"
@@ -28,6 +32,20 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -68,51 +86,63 @@ import { Textarea } from "@/components/ui/textarea"
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type VakanzStatus = "Offen" | "In Auswahl" | "Besetzt" | "Pausiert" | "Geschlossen"
-type Erfahrungslevel = "Junior" | "Mid" | "Senior" | "Expert"
-type Arbeitsmodell = "Remote" | "Hybrid" | "Onsite"
-
 interface Vakanz {
   id: string
   titel: string
+  branche: string
+  kunde?: string | null
   rolle: string
   beschreibung: string
   skills: string[]
+  skills_nice_have: string[]
   erfahrungslevel: Erfahrungslevel
   startdatum: string
   laufzeit: string
+  teamgroesse?: number | null
+  fte_anzahl: number
   auslastung: number
   arbeitsmodell: Arbeitsmodell
+  ansprechpartner: string
   status: VakanzStatus
   standort?: string | null
   budget_intern?: number | null
+  weitere_kommentare?: string | null
   profile_anzahl: number
   created_at: string
   slack_ts?: string | null
+  slack_detail_posted_at?: string | null
 }
 
 // ── Zod Schema ─────────────────────────────────────────────────────────────────
 
 const vakanzSchema = z.object({
   titel: z.string().min(1, "Titel ist erforderlich"),
-  rolle: z.string().min(1, "Rolle ist erforderlich"),
-  beschreibung: z.string().min(1, "Beschreibung ist erforderlich"),
-  skills: z.array(z.string()).min(1, "Mindestens ein Skill erforderlich"),
-  erfahrungslevel: z.enum(["Junior", "Mid", "Senior", "Expert"], {
+  branche: z.string().min(1, "Branche ist erforderlich"),
+  kunde: z.string().optional(),
+  rolle: z.string().min(1, "Benötigte Rolle ist erforderlich"),
+  beschreibung: z.string().min(1, "Projektkontext ist erforderlich"),
+  skills: z.array(z.string()).min(1, "Mindestens ein Must-Have Skill erforderlich"),
+  skills_nice_have: z.array(z.string()).optional().default([]),
+  erfahrungslevel: z.enum(ERFAHRUNGSLEVEL, {
     required_error: "Erfahrungslevel ist erforderlich",
   }),
-  startdatum: z.string().min(1, "Startdatum ist erforderlich"),
-  laufzeit: z.string().min(1, "Laufzeit ist erforderlich"),
+  startdatum: z.string().min(1, "Geplanter Projektstart ist erforderlich"),
+  laufzeit: z.string().min(1, "Beauftragungsdauer ist erforderlich"),
+  teamgroesse: z.number().int().min(1).nullable().optional(),
+  fte_anzahl: z
+    .number({ invalid_type_error: "Muss eine Zahl sein" })
+    .min(0.1, "Mindestens 0.1 FTE"),
   auslastung: z
     .number({ invalid_type_error: "Muss eine Zahl sein" })
-    .min(1, "Mindestens 1%")
-    .max(100, "Maximal 100%"),
-  arbeitsmodell: z.enum(["Remote", "Hybrid", "Onsite"], {
+    .min(1).max(100).optional().default(100),
+  arbeitsmodell: z.enum(ARBEITSMODELL, {
     required_error: "Arbeitsmodell ist erforderlich",
   }),
-  status: z.enum(["Offen", "In Auswahl", "Besetzt", "Pausiert", "Geschlossen"]).optional(),
+  ansprechpartner: z.string().min(1, "Ansprechpartner ist erforderlich"),
+  status: z.enum(VAKANZ_STATUS).optional(),
   standort: z.string().optional(),
   budget_intern: z.number().nullable().optional(),
+  weitere_kommentare: z.string().optional(),
 })
 
 type VakanzFormData = z.infer<typeof vakanzSchema>
@@ -224,6 +254,153 @@ function TagInput({
   )
 }
 
+// ── SlackPostDialog ─────────────────────────────────────────────────────────
+// Shared channel-selection dialog used by both Detailpost and Updatepost.
+
+type SlackWorkspace = "freelance" | "partner"
+type SlackChannel = "testing" | "germany" | "global"
+
+interface SlackPostDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  postType: "detail" | "update"
+  vakanzTitel?: string     // only for detailpost display
+  onConfirm: (workspace: SlackWorkspace, channel: SlackChannel) => Promise<void>
+}
+
+function SlackPostDialog({
+  open,
+  onOpenChange,
+  postType,
+  vakanzTitel,
+  onConfirm,
+}: SlackPostDialogProps) {
+  const [workspace, setWorkspace] = React.useState<SlackWorkspace>("freelance")
+  const [channel, setChannel] = React.useState<SlackChannel>("testing")
+  const [posting, setPosting] = React.useState(false)
+
+  // Reset selections when dialog opens
+  React.useEffect(() => {
+    if (open) {
+      setWorkspace("freelance")
+      setChannel("testing")
+    }
+  }, [open])
+
+  async function handleConfirm() {
+    setPosting(true)
+    try {
+      await onConfirm(workspace, channel)
+      onOpenChange(false)
+    } finally {
+      setPosting(false)
+    }
+  }
+
+  const workspaceLabels: Record<SlackWorkspace, string> = {
+    freelance: "Freelance",
+    partner: "Partner",
+  }
+  const channelLabels: Record<SlackChannel, string> = {
+    testing: "Testing",
+    germany: "Germany",
+    global: "Global",
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[420px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <IconBrandSlack className="size-5 text-[#4A154B]" />
+            {postType === "detail" ? "Detailpost senden" : "Updatepost senden"}
+          </DialogTitle>
+          <DialogDescription>
+            {postType === "detail" && vakanzTitel ? (
+              <>
+                Vakanz <span className="font-medium text-foreground">„{vakanzTitel}"</span> in Slack posten.
+              </>
+            ) : (
+              "Statusübersicht aller Vakanzen in Slack posten."
+            )}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-4 py-2">
+          {/* Workspace */}
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="sp-workspace">Workspace</Label>
+            <Select
+              value={workspace}
+              onValueChange={(v) => setWorkspace(v as SlackWorkspace)}
+            >
+              <SelectTrigger id="sp-workspace">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(workspaceLabels) as SlackWorkspace[]).map((ws) => (
+                  <SelectItem key={ws} value={ws}>
+                    {workspaceLabels[ws]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Channel */}
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="sp-channel">Ziel-Channel</Label>
+            <Select
+              value={channel}
+              onValueChange={(v) => setChannel(v as SlackChannel)}
+            >
+              <SelectTrigger id="sp-channel">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(channelLabels) as SlackChannel[]).map((ch) => (
+                  <SelectItem key={ch} value={ch}>
+                    {channelLabels[ch]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Preview pill */}
+          <div className="rounded-md border border-border bg-muted px-3 py-2 text-xs text-muted-foreground">
+            <span className="font-medium text-foreground">Channel:</span>{" "}
+            {workspaceLabels[workspace]} → {channelLabels[channel]}
+            {channel === "testing" && (
+              <span className="ml-2 inline-flex items-center rounded-full bg-yellow-100 px-1.5 py-0.5 text-[10px] font-medium text-yellow-700 border border-yellow-200">
+                TEST
+              </span>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={posting}
+          >
+            Abbrechen
+          </Button>
+          <Button
+            onClick={handleConfirm}
+            disabled={posting}
+            className="gap-2"
+          >
+            <IconBrandSlack className="size-4" />
+            {posting ? "Wird gepostet…" : "In Slack posten"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── VakanzFormSheet ────────────────────────────────────────────────────────────
 
 interface VakanzFormSheetProps {
@@ -257,17 +434,24 @@ function VakanzFormSheet({
     resolver: zodResolver(vakanzSchema),
     defaultValues: {
       titel: "",
+      branche: "",
+      kunde: "",
       rolle: "",
       beschreibung: "",
       skills: [],
+      skills_nice_have: [],
       erfahrungslevel: undefined,
       startdatum: "",
       laufzeit: "",
+      teamgroesse: null,
+      fte_anzahl: 1,
       auslastung: 100,
       arbeitsmodell: undefined,
+      ansprechpartner: "",
       status: "Offen",
       standort: "",
       budget_intern: null,
+      weitere_kommentare: "",
     },
   })
 
@@ -277,32 +461,46 @@ function VakanzFormSheet({
       if (mode === "edit" && vakanz) {
         reset({
           titel: vakanz.titel,
+          branche: vakanz.branche,
+          kunde: vakanz.kunde ?? "",
           rolle: vakanz.rolle,
           beschreibung: vakanz.beschreibung,
           skills: vakanz.skills,
+          skills_nice_have: vakanz.skills_nice_have ?? [],
           erfahrungslevel: vakanz.erfahrungslevel,
           startdatum: vakanz.startdatum,
           laufzeit: vakanz.laufzeit,
+          teamgroesse: vakanz.teamgroesse ?? null,
+          fte_anzahl: vakanz.fte_anzahl,
           auslastung: vakanz.auslastung,
           arbeitsmodell: vakanz.arbeitsmodell,
+          ansprechpartner: vakanz.ansprechpartner,
           status: vakanz.status,
           standort: vakanz.standort ?? "",
           budget_intern: vakanz.budget_intern ?? null,
+          weitere_kommentare: vakanz.weitere_kommentare ?? "",
         })
       } else {
         reset({
           titel: "",
+          branche: "",
+          kunde: "",
           rolle: "",
           beschreibung: "",
           skills: [],
+          skills_nice_have: [],
           erfahrungslevel: undefined,
           startdatum: "",
           laufzeit: "",
+          teamgroesse: null,
+          fte_anzahl: 1,
           auslastung: 100,
           arbeitsmodell: undefined,
+          ansprechpartner: "",
           status: "Offen",
           standort: "",
           budget_intern: null,
+          weitere_kommentare: "",
         })
       }
     }
@@ -317,15 +515,22 @@ function VakanzFormSheet({
 
       const body: Record<string, unknown> = {
         titel: data.titel,
+        branche: data.branche,
+        kunde: data.kunde || null,
         rolle: data.rolle,
         beschreibung: data.beschreibung,
         skills: data.skills,
+        skills_nice_have: data.skills_nice_have ?? [],
         erfahrungslevel: data.erfahrungslevel,
         startdatum: data.startdatum,
         laufzeit: data.laufzeit,
-        auslastung: data.auslastung,
+        teamgroesse: data.teamgroesse ?? null,
+        fte_anzahl: data.fte_anzahl,
+        auslastung: data.auslastung ?? 100,
         arbeitsmodell: data.arbeitsmodell,
+        ansprechpartner: data.ansprechpartner,
         standort: data.standort || null,
+        weitere_kommentare: data.weitere_kommentare || null,
       }
 
       if (mode === "edit") {
@@ -359,6 +564,7 @@ function VakanzFormSheet({
   }
 
   const skills = watch("skills")
+  const skillsNiceHave = watch("skills_nice_have")
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -383,72 +589,134 @@ function VakanzFormSheet({
         >
           <div className="flex-1 overflow-y-auto px-6 py-4">
             <div className="flex flex-col gap-4">
-              {/* Titel */}
+
+              {/* Titel (intern) */}
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="v-titel">
-                  Titel <span className="text-destructive">*</span>
+                  Titel (intern) <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   id="v-titel"
-                  placeholder="z.B. Senior React Developer"
+                  placeholder="z.B. Senior React Developer – Telekom"
                   {...register("titel")}
                   className={errors.titel ? "border-destructive" : ""}
                 />
-                {errors.titel && (
-                  <p className="text-xs text-destructive">{errors.titel.message}</p>
-                )}
+                {errors.titel && <p className="text-xs text-destructive">{errors.titel.message}</p>}
               </div>
 
-              {/* Rolle */}
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="v-rolle">
-                  Rolle / Jobtitel <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="v-rolle"
-                  placeholder="z.B. Frontend Engineer"
-                  {...register("rolle")}
-                  className={errors.rolle ? "border-destructive" : ""}
-                />
-                {errors.rolle && (
-                  <p className="text-xs text-destructive">{errors.rolle.message}</p>
-                )}
-              </div>
-
-              {/* Beschreibung */}
+              {/* Projektkontext */}
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="v-beschreibung">
-                  Beschreibung <span className="text-destructive">*</span>
+                  Projektkontext <span className="text-destructive">*</span>
                 </Label>
                 <Textarea
                   id="v-beschreibung"
-                  placeholder="Anforderungen, Aufgaben, Kontext..."
-                  className={`min-h-[100px] ${errors.beschreibung ? "border-destructive" : ""}`}
+                  placeholder="Kontext, Aufgaben, Anforderungen..."
+                  className={`min-h-[90px] ${errors.beschreibung ? "border-destructive" : ""}`}
                   {...register("beschreibung")}
                 />
-                {errors.beschreibung && (
-                  <p className="text-xs text-destructive">
-                    {errors.beschreibung.message}
-                  </p>
-                )}
+                {errors.beschreibung && <p className="text-xs text-destructive">{errors.beschreibung.message}</p>}
               </div>
 
-              {/* Skills */}
+              {/* Branche + Kunde */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="v-branche">
+                    Branche <span className="text-destructive">*</span>
+                  </Label>
+                  <Controller
+                    control={control}
+                    name="branche"
+                    render={({ field }) => (
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger id="v-branche" className={errors.branche ? "border-destructive" : ""}>
+                          <SelectValue placeholder="Wählen..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {BRANCHEN.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  {errors.branche && <p className="text-xs text-destructive">{errors.branche.message}</p>}
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="v-kunde">Kunde</Label>
+                  <Input id="v-kunde" placeholder="optional" {...register("kunde")} />
+                </div>
+              </div>
+
+              {/* Geplanter Projektstart + Beauftragungsdauer */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="v-start">
+                    Geplanter Projektstart <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="v-start"
+                    type="date"
+                    {...register("startdatum")}
+                    className={errors.startdatum ? "border-destructive" : ""}
+                  />
+                  {errors.startdatum && <p className="text-xs text-destructive">{errors.startdatum.message}</p>}
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="v-laufzeit">
+                    Beauftragungsdauer <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="v-laufzeit"
+                    placeholder="z.B. 6 Monate"
+                    {...register("laufzeit")}
+                    className={errors.laufzeit ? "border-destructive" : ""}
+                  />
+                  {errors.laufzeit && <p className="text-xs text-destructive">{errors.laufzeit.message}</p>}
+                </div>
+              </div>
+
+              {/* Teamgröße + FTE Anzahl */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="v-team">Teamgröße</Label>
+                  <Input
+                    id="v-team"
+                    type="number"
+                    min={1}
+                    placeholder="optional"
+                    {...register("teamgroesse", {
+                      setValueAs: (v) => (v === "" || v === null ? null : Number(v)),
+                    })}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="v-fte">
+                    Erf. FTE Anzahl <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="v-fte"
+                    type="number"
+                    min={0.1}
+                    step={0.5}
+                    placeholder="z.B. 1"
+                    {...register("fte_anzahl", { valueAsNumber: true })}
+                    className={errors.fte_anzahl ? "border-destructive" : ""}
+                  />
+                  {errors.fte_anzahl && <p className="text-xs text-destructive">{errors.fte_anzahl.message}</p>}
+                </div>
+              </div>
+
+              {/* Benötigte Rolle */}
               <div className="flex flex-col gap-1.5">
-                <Label>
-                  Geforderte Skills <span className="text-destructive">*</span>
+                <Label htmlFor="v-rolle">
+                  Benötigte Rolle <span className="text-destructive">*</span>
                 </Label>
-                <Controller
-                  control={control}
-                  name="skills"
-                  render={({ field }) => (
-                    <TagInput
-                      value={field.value}
-                      onChange={field.onChange}
-                      error={errors.skills?.message}
-                    />
-                  )}
+                <Input
+                  id="v-rolle"
+                  placeholder="z.B. Senior Frontend Engineer"
+                  {...register("rolle")}
+                  className={errors.rolle ? "border-destructive" : ""}
                 />
+                {errors.rolle && <p className="text-xs text-destructive">{errors.rolle.message}</p>}
               </div>
 
               {/* Erfahrungslevel + Arbeitsmodell */}
@@ -462,10 +730,7 @@ function VakanzFormSheet({
                     name="erfahrungslevel"
                     render={({ field }) => (
                       <Select value={field.value} onValueChange={field.onChange}>
-                        <SelectTrigger
-                          id="v-level"
-                          className={errors.erfahrungslevel ? "border-destructive" : ""}
-                        >
+                        <SelectTrigger id="v-level" className={errors.erfahrungslevel ? "border-destructive" : ""}>
                           <SelectValue placeholder="Wählen..." />
                         </SelectTrigger>
                         <SelectContent>
@@ -477,11 +742,7 @@ function VakanzFormSheet({
                       </Select>
                     )}
                   />
-                  {errors.erfahrungslevel && (
-                    <p className="text-xs text-destructive">
-                      {errors.erfahrungslevel.message}
-                    </p>
-                  )}
+                  {errors.erfahrungslevel && <p className="text-xs text-destructive">{errors.erfahrungslevel.message}</p>}
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="v-modell">
@@ -492,10 +753,7 @@ function VakanzFormSheet({
                     name="arbeitsmodell"
                     render={({ field }) => (
                       <Select value={field.value} onValueChange={field.onChange}>
-                        <SelectTrigger
-                          id="v-modell"
-                          className={errors.arbeitsmodell ? "border-destructive" : ""}
-                        >
+                        <SelectTrigger id="v-modell" className={errors.arbeitsmodell ? "border-destructive" : ""}>
                           <SelectValue placeholder="Wählen..." />
                         </SelectTrigger>
                         <SelectContent>
@@ -506,79 +764,89 @@ function VakanzFormSheet({
                       </Select>
                     )}
                   />
-                  {errors.arbeitsmodell && (
-                    <p className="text-xs text-destructive">
-                      {errors.arbeitsmodell.message}
-                    </p>
-                  )}
+                  {errors.arbeitsmodell && <p className="text-xs text-destructive">{errors.arbeitsmodell.message}</p>}
                 </div>
               </div>
 
-              {/* Startdatum + Laufzeit */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="v-start">
-                    Startdatum <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    id="v-start"
-                    type="date"
-                    {...register("startdatum")}
-                    className={errors.startdatum ? "border-destructive" : ""}
-                  />
-                  {errors.startdatum && (
-                    <p className="text-xs text-destructive">
-                      {errors.startdatum.message}
-                    </p>
+              {/* Skills Must Have */}
+              <div className="flex flex-col gap-1.5">
+                <Label>
+                  Skills (Must Have) <span className="text-destructive">*</span>
+                </Label>
+                <Controller
+                  control={control}
+                  name="skills"
+                  render={({ field }) => (
+                    <TagInput value={field.value} onChange={field.onChange} error={errors.skills?.message} />
                   )}
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="v-laufzeit">
-                    Laufzeit <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    id="v-laufzeit"
-                    placeholder="z.B. 6 Monate"
-                    {...register("laufzeit")}
-                    className={errors.laufzeit ? "border-destructive" : ""}
-                  />
-                  {errors.laufzeit && (
-                    <p className="text-xs text-destructive">
-                      {errors.laufzeit.message}
-                    </p>
-                  )}
-                </div>
+                />
               </div>
 
-              {/* Auslastung + Standort */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="v-auslastung">
-                    Auslastung (%) <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    id="v-auslastung"
-                    type="number"
-                    placeholder="100"
-                    min={1}
-                    max={100}
-                    {...register("auslastung", { valueAsNumber: true })}
-                    className={errors.auslastung ? "border-destructive" : ""}
-                  />
-                  {errors.auslastung && (
-                    <p className="text-xs text-destructive">
-                      {errors.auslastung.message}
-                    </p>
+              {/* Skills Nice Have */}
+              <div className="flex flex-col gap-1.5">
+                <Label>Skills (Nice Have)</Label>
+                <Controller
+                  control={control}
+                  name="skills_nice_have"
+                  render={({ field }) => (
+                    <TagInput value={field.value ?? []} onChange={field.onChange} />
                   )}
-                </div>
+                />
+              </div>
+
+              {/* Tagesrate + Sourcing Region */}
+              <div className="grid grid-cols-2 gap-3">
+                {showBudget && (
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="v-budget">
+                      Tagesrate (€/Tag) <span className="text-muted-foreground text-xs font-normal">intern</span>
+                    </Label>
+                    <Input
+                      id="v-budget"
+                      type="number"
+                      placeholder="nur intern sichtbar"
+                      {...register("budget_intern", {
+                        setValueAs: (v) => (v === "" || v === null ? null : Number(v)),
+                      })}
+                    />
+                  </div>
+                )}
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="v-standort">Standort</Label>
+                  <Label htmlFor="v-standort">
+                    Sourcing Region <span className="text-destructive">*</span>
+                  </Label>
                   <Input
                     id="v-standort"
-                    placeholder="optional"
+                    placeholder="z.B. Deutschland"
                     {...register("standort")}
+                    className={errors.standort ? "border-destructive" : ""}
                   />
                 </div>
+              </div>
+
+              {/* Ansprechpartner */}
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="v-ansprech">
+                  Ansprechpartner <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="v-ansprech"
+                  placeholder="Name oder E-Mail"
+                  {...register("ansprechpartner")}
+                  className={errors.ansprechpartner ? "border-destructive" : ""}
+                />
+                {errors.ansprechpartner && <p className="text-xs text-destructive">{errors.ansprechpartner.message}</p>}
+              </div>
+
+              {/* Weitere Kommentare */}
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="v-kommentare">Weitere Kommentare</Label>
+                <Textarea
+                  id="v-kommentare"
+                  placeholder="optional"
+                  className="min-h-[70px]"
+                  {...register("weitere_kommentare")}
+                />
               </div>
 
               {/* Status (nur im Bearbeiten-Modus) */}
@@ -606,20 +874,6 @@ function VakanzFormSheet({
                 </div>
               )}
 
-              {/* Budget (nur Admin/Manager) */}
-              {showBudget && (
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="v-budget">Internes Budget (€/Tag)</Label>
-                  <Input
-                    id="v-budget"
-                    type="number"
-                    placeholder="nur intern sichtbar"
-                    {...register("budget_intern", {
-                      setValueAs: (v) => (v === "" || v === null ? null : Number(v)),
-                    })}
-                  />
-                </div>
-              )}
             </div>
           </div>
 
@@ -764,6 +1018,11 @@ export default function VakanzenPage() {
   const [profilSheetOpen, setProfilSheetOpen] = React.useState(false)
   const [profilVakanz, setProfilVakanz] = React.useState<Vakanz | null>(null)
 
+  // Slack posting state
+  const [detailpostDialogOpen, setDetailpostDialogOpen] = React.useState(false)
+  const [detailpostVakanz, setDetailpostVakanz] = React.useState<Vakanz | null>(null)
+  const [updatepostDialogOpen, setUpdatepostDialogOpen] = React.useState(false)
+
   // ── Data fetching ──────────────────────────────────────────────────────────
 
   async function fetchVakanzen() {
@@ -820,25 +1079,59 @@ export default function VakanzenPage() {
     setCloseDialogOpen(true)
   }
 
-  async function handleSlackPost(vakanz: Vakanz) {
+  function handleDetailpostOpen(vakanz: Vakanz) {
+    setDetailpostVakanz(vakanz)
+    setDetailpostDialogOpen(true)
+  }
+
+  async function handleDetailpostConfirm(workspace: SlackWorkspace, channel: SlackChannel) {
+    if (!detailpostVakanz) return
     try {
-      const res = await fetch(`/api/vakanzen/${vakanz.id}/slack`, { method: "POST" })
+      const res = await fetch(`/api/vakanzen/${detailpostVakanz.id}/slack`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspace, channel }),
+      })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
-        toast.error(body.error ?? "Slack-Posting fehlgeschlagen.")
+        toast.error(body.error ?? "Detailpost fehlgeschlagen.")
         return
       }
-      toast.success("Vakanz in Slack gepostet.")
+      toast.success(`Detailpost in ${workspace === "freelance" ? "Freelance" : "Partner"} → ${channel} gesendet.`)
       setVakanzen((prev) =>
-        prev.map((v) => v.id === vakanz.id ? { ...v, slack_ts: body.slack_ts } : v)
+        prev.map((v) =>
+          v.id === detailpostVakanz.id
+            ? { ...v, slack_detail_posted_at: body.slack_detail_posted_at ?? new Date().toISOString() }
+            : v
+        )
       )
     } catch {
-      toast.error("Verbindungsfehler beim Slack-Posting.")
+      toast.error("Verbindungsfehler beim Detailpost.")
     }
   }
 
-  // ── Column count for skeleton (budget column conditional) ──────────────────
-  const colCount = isManagerOrAdmin ? 10 : 9
+  async function handleUpdatepostConfirm(workspace: SlackWorkspace, channel: SlackChannel) {
+    try {
+      const res = await fetch("/api/slack/updatepost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspace, channel }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(body.error ?? "Updatepost fehlgeschlagen.")
+        return
+      }
+      toast.success(
+        `Updatepost gesendet (${body.vakanzen_count ?? "?"} Vakanzen → ${workspace === "freelance" ? "Freelance" : "Partner"} / ${channel}).`
+      )
+    } catch {
+      toast.error("Verbindungsfehler beim Updatepost.")
+    }
+  }
+
+  // ── Column count for skeleton (budget + gepostet columns conditional) ──────
+  const colCount = isManagerOrAdmin ? 11 : 9
 
   return (
     <SidebarProvider
@@ -865,10 +1158,21 @@ export default function VakanzenPage() {
                   </p>
                 </div>
                 {isManagerOrAdmin && (
-                  <Button size="sm" onClick={handleNeueVakanz}>
-                    <IconPlus className="size-4" />
-                    Neue Vakanz
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setUpdatepostDialogOpen(true)}
+                      className="gap-1.5"
+                    >
+                      <IconRefresh className="size-4" />
+                      Updatepost
+                    </Button>
+                    <Button size="sm" onClick={handleNeueVakanz}>
+                      <IconPlus className="size-4" />
+                      Neue Vakanz
+                    </Button>
+                  </div>
                 )}
               </div>
 
@@ -920,7 +1224,10 @@ export default function VakanzenPage() {
                         <TableHead>Status</TableHead>
                         <TableHead className="text-center">Profile</TableHead>
                         {isManagerOrAdmin && (
-                          <TableHead className="text-right">Budget</TableHead>
+                          <>
+                            <TableHead className="text-right">Budget</TableHead>
+                            <TableHead className="w-24 text-center">Gepostet</TableHead>
+                          </>
                         )}
                         <TableHead className="w-10" />
                       </TableRow>
@@ -987,11 +1294,33 @@ export default function VakanzenPage() {
                               {v.profile_anzahl ?? 0}
                             </TableCell>
                             {isManagerOrAdmin && (
-                              <TableCell className="text-right text-sm tabular-nums text-muted-foreground">
-                                {v.budget_intern != null
-                                  ? `${v.budget_intern.toLocaleString("de-DE")} €`
-                                  : "–"}
-                              </TableCell>
+                              <>
+                                <TableCell className="text-right text-sm tabular-nums text-muted-foreground">
+                                  {v.budget_intern != null
+                                    ? `${v.budget_intern.toLocaleString("de-DE")} €`
+                                    : "–"}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="inline-flex justify-center">
+                                          {v.slack_detail_posted_at ? (
+                                            <IconCheck className="size-4 text-green-600" />
+                                          ) : (
+                                            <IconClock className="size-4 text-muted-foreground/40" />
+                                          )}
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="left">
+                                        {v.slack_detail_posted_at
+                                          ? `Gepostet: ${new Date(v.slack_detail_posted_at).toLocaleString("de-DE")}`
+                                          : "Noch nicht gepostet"}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                </TableCell>
+                              </>
                             )}
                             <TableCell>
                               <DropdownMenu>
@@ -1005,7 +1334,7 @@ export default function VakanzenPage() {
                                     <span className="sr-only">Aktionen</span>
                                   </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-44">
+                                <DropdownMenuContent align="end" className="w-48">
                                   {isManagerOrAdmin ? (
                                     <>
                                       <DropdownMenuItem
@@ -1013,16 +1342,12 @@ export default function VakanzenPage() {
                                       >
                                         Bearbeiten
                                       </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
                                       <DropdownMenuItem
-                                        onClick={() => handleSlackPost(v)}
-                                        disabled={!!v.slack_ts}
+                                        onClick={() => handleDetailpostOpen(v)}
                                       >
-                                        <span className="flex items-center gap-2">
-                                          {v.slack_ts
-                                            ? <><IconCheck className="size-3.5 text-green-600" />In Slack gepostet</>
-                                            : <><IconBrandSlack className="size-3.5" />In Slack posten</>
-                                          }
-                                        </span>
+                                        <IconBrandSlack className="size-3.5 text-[#4A154B]" />
+                                        Detailpost senden
                                       </DropdownMenuItem>
                                       <DropdownMenuSeparator />
                                       <DropdownMenuItem
@@ -1095,6 +1420,23 @@ export default function VakanzenPage() {
           }}
         />
       )}
+
+      {/* Detailpost Dialog */}
+      <SlackPostDialog
+        open={detailpostDialogOpen}
+        onOpenChange={setDetailpostDialogOpen}
+        postType="detail"
+        vakanzTitel={detailpostVakanz?.titel}
+        onConfirm={handleDetailpostConfirm}
+      />
+
+      {/* Updatepost Dialog */}
+      <SlackPostDialog
+        open={updatepostDialogOpen}
+        onOpenChange={setUpdatepostDialogOpen}
+        postType="update"
+        onConfirm={handleUpdatepostConfirm}
+      />
     </SidebarProvider>
   )
 }

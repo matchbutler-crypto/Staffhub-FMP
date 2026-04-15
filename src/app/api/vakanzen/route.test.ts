@@ -56,14 +56,17 @@ function makeRequest(body?: unknown): NextRequest {
 
 const validVakanz = {
   titel: 'Senior React Developer',
+  branche: 'IT',
   rolle: 'Frontend Engineer',
   beschreibung: 'React-Experte für unser Team',
   skills: ['React', 'TypeScript'],
   erfahrungslevel: 'Senior',
   startdatum: '2026-05-01',
   laufzeit: '6 Monate',
+  fte_anzahl: 1,
   auslastung: 100,
   arbeitsmodell: 'Remote',
+  ansprechpartner: 'Max Mustermann',
 }
 
 // ── GET Tests ──────────────────────────────────────────────────────────────────

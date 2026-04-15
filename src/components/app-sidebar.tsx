@@ -2,8 +2,10 @@
 
 import * as React from 'react'
 import {
+  IconBrandSlack,
   IconBriefcase,
   IconBuilding,
+  IconClipboardList,
   IconLayoutDashboard,
   IconReceipt,
   IconSettings,
@@ -51,6 +53,12 @@ const ALL_NAV_MAIN = [
     roles: ['Admin', 'Staffhub Manager'],
   },
   {
+    title: 'Beauftragungen',
+    url: '/beauftragungen',
+    icon: IconClipboardList,
+    roles: ['Admin', 'Staffhub Manager'],
+  },
+  {
     title: 'Abrechnung',
     url: '/abrechnung',
     icon: IconReceipt,
@@ -61,6 +69,12 @@ const ALL_NAV_MAIN = [
     url: '/meine-profile',
     icon: IconUserCheck,
     roles: ['Admin', 'Agentur'],
+  },
+  {
+    title: 'Slack Log',
+    url: '/slack-log',
+    icon: IconBrandSlack,
+    roles: ['Admin', 'Staffhub Manager'],
   },
 ]
 

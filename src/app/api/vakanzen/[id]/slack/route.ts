@@ -1,94 +1,164 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import {
+  getWebhookUrl,
+  type SlackWorkspace,
+  type SlackChannel,
+} from '@/lib/slack-webhooks'
 
-// ── POST /api/vakanzen/[id]/slack ─────────────────────────────────────────────
-// Sendet eine Vakanz als formatierte Slack-Nachricht via Incoming Webhook.
+// ── Input Schema ──────────────────────────────────────────────────────────────
 
-function buildSlackBlocks(v: {
-  titel: string
-  rolle: string
-  beschreibung: string
-  skills: string[]
-  erfahrungslevel: string
-  startdatum: string
-  auslastung_stunden: number
-  arbeitsmodell: string
-  standort?: string | null
-}) {
-  const beschreibungKurz = v.beschreibung?.length > 300
-    ? v.beschreibung.slice(0, 297) + '…'
-    : (v.beschreibung ?? '')
+const bodySchema = z.object({
+  workspace: z.enum(['freelance', 'partner']),
+  channel: z.enum(['testing', 'germany', 'global']),
+})
 
-  const startFormatiert = v.startdatum
-    ? new Date(v.startdatum).toLocaleDateString('de-DE')
+// ── Slack Block Builder (AppScript-faithful format) ───────────────────────────
+
+function buildDetailBlocks(
+  vakanz: {
+    id: string
+    titel: string
+    rolle: string
+    beschreibung: string
+    skills: string[]
+    erfahrungslevel: string
+    startdatum: string
+    laufzeit: string
+    auslastung: number
+    arbeitsmodell: string
+    standort?: string | null
+    branche: string
+    teamgroesse?: number | null
+    budget_intern?: number | null
+  },
+  workspace: SlackWorkspace
+) {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
+  const vakanzUrl = `${appUrl}/vakanzen/${vakanz.id}`
+
+  const jobType = workspace === 'partner' ? 'Partner' : 'Freelance'
+
+  const startFormatiert = vakanz.startdatum
+    ? new Date(vakanz.startdatum).toLocaleDateString('de-DE')
     : '–'
 
-  return {
-    text: `Neue Vakanz: ${v.titel}`,
-    blocks: [
-      {
-        type: 'header',
-        text: { type: 'plain_text', text: `🆕 Neue Vakanz: ${v.titel}`, emoji: true },
-      },
-      {
-        type: 'section',
-        text: { type: 'mrkdwn', text: beschreibungKurz || '_Keine Beschreibung_' },
-      },
-      {
-        type: 'section',
-        fields: [
-          { type: 'mrkdwn', text: `*Rolle:*\n${v.rolle}` },
-          { type: 'mrkdwn', text: `*Level:*\n${v.erfahrungslevel}` },
-          { type: 'mrkdwn', text: `*Skills:*\n${v.skills?.join(', ') || '–'}` },
-          { type: 'mrkdwn', text: `*Arbeitsmodell:*\n${v.arbeitsmodell}${v.standort ? ` · ${v.standort}` : ''}` },
-          { type: 'mrkdwn', text: `*Startdatum:*\n${startFormatiert}` },
-          { type: 'mrkdwn', text: `*Auslastung:*\n${v.auslastung_stunden} h/Woche` },
-        ],
-      },
-      {
-        type: 'context',
-        elements: [
-          {
-            type: 'mrkdwn',
-            text: `Gepostet von Staffhub FMP · ${new Date().toLocaleDateString('de-DE')}`,
-          },
-        ],
-      },
-    ],
+  let details =
+    '*Job Details* \n' +
+    ` *Working Location*: ${vakanz.standort ?? '–'}` +
+    `\n *Workmode:* ${vakanz.arbeitsmodell}` +
+    `\n *Remote Ratio:* ${vakanz.auslastung} %` +
+    `\n *Required Skills:* ${vakanz.skills?.join(', ') || '–'}` +
+    `\n *Relevant Working Experience:* ${vakanz.erfahrungslevel}` +
+    `\n *Industry:* ${vakanz.branche}` +
+    `\n *Project Context:* ${vakanz.beschreibung}` +
+    `\n *Project Stack:* ${vakanz.skills?.join(', ') || '–'}` +
+    `\n *Team Size:* ${vakanz.teamgroesse ?? '–'}` +
+    `\n *Job Type:* ${jobType}` +
+    `\n *Start date:* ${startFormatiert}` +
+    `\n *Duration:* ${vakanz.laufzeit}` +
+    `\n *Project Language:* –`
+
+  if (workspace === 'partner' && vakanz.budget_intern != null) {
+    details += `\n *Rate:* ${vakanz.budget_intern} €`
   }
+
+  const ctaText =
+    `@channel If your profile matches the vacancy, submit your CV directly: ${vakanzUrl}\n\n\n\n\n GOOD LUCK :V:\n\n\n\n\n`
+
+  return [
+    {
+      type: 'header',
+      text: {
+        type: 'plain_text',
+        text: `:mega:  ${vakanz.titel} | NEW`,
+      },
+    },
+    { type: 'divider' },
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `*Job Role* \n${vakanz.rolle}`,
+      },
+    },
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `*Job Description & Requirements* \n ${vakanz.beschreibung}`,
+      },
+    },
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: details,
+      },
+    },
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: ctaText,
+      },
+    },
+    { type: 'divider' },
+  ]
 }
 
+// ── POST /api/vakanzen/[id]/slack ─────────────────────────────────────────────
+
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
   const supabase = await createClient()
 
-  // Auth
+  // ── Auth ────────────────────────────────────────────────────────────────────
   const { data: { user }, error: authError } = await supabase.auth.getUser()
-  if (authError || !user) return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 })
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 })
+  }
 
-  const { data: profile } = await supabase
-    .from('profiles').select('rolle, aktiv').eq('id', user.id).single()
-  if (!profile?.aktiv) return NextResponse.json({ error: 'Account deaktiviert' }, { status: 403 })
-  if (profile.rolle !== 'Staffhub Manager' && profile.rolle !== 'Admin') {
+  const { data: userProfile } = await supabase
+    .from('profiles')
+    .select('rolle, aktiv, name')
+    .eq('id', user.id)
+    .single()
+
+  if (!userProfile?.aktiv) {
+    return NextResponse.json({ error: 'Account deaktiviert' }, { status: 403 })
+  }
+  if (userProfile.rolle !== 'Staffhub Manager' && userProfile.rolle !== 'Admin') {
     return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
   }
 
-  // Webhook URL
-  const webhookUrl = process.env.SLACK_WEBHOOK_URL
+  // ── Input validation ────────────────────────────────────────────────────────
+  let body: { workspace: SlackWorkspace; channel: SlackChannel }
+  try {
+    body = bodySchema.parse(await request.json())
+  } catch {
+    return NextResponse.json({ error: 'Ungültige Eingabe: workspace und channel erforderlich' }, { status: 400 })
+  }
+
+  const { workspace, channel } = body
+
+  // ── Webhook URL ─────────────────────────────────────────────────────────────
+  const webhookUrl = getWebhookUrl('detail', workspace, channel)
   if (!webhookUrl) {
     return NextResponse.json(
-      { error: 'SLACK_WEBHOOK_URL nicht konfiguriert. Bitte in .env.local setzen.' },
+      { error: 'Webhook-URL nicht konfiguriert für diese Kombination.' },
       { status: 503 }
     )
   }
 
-  // Vakanz laden
+  // ── Vakanz laden ────────────────────────────────────────────────────────────
   const { data: vakanz, error: vakanzError } = await supabase
     .from('vakanzen')
-    .select('titel, rolle, beschreibung, skills, erfahrungslevel, startdatum, auslastung_stunden, arbeitsmodell, standort, slack_ts')
+    .select('id, titel, rolle, beschreibung, skills, erfahrungslevel, startdatum, laufzeit, auslastung, arbeitsmodell, standort, branche, teamgroesse, budget_intern')
     .eq('id', id)
     .single()
 
@@ -96,37 +166,60 @@ export async function POST(
     return NextResponse.json({ error: 'Vakanz nicht gefunden' }, { status: 404 })
   }
 
-  // Slack-Nachricht bauen und senden
-  const payload = buildSlackBlocks(vakanz as Parameters<typeof buildSlackBlocks>[0])
+  // ── Slack-Nachricht senden ──────────────────────────────────────────────────
+  const blocks = buildDetailBlocks(vakanz, workspace)
+  let slackOk = false
+  let errorMsg: string | null = null
 
-  let slackRes: Response
   try {
-    slackRes = await fetch(webhookUrl, {
+    const slackRes = await fetch(webhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ blocks }),
     })
+    const slackBody = await slackRes.text()
+
+    if (slackRes.ok && slackBody === 'ok') {
+      slackOk = true
+    } else {
+      errorMsg = `HTTP ${slackRes.status}: ${slackBody}`
+    }
   } catch (err) {
+    errorMsg = err instanceof Error ? err.message : 'Unbekannter Fehler'
+  }
+
+  // ── DB-Updates ──────────────────────────────────────────────────────────────
+  if (slackOk) {
+    const now = new Date().toISOString()
+    await supabase
+      .from('vakanzen')
+      .update({
+        slack_ts: String(Date.now() / 1000), // legacy field kept
+        slack_detail_posted_at: now,
+      })
+      .eq('id', id)
+  }
+
+  // ── Log-Eintrag ─────────────────────────────────────────────────────────────
+  await supabase.from('slack_post_log').insert({
+    vakanz_id: id,
+    post_type: 'detail',
+    workspace,
+    channel,
+    status: slackOk ? 'success' : 'error',
+    error_msg: errorMsg,
+    posted_by: user.id,
+  })
+
+  if (!slackOk) {
     return NextResponse.json(
-      { error: `Slack nicht erreichbar: ${err instanceof Error ? err.message : 'Unbekannter Fehler'}` },
+      { error: `Slack-Fehler: ${errorMsg}` },
       { status: 502 }
     )
   }
 
-  const slackBody = await slackRes.text()
-  if (!slackRes.ok || slackBody !== 'ok') {
-    return NextResponse.json(
-      { error: `Slack-Fehler (HTTP ${slackRes.status}): ${slackBody}` },
-      { status: 502 }
-    )
-  }
-
-  // slack_ts mit aktuellem Timestamp speichern (Webhook gibt keinen ts zurück)
-  const slackTs = String(Date.now() / 1000)
-  await supabase
-    .from('vakanzen')
-    .update({ slack_ts: slackTs })
-    .eq('id', id)
-
-  return NextResponse.json({ success: true, slack_ts: slackTs })
+  return NextResponse.json({
+    success: true,
+    slack_detail_posted_at: new Date().toISOString(),
+  })
 }
