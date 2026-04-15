@@ -1,6 +1,6 @@
 # PROJ-8: Slack-Integration — Detailpost + Updatepost + Channel-Auswahl + Posting-Log
 
-**Status:** In Progress
+**Status:** Deployed
 **Erstellt:** 2026-04-12
 **Aktualisiert:** 2026-04-15
 **Priorität:** P1
@@ -295,3 +295,13 @@ RLS: Admin und Staffhub Manager können SELECT/INSERT.
 ### Produktionsreife
 
 **PRODUCTION READY** — Keine Critical oder High Bugs. Alle 20 AC bestanden.
+
+---
+
+## Deployment (2026-04-15)
+
+- **Git Commit:** `948315f` — feat(PROJ-8): Slack-Integration — Detailpost + Updatepost + Channel-Auswahl + Posting-Log
+- **Git Tag:** `v1.8.0-PROJ-8`
+- **GitHub:** https://github.com/matchbutler-crypto/Staffhub-FMP (branch: main)
+- **Vercel:** Deployment via GitHub-Integration (import via vercel.com/new)
+- **DB Migration ausgeführt:** `supabase/migrations/20260415_proj8_slack_log.sql` ✅
