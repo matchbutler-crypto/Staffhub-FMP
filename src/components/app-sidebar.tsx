@@ -112,11 +112,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
-              className="data-[slot=sidebar-menu-button]:!p-1.5"
+              className="group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:!justify-center"
             >
               <a href="/dashboard">
-                <div className="flex size-5 items-center justify-center rounded bg-primary">
-                  <IconBriefcase className="size-3 text-primary-foreground" />
+                <div className="flex size-6 shrink-0 items-center justify-center rounded bg-primary">
+                  <IconBriefcase className="size-4 text-primary-foreground" />
                 </div>
                 <span className="text-base font-semibold">Staffhub FMP</span>
               </a>
