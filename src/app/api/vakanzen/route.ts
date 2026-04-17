@@ -134,6 +134,7 @@ export async function POST(request: NextRequest) {
     .insert({
       ...parsed.data,
       status: 'Offen',
+      created_by: user.id,
     })
     .select('id, titel, status, created_at')
     .single()
