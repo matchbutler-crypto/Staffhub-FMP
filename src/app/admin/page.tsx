@@ -6,11 +6,22 @@ import {
   IconPlus,
   IconUserOff,
   IconUserCheck,
-  IconKey,
 } from "@tabler/icons-react"
+import { toast } from "sonner"
 
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -30,14 +41,13 @@ import {
 } from "@/components/ui/select"
 import {
   Sheet,
-  SheetClose,
   SheetContent,
   SheetDescription,
   SheetFooter,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
 } from "@/components/ui/sheet"
+import { Skeleton } from "@/components/ui/skeleton"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import {
   Table,
@@ -49,116 +59,29 @@ import {
 } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
+// ── Types ──────────────────────────────────────────────────────────────────────
+
 type Rolle = "Admin" | "Staffhub Manager" | "Agentur"
+
+interface Agentur {
+  id: string
+  name: string
+  kontakt_email: string
+  user_anzahl: number
+  created_at: string
+}
 
 interface User {
   id: string
   name: string
   email: string
   rolle: Rolle
-  agentur?: string
   aktiv: boolean
+  agentur_id: string | null
+  agenturen: { name: string } | null
 }
 
-interface Agentur {
-  id: string
-  name: string
-  kontakt: string
-  userAnzahl: number
-  profileAnzahl: number
-  beauftragungen: number
-}
-
-const mockUsers: User[] = [
-  {
-    id: "1",
-    name: "Max Muster",
-    email: "max.muster@staffhub.de",
-    rolle: "Staffhub Manager",
-    aktiv: true,
-  },
-  {
-    id: "2",
-    name: "Admin User",
-    email: "admin@staffhub.de",
-    rolle: "Admin",
-    aktiv: true,
-  },
-  {
-    id: "3",
-    name: "Laura Schmidt",
-    email: "l.schmidt@staffhub.de",
-    rolle: "Staffhub Manager",
-    aktiv: true,
-  },
-  {
-    id: "4",
-    name: "Klaus Weber",
-    email: "k.weber@techtalents.de",
-    rolle: "Agentur",
-    agentur: "TechTalents GmbH",
-    aktiv: true,
-  },
-  {
-    id: "5",
-    name: "Sandra Müller",
-    email: "s.mueller@techtalents.de",
-    rolle: "Agentur",
-    agentur: "TechTalents GmbH",
-    aktiv: false,
-  },
-  {
-    id: "6",
-    name: "Jan Becker",
-    email: "j.becker@prostaff.de",
-    rolle: "Agentur",
-    agentur: "ProStaff AG",
-    aktiv: true,
-  },
-  {
-    id: "7",
-    name: "Maria Fischer",
-    email: "m.fischer@prostaff.de",
-    rolle: "Agentur",
-    agentur: "ProStaff AG",
-    aktiv: true,
-  },
-  {
-    id: "8",
-    name: "Tom Richter",
-    email: "t.richter@digital-experts.de",
-    rolle: "Agentur",
-    agentur: "Digital Experts",
-    aktiv: true,
-  },
-]
-
-const mockAgenturen: Agentur[] = [
-  {
-    id: "1",
-    name: "TechTalents GmbH",
-    kontakt: "k.weber@techtalents.de",
-    userAnzahl: 2,
-    profileAnzahl: 14,
-    beauftragungen: 3,
-  },
-  {
-    id: "2",
-    name: "ProStaff AG",
-    kontakt: "j.becker@prostaff.de",
-    userAnzahl: 2,
-    profileAnzahl: 11,
-    beauftragungen: 3,
-  },
-  {
-    id: "3",
-    name: "Digital Experts",
-    kontakt: "t.richter@digital-experts.de",
-    userAnzahl: 1,
-    profileAnzahl: 9,
-    beauftragungen: 2,
-  },
-]
+// ── Color maps ─────────────────────────────────────────────────────────────────
 
 const rolleColors: Record<Rolle, string> = {
   Admin: "bg-red-100 text-red-700 border-red-200",
@@ -166,132 +89,451 @@ const rolleColors: Record<Rolle, string> = {
   Agentur: "bg-purple-100 text-purple-700 border-purple-200",
 }
 
-function NeuerBenutzerSheet() {
+// ── TableSkeletonRows ──────────────────────────────────────────────────────────
+
+function TableSkeletonRows({ cols, rows = 4 }: { cols: number; rows?: number }) {
+  return (
+    <>
+      {Array.from({ length: rows }).map((_, i) => (
+        <TableRow key={i}>
+          {Array.from({ length: cols }).map((_, j) => (
+            <TableCell key={j}>
+              <Skeleton className="h-4 w-full" />
+            </TableCell>
+          ))}
+        </TableRow>
+      ))}
+    </>
+  )
+}
+
+// ── NeuerBenutzerSheet ─────────────────────────────────────────────────────────
+
+interface NeuerBenutzerSheetProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  agenturen: Agentur[]
+  onSuccess: () => void
+}
+
+function NeuerBenutzerSheet({
+  open,
+  onOpenChange,
+  agenturen,
+  onSuccess,
+}: NeuerBenutzerSheetProps) {
+  const [name, setName] = React.useState("")
+  const [email, setEmail] = React.useState("")
+  const [password, setPassword] = React.useState("")
   const [rolle, setRolle] = React.useState<string>("")
-  const [open, setOpen] = React.useState(false)
+  const [agenturId, setAgenturId] = React.useState<string>("")
+  const [saving, setSaving] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (open) {
+      setName("")
+      setEmail("")
+      setPassword("")
+      setRolle("")
+      setAgenturId("")
+      setError(null)
+    }
+  }, [open])
+
+  async function handleSubmit() {
+    if (!name || !email || !password || !rolle) {
+      setError("Bitte alle Pflichtfelder ausfüllen.")
+      return
+    }
+    if (rolle === "Agentur" && !agenturId) {
+      setError("Bitte eine Agentur auswählen.")
+      return
+    }
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          email,
+          password,
+          rolle,
+          agentur_id: agenturId || null,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error ?? "Fehler beim Anlegen")
+      }
+      toast.success(`Benutzer „${name}" wurde angelegt`)
+      onOpenChange(false)
+      onSuccess()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unbekannter Fehler")
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <Button size="sm">
-          <IconPlus className="size-4" />
-          Neuer Benutzer
-        </Button>
-      </SheetTrigger>
-      <SheetContent side="right" className="w-[440px]">
-        <SheetHeader>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        className="flex w-[440px] flex-col gap-0 overflow-hidden p-0"
+      >
+        <SheetHeader className="border-b px-6 py-4">
           <SheetTitle>Neuen Benutzer anlegen</SheetTitle>
           <SheetDescription>
             Legen Sie einen neuen Benutzer an und weisen Sie eine Rolle zu.
           </SheetDescription>
         </SheetHeader>
-        <div className="flex flex-col gap-4 px-4 py-4">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="b-name">Name *</Label>
-            <Input id="b-name" placeholder="Vor- und Nachname" />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="b-email">E-Mail *</Label>
-            <Input id="b-email" type="email" placeholder="name@beispiel.de" />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="b-rolle">Rolle *</Label>
-            <Select onValueChange={setRolle}>
-              <SelectTrigger id="b-rolle">
-                <SelectValue placeholder="Rolle wählen..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Admin">Admin</SelectItem>
-                <SelectItem value="Staffhub Manager">
-                  Staffhub Manager
-                </SelectItem>
-                <SelectItem value="Agentur">Agentur</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {rolle === "Agentur" && (
+
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+          <div className="flex flex-col gap-4">
+            {error && (
+              <div className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {error}
+              </div>
+            )}
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="b-agentur">Agentur *</Label>
-              <Select>
-                <SelectTrigger id="b-agentur">
-                  <SelectValue placeholder="Agentur wählen..." />
+              <Label htmlFor="b-name">Name *</Label>
+              <Input
+                id="b-name"
+                placeholder="Vor- und Nachname"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="b-email">E-Mail *</Label>
+              <Input
+                id="b-email"
+                type="email"
+                placeholder="name@beispiel.de"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="b-rolle">Rolle *</Label>
+              <Select value={rolle} onValueChange={setRolle}>
+                <SelectTrigger id="b-rolle">
+                  <SelectValue placeholder="Rolle wählen…" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="TechTalents GmbH">
-                    TechTalents GmbH
+                  <SelectItem value="Admin">Admin</SelectItem>
+                  <SelectItem value="Staffhub Manager">
+                    Staffhub Manager
                   </SelectItem>
-                  <SelectItem value="ProStaff AG">ProStaff AG</SelectItem>
-                  <SelectItem value="Digital Experts">
-                    Digital Experts
-                  </SelectItem>
+                  <SelectItem value="Agentur">Agentur</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-          )}
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="b-passwort">Passwort *</Label>
-            <Input
-              id="b-passwort"
-              type="password"
-              placeholder="Temporäres Passwort"
-            />
+            {rolle === "Agentur" && (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="b-agentur">Agentur *</Label>
+                <Select value={agenturId} onValueChange={setAgenturId}>
+                  <SelectTrigger id="b-agentur">
+                    <SelectValue placeholder="Agentur wählen…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {agenturen.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="b-passwort">Temporäres Passwort *</Label>
+              <Input
+                id="b-passwort"
+                type="password"
+                placeholder="Mindestens 8 Zeichen"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Der Benutzer kann sein Passwort nach dem ersten Login ändern.
+              </p>
+            </div>
           </div>
         </div>
-        <SheetFooter className="px-4 pb-4">
-          <SheetClose asChild>
-            <Button variant="outline">Abbrechen</Button>
-          </SheetClose>
-          <Button onClick={() => setOpen(false)}>Benutzer erstellen</Button>
+
+        <SheetFooter className="border-t px-6 py-4">
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={saving}
+          >
+            Abbrechen
+          </Button>
+          <Button onClick={handleSubmit} disabled={saving}>
+            {saving ? "Anlegen…" : "Benutzer erstellen"}
+          </Button>
         </SheetFooter>
       </SheetContent>
     </Sheet>
   )
 }
 
-function NeueAgenturSheet() {
-  const [open, setOpen] = React.useState(false)
+// ── NeueAgenturSheet ───────────────────────────────────────────────────────────
+
+interface NeueAgenturSheetProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onSuccess: () => void
+}
+
+function NeueAgenturSheet({
+  open,
+  onOpenChange,
+  onSuccess,
+}: NeueAgenturSheetProps) {
+  const [name, setName] = React.useState("")
+  const [kontaktEmail, setKontaktEmail] = React.useState("")
+  const [saving, setSaving] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (open) {
+      setName("")
+      setKontaktEmail("")
+      setError(null)
+    }
+  }, [open])
+
+  async function handleSubmit() {
+    if (!name || !kontaktEmail) {
+      setError("Bitte alle Pflichtfelder ausfüllen.")
+      return
+    }
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch("/api/admin/agenturen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, kontakt_email: kontaktEmail }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error ?? "Fehler beim Anlegen")
+      }
+      toast.success(`Agentur „${name}" wurde angelegt`)
+      onOpenChange(false)
+      onSuccess()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unbekannter Fehler")
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <Button size="sm">
-          <IconPlus className="size-4" />
-          Neue Agentur
-        </Button>
-      </SheetTrigger>
-      <SheetContent side="right" className="w-[400px]">
-        <SheetHeader>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        className="flex w-[400px] flex-col gap-0 overflow-hidden p-0"
+      >
+        <SheetHeader className="border-b px-6 py-4">
           <SheetTitle>Neue Agentur anlegen</SheetTitle>
-          <SheetDescription>
-            Legen Sie eine neue Agentur an.
-          </SheetDescription>
+          <SheetDescription>Legen Sie eine neue Agentur an.</SheetDescription>
         </SheetHeader>
-        <div className="flex flex-col gap-4 px-4 py-4">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="a-name">Agentur-Name *</Label>
-            <Input id="a-name" placeholder="z.B. TechTalents GmbH" />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="a-kontakt">Kontakt-E-Mail *</Label>
-            <Input
-              id="a-kontakt"
-              type="email"
-              placeholder="kontakt@agentur.de"
-            />
+
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+          <div className="flex flex-col gap-4">
+            {error && (
+              <div className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {error}
+              </div>
+            )}
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="a-name">Agentur-Name *</Label>
+              <Input
+                id="a-name"
+                placeholder="z.B. TechTalents GmbH"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="a-kontakt">Kontakt-E-Mail *</Label>
+              <Input
+                id="a-kontakt"
+                type="email"
+                placeholder="kontakt@agentur.de"
+                value={kontaktEmail}
+                onChange={(e) => setKontaktEmail(e.target.value)}
+              />
+            </div>
           </div>
         </div>
-        <SheetFooter className="px-4 pb-4">
-          <SheetClose asChild>
-            <Button variant="outline">Abbrechen</Button>
-          </SheetClose>
-          <Button onClick={() => setOpen(false)}>Agentur erstellen</Button>
+
+        <SheetFooter className="border-t px-6 py-4">
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={saving}
+          >
+            Abbrechen
+          </Button>
+          <Button onClick={handleSubmit} disabled={saving}>
+            {saving ? "Anlegen…" : "Agentur erstellen"}
+          </Button>
         </SheetFooter>
       </SheetContent>
     </Sheet>
   )
 }
 
+// ── AgenturLoeschenDialog ──────────────────────────────────────────────────────
+
+interface AgenturLoeschenDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  agentur: Agentur | null
+  onSuccess: () => void
+}
+
+function AgenturLoeschenDialog({
+  open,
+  onOpenChange,
+  agentur,
+  onSuccess,
+}: AgenturLoeschenDialogProps) {
+  const [loading, setLoading] = React.useState(false)
+
+  async function handleConfirm() {
+    if (!agentur) return
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/admin/agenturen/${agentur.id}`, {
+        method: "DELETE",
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error ?? "Fehler beim Löschen")
+      }
+      toast.success(`Agentur „${agentur.name}" gelöscht`)
+      onOpenChange(false)
+      onSuccess()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Fehler beim Löschen")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Agentur löschen?</AlertDialogTitle>
+          <AlertDialogDescription>
+            {agentur && (
+              <>
+                <span className="font-medium text-foreground">
+                  „{agentur.name}"
+                </span>{" "}
+                wird dauerhaft gelöscht. Dieser Vorgang kann nicht rückgängig
+                gemacht werden.
+              </>
+            )}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={loading}>Abbrechen</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleConfirm}
+            disabled={loading}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            {loading ? "Löschen…" : "Löschen"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
+
+// ── AdminPage ──────────────────────────────────────────────────────────────────
+
 export default function AdminPage() {
+  const [users, setUsers] = React.useState<User[]>([])
+  const [agenturen, setAgenturen] = React.useState<Agentur[]>([])
+  const [loadingUsers, setLoadingUsers] = React.useState(true)
+  const [loadingAgenturen, setLoadingAgenturen] = React.useState(true)
+
+  const [benutzerSheetOpen, setBenutzerSheetOpen] = React.useState(false)
+  const [agenturSheetOpen, setAgenturSheetOpen] = React.useState(false)
+  const [loeschenOpen, setLoeschenOpen] = React.useState(false)
+  const [loeschenAgentur, setLoeschenAgentur] = React.useState<Agentur | null>(null)
+
+  async function fetchUsers() {
+    setLoadingUsers(true)
+    try {
+      const res = await fetch("/api/admin/users")
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      setUsers(data.users ?? [])
+    } catch (err) {
+      toast.error(
+        `Benutzer konnten nicht geladen werden: ${err instanceof Error ? err.message : ""}`
+      )
+    } finally {
+      setLoadingUsers(false)
+    }
+  }
+
+  async function fetchAgenturen() {
+    setLoadingAgenturen(true)
+    try {
+      const res = await fetch("/api/admin/agenturen")
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      setAgenturen(data.agenturen ?? [])
+    } catch (err) {
+      toast.error(
+        `Agenturen konnten nicht geladen werden: ${err instanceof Error ? err.message : ""}`
+      )
+    } finally {
+      setLoadingAgenturen(false)
+    }
+  }
+
+  React.useEffect(() => {
+    fetchUsers()
+    fetchAgenturen()
+  }, [])
+
+  async function toggleUserAktiv(user: User) {
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ aktiv: !user.aktiv }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error ?? "Fehler")
+      }
+      toast.success(
+        user.aktiv
+          ? `„${user.name}" deaktiviert`
+          : `„${user.name}" aktiviert`
+      )
+      fetchUsers()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Fehler")
+    }
+  }
+
   return (
     <SidebarProvider
       style={
@@ -307,7 +549,6 @@ export default function AdminPage() {
         <div className="flex flex-1 flex-col">
           <div className="@container/main flex flex-1 flex-col gap-2">
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-
               <div className="px-4 lg:px-6">
                 <h2 className="text-xl font-semibold">Administration</h2>
                 <p className="text-sm text-muted-foreground">
@@ -317,20 +558,24 @@ export default function AdminPage() {
 
               <div className="px-4 lg:px-6">
                 <Tabs defaultValue="benutzer">
-                  <div className="flex items-center justify-between gap-4">
-                    <TabsList>
-                      <TabsTrigger value="benutzer">Benutzer</TabsTrigger>
-                      <TabsTrigger value="agenturen">Agenturen</TabsTrigger>
-                    </TabsList>
-                  </div>
+                  <TabsList>
+                    <TabsTrigger value="benutzer">Benutzer</TabsTrigger>
+                    <TabsTrigger value="agenturen">Agenturen</TabsTrigger>
+                  </TabsList>
 
-                  {/* Benutzer Tab */}
+                  {/* ── Benutzer Tab ── */}
                   <TabsContent value="benutzer" className="mt-4">
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="mb-4 flex items-center justify-between">
                       <p className="text-sm text-muted-foreground">
-                        {mockUsers.length} Benutzer
+                        {loadingUsers ? "Lädt…" : `${users.length} Benutzer`}
                       </p>
-                      <NeuerBenutzerSheet />
+                      <Button
+                        size="sm"
+                        onClick={() => setBenutzerSheetOpen(true)}
+                      >
+                        <IconPlus className="size-4" />
+                        Neuer Benutzer
+                      </Button>
                     </div>
                     <div className="overflow-hidden rounded-lg border">
                       <Table>
@@ -341,97 +586,116 @@ export default function AdminPage() {
                             <TableHead>Rolle</TableHead>
                             <TableHead>Agentur</TableHead>
                             <TableHead>Status</TableHead>
-                            <TableHead className="w-10"></TableHead>
+                            <TableHead className="w-10" />
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {mockUsers.map((u) => (
-                            <TableRow key={u.id}>
-                              <TableCell className="font-medium">
-                                {u.name}
-                              </TableCell>
-                              <TableCell className="text-sm text-muted-foreground">
-                                {u.email}
-                              </TableCell>
-                              <TableCell>
-                                <span
-                                  className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${rolleColors[u.rolle]}`}
-                                >
-                                  {u.rolle}
-                                </span>
-                              </TableCell>
-                              <TableCell className="text-sm text-muted-foreground">
-                                {u.agentur ?? "–"}
-                              </TableCell>
-                              <TableCell>
-                                <span
-                                  className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${
-                                    u.aktiv
-                                      ? "bg-green-100 text-green-700 border-green-200"
-                                      : "bg-gray-100 text-gray-500 border-gray-200"
-                                  }`}
-                                >
-                                  {u.aktiv ? "Aktiv" : "Inaktiv"}
-                                </span>
-                              </TableCell>
-                              <TableCell>
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="size-8 text-muted-foreground"
-                                    >
-                                      <IconDotsVertical className="size-4" />
-                                      <span className="sr-only">Aktionen</span>
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent
-                                    align="end"
-                                    className="w-48"
-                                  >
-                                    <DropdownMenuItem>
-                                      Bearbeiten
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem>
-                                      <IconKey className="size-4" />
-                                      Passwort zurücksetzen
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem
-                                      variant={
-                                        u.aktiv ? "destructive" : "default"
-                                      }
-                                    >
-                                      {u.aktiv ? (
-                                        <>
-                                          <IconUserOff className="size-4" />
-                                          Deaktivieren
-                                        </>
-                                      ) : (
-                                        <>
-                                          <IconUserCheck className="size-4" />
-                                          Aktivieren
-                                        </>
-                                      )}
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
+                          {loadingUsers ? (
+                            <TableSkeletonRows cols={6} />
+                          ) : users.length === 0 ? (
+                            <TableRow>
+                              <TableCell
+                                colSpan={6}
+                                className="py-10 text-center text-muted-foreground"
+                              >
+                                Keine Benutzer vorhanden.
                               </TableCell>
                             </TableRow>
-                          ))}
+                          ) : (
+                            users.map((u) => (
+                              <TableRow key={u.id}>
+                                <TableCell className="font-medium">
+                                  {u.name}
+                                </TableCell>
+                                <TableCell className="text-sm text-muted-foreground">
+                                  {u.email}
+                                </TableCell>
+                                <TableCell>
+                                  <Badge
+                                    variant="outline"
+                                    className={rolleColors[u.rolle]}
+                                  >
+                                    {u.rolle}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-sm text-muted-foreground">
+                                  {u.agenturen?.name ?? "–"}
+                                </TableCell>
+                                <TableCell>
+                                  <Badge
+                                    variant="outline"
+                                    className={
+                                      u.aktiv
+                                        ? "bg-green-100 text-green-700 border-green-200"
+                                        : "bg-gray-100 text-gray-500 border-gray-200"
+                                    }
+                                  >
+                                    {u.aktiv ? "Aktiv" : "Inaktiv"}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="size-8 text-muted-foreground"
+                                      >
+                                        <IconDotsVertical className="size-4" />
+                                        <span className="sr-only">Aktionen</span>
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent
+                                      align="end"
+                                      className="w-48"
+                                    >
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem
+                                        onClick={() => toggleUserAktiv(u)}
+                                        className={
+                                          u.aktiv
+                                            ? "text-destructive focus:text-destructive"
+                                            : ""
+                                        }
+                                      >
+                                        {u.aktiv ? (
+                                          <>
+                                            <IconUserOff className="mr-2 size-4" />
+                                            Deaktivieren
+                                          </>
+                                        ) : (
+                                          <>
+                                            <IconUserCheck className="mr-2 size-4" />
+                                            Aktivieren
+                                          </>
+                                        )}
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          )}
                         </TableBody>
                       </Table>
                     </div>
                   </TabsContent>
 
-                  {/* Agenturen Tab */}
+                  {/* ── Agenturen Tab ── */}
                   <TabsContent value="agenturen" className="mt-4">
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="mb-4 flex items-center justify-between">
                       <p className="text-sm text-muted-foreground">
-                        {mockAgenturen.length} Agenturen
+                        {loadingAgenturen
+                          ? "Lädt…"
+                          : `${agenturen.length} Agenturen`}
                       </p>
-                      <NeueAgenturSheet />
+                      <Button
+                        size="sm"
+                        onClick={() => setAgenturSheetOpen(true)}
+                      >
+                        <IconPlus className="size-4" />
+                        Neue Agentur
+                      </Button>
                     </div>
                     <div className="overflow-hidden rounded-lg border">
                       <Table>
@@ -442,72 +706,100 @@ export default function AdminPage() {
                             <TableHead className="text-center">
                               Benutzer
                             </TableHead>
-                            <TableHead className="text-center">
-                              Profile
-                            </TableHead>
-                            <TableHead className="text-center">
-                              Beauftragungen
-                            </TableHead>
-                            <TableHead className="w-10"></TableHead>
+                            <TableHead>Angelegt</TableHead>
+                            <TableHead className="w-10" />
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {mockAgenturen.map((a) => (
-                            <TableRow key={a.id}>
-                              <TableCell className="font-medium">
-                                {a.name}
-                              </TableCell>
-                              <TableCell className="text-sm text-muted-foreground">
-                                {a.kontakt}
-                              </TableCell>
-                              <TableCell className="text-center tabular-nums">
-                                {a.userAnzahl}
-                              </TableCell>
-                              <TableCell className="text-center tabular-nums">
-                                {a.profileAnzahl}
-                              </TableCell>
-                              <TableCell className="text-center tabular-nums">
-                                {a.beauftragungen}
-                              </TableCell>
-                              <TableCell>
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="size-8 text-muted-foreground"
-                                    >
-                                      <IconDotsVertical className="size-4" />
-                                      <span className="sr-only">Aktionen</span>
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent
-                                    align="end"
-                                    className="w-36"
-                                  >
-                                    <DropdownMenuItem>
-                                      Bearbeiten
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem variant="destructive">
-                                      Löschen
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
+                          {loadingAgenturen ? (
+                            <TableSkeletonRows cols={5} />
+                          ) : agenturen.length === 0 ? (
+                            <TableRow>
+                              <TableCell
+                                colSpan={5}
+                                className="py-10 text-center text-muted-foreground"
+                              >
+                                Keine Agenturen vorhanden.
                               </TableCell>
                             </TableRow>
-                          ))}
+                          ) : (
+                            agenturen.map((a) => (
+                              <TableRow key={a.id}>
+                                <TableCell className="font-medium">
+                                  {a.name}
+                                </TableCell>
+                                <TableCell className="text-sm text-muted-foreground">
+                                  {a.kontakt_email}
+                                </TableCell>
+                                <TableCell className="text-center tabular-nums">
+                                  {a.user_anzahl}
+                                </TableCell>
+                                <TableCell className="text-sm text-muted-foreground">
+                                  {new Date(a.created_at).toLocaleDateString(
+                                    "de-DE"
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="size-8 text-muted-foreground"
+                                      >
+                                        <IconDotsVertical className="size-4" />
+                                        <span className="sr-only">Aktionen</span>
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent
+                                      align="end"
+                                      className="w-36"
+                                    >
+                                      <DropdownMenuItem
+                                        className="text-destructive focus:text-destructive"
+                                        onClick={() => {
+                                          setLoeschenAgentur(a)
+                                          setLoeschenOpen(true)
+                                        }}
+                                      >
+                                        Löschen
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          )}
                         </TableBody>
                       </Table>
                     </div>
                   </TabsContent>
                 </Tabs>
               </div>
-
             </div>
           </div>
         </div>
       </SidebarInset>
+
+      <NeuerBenutzerSheet
+        open={benutzerSheetOpen}
+        onOpenChange={setBenutzerSheetOpen}
+        agenturen={agenturen}
+        onSuccess={fetchUsers}
+      />
+
+      <NeueAgenturSheet
+        open={agenturSheetOpen}
+        onOpenChange={setAgenturSheetOpen}
+        onSuccess={fetchAgenturen}
+      />
+
+      <AgenturLoeschenDialog
+        open={loeschenOpen}
+        onOpenChange={setLoeschenOpen}
+        agentur={loeschenAgentur}
+        onSuccess={fetchAgenturen}
+      />
     </SidebarProvider>
   )
 }
