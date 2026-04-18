@@ -1,6 +1,6 @@
 # PROJ-11: Ressource auf Vakanz spielen + Status-Workflow
 
-## Status: In Progress
+## Status: Deployed
 **Created:** 2026-04-18
 **Last Updated:** 2026-04-18
 
@@ -277,4 +277,10 @@ Abgelehnt         → (Terminal)
 **✅ READY** — Alle 12 Acceptance Criteria bestätigt, keine Critical/High Bugs, Security-Audit bestanden, Regression-Tests grün.
 
 ## Deployment
-_To be added by /deploy_
+
+**Deployed:** 2026-04-19
+**Production:** https://staffhub-fmp.vercel.app
+**Git Tag:** v1.11.0-PROJ-11
+
+**DB Migration:** Applied to Supabase `staffhub-fmp` (eu-central-1) — beide Tabellen (`ressource_vakanz_links`, `ressource_historie`) bereits vor Push vorhanden und verifiziert.
+**Vercel:** Push auf `main` → Auto-Deploy ausgelöst (afeba8b → 546f2cf)
