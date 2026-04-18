@@ -6,8 +6,10 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { toast } from "sonner"
 import {
+  IconClock,
   IconDownload,
   IconDotsVertical,
+  IconLink,
   IconPencil,
   IconPlus,
   IconSearch,
@@ -57,6 +59,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import {
@@ -617,6 +620,323 @@ function DeaktivierenDialog({
   )
 }
 
+// ── Link / Historie types ──────────────────────────────────────────────────────
+
+type LinkStatus =
+  | "Gespielt"
+  | "Interview geplant"
+  | "Zugesagt"
+  | "Abgesagt"
+  | "Abgelehnt"
+
+interface VakanzLink {
+  id: string
+  vakanz_id: string
+  status: LinkStatus
+  interview_datum: string | null
+  created_at: string
+  vakanzen_data: { id: string; rolle: string; status: string } | null
+}
+
+interface HistorieEintrag {
+  id: string
+  typ: "system" | "manuell"
+  text: string
+  created_at: string
+}
+
+const linkStatusColors: Record<LinkStatus, string> = {
+  Gespielt: "bg-blue-100 text-blue-700 border-blue-200",
+  "Interview geplant": "bg-amber-100 text-amber-700 border-amber-200",
+  Zugesagt: "bg-green-100 text-green-700 border-green-200",
+  Abgesagt: "bg-gray-100 text-gray-500 border-gray-200",
+  Abgelehnt: "bg-red-100 text-red-700 border-red-200",
+}
+
+// ── AgenturDetailSheet ─────────────────────────────────────────────────────────
+
+interface AgenturDetailSheetProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  ressource: Ressource | null
+}
+
+function AgenturDetailSheet({
+  open,
+  onOpenChange,
+  ressource,
+}: AgenturDetailSheetProps) {
+  const [links, setLinks] = React.useState<VakanzLink[]>([])
+  const [historie, setHistorie] = React.useState<HistorieEintrag[]>([])
+  const [linksLoading, setLinksLoading] = React.useState(false)
+  const [historieLoading, setHistorieLoading] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!open || !ressource) {
+      setLinks([])
+      setHistorie([])
+      return
+    }
+    setLinksLoading(true)
+    fetch(`/api/ressourcen/${ressource.id}/links`)
+      .then((r) => r.json())
+      .then((d) => setLinks(d.links ?? []))
+      .catch(() => {})
+      .finally(() => setLinksLoading(false))
+
+    setHistorieLoading(true)
+    fetch(`/api/ressourcen/${ressource.id}/historie`)
+      .then((r) => r.json())
+      .then((d) => setHistorie(d.historie ?? []))
+      .catch(() => {})
+      .finally(() => setHistorieLoading(false))
+  }, [open, ressource?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleCvDownload() {
+    if (!ressource?.cv_pfad) return
+    try {
+      const res = await fetch(`/api/ressourcen/${ressource.id}/cv`)
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error ?? "Fehler")
+      }
+      const { url } = await res.json()
+      window.open(url, "_blank")
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "CV-Download fehlgeschlagen"
+      )
+    }
+  }
+
+  if (!ressource) return null
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        className="flex w-[480px] flex-col gap-0 overflow-hidden p-0 sm:w-[540px]"
+      >
+        <SheetHeader className="flex-none border-b px-6 py-4">
+          <SheetTitle>{ressource.name}</SheetTitle>
+          <SheetDescription>Details & Verlauf</SheetDescription>
+        </SheetHeader>
+
+        <Tabs
+          defaultValue="details"
+          className="flex flex-1 flex-col overflow-hidden"
+        >
+          <TabsList className="mx-6 mt-3 self-start">
+            <TabsTrigger value="details">Details</TabsTrigger>
+            <TabsTrigger value="verlauf">
+              Verlauf
+              {historie.length > 0 && (
+                <span className="ml-1.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">
+                  {historie.length}
+                </span>
+              )}
+            </TabsTrigger>
+          </TabsList>
+
+          {/* ── Tab 1: Details (read-only) ── */}
+          <TabsContent
+            value="details"
+            className="mt-0 flex-1 overflow-y-auto px-6 py-4"
+          >
+            <div className="flex flex-col gap-5">
+              {/* Status badges */}
+              <div className="flex flex-wrap gap-2">
+                <Badge
+                  variant="outline"
+                  className={verfuegbarkeitColors[ressource.verfuegbarkeit]}
+                >
+                  {ressource.verfuegbarkeit}
+                  {ressource.verfuegbarkeit === "Verfügbar ab" &&
+                    ressource.verfuegbar_ab &&
+                    ` ${new Date(ressource.verfuegbar_ab).toLocaleDateString(
+                      "de-DE"
+                    )}`}
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className={erfahrungsColors[ressource.erfahrungslevel]}
+                >
+                  {ressource.erfahrungslevel}
+                </Badge>
+              </div>
+
+              {/* Skills */}
+              <div>
+                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Skills
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {ressource.skills.map((s) => (
+                    <span
+                      key={s}
+                      className="inline-flex items-center rounded border border-border bg-muted px-2 py-0.5 text-sm"
+                    >
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Notizen */}
+              {ressource.notizen && (
+                <div>
+                  <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Notizen
+                  </p>
+                  <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+                    {ressource.notizen}
+                  </p>
+                </div>
+              )}
+
+              {/* CV */}
+              <div>
+                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Lebenslauf
+                </p>
+                {ressource.cv_pfad ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={handleCvDownload}
+                  >
+                    <IconDownload className="size-4" />
+                    CV herunterladen
+                  </Button>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Kein CV vorhanden
+                  </p>
+                )}
+              </div>
+
+              {/* Metadata */}
+              <div className="rounded-lg border bg-muted/40 px-4 py-3">
+                <div className="grid grid-cols-2 gap-y-2 text-xs">
+                  <span className="text-muted-foreground">Angelegt</span>
+                  <span>
+                    {new Date(ressource.created_at).toLocaleDateString("de-DE")}
+                  </span>
+                  <span className="text-muted-foreground">Aktualisiert</span>
+                  <span>
+                    {new Date(ressource.updated_at).toLocaleDateString("de-DE")}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* ── Tab 2: Verlauf ── */}
+          <TabsContent
+            value="verlauf"
+            className="mt-0 flex-1 overflow-y-auto px-6 py-4"
+          >
+            <div className="flex flex-col gap-6">
+              {/* Aktive Verknüpfungen */}
+              <div className="flex flex-col gap-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Vakanz-Verknüpfungen
+                </p>
+                {linksLoading ? (
+                  <div className="flex flex-col gap-2">
+                    {[1, 2].map((i) => (
+                      <Skeleton key={i} className="h-14 w-full rounded-lg" />
+                    ))}
+                  </div>
+                ) : links.length === 0 ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <IconLink className="size-4 shrink-0" />
+                    Noch keine Verknüpfungen vorhanden.
+                  </div>
+                ) : (
+                  <div className="flex flex-col divide-y rounded-lg border">
+                    {links.map((link) => (
+                      <div key={link.id} className="flex flex-col gap-1.5 px-4 py-3">
+                        <p className="text-sm font-medium">
+                          {link.vakanzen_data?.rolle ?? "Unbekannte Vakanz"}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant="outline"
+                            className={linkStatusColors[link.status]}
+                          >
+                            {link.status}
+                          </Badge>
+                          {link.interview_datum && (
+                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <IconClock className="size-3" />
+                              {new Date(link.interview_datum).toLocaleDateString(
+                                "de-DE"
+                              )}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Statushistorie */}
+              <div className="flex flex-col gap-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Statushistorie
+                </p>
+                {historieLoading ? (
+                  <div className="flex flex-col gap-2">
+                    {[1, 2, 3].map((i) => (
+                      <Skeleton key={i} className="h-10 w-full" />
+                    ))}
+                  </div>
+                ) : historie.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Keine Einträge vorhanden.
+                  </p>
+                ) : (
+                  <div className="flex flex-col gap-0">
+                    {historie.map((entry, idx) => (
+                      <div
+                        key={entry.id}
+                        className={`flex gap-3 py-2.5 ${
+                          idx < historie.length - 1
+                            ? "border-b border-dashed border-border/60"
+                            : ""
+                        }`}
+                      >
+                        <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-muted">
+                          <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                          <p className="text-sm">{entry.text}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(entry.created_at).toLocaleString("de-DE", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </SheetContent>
+    </Sheet>
+  )
+}
+
 // ── Skeleton ───────────────────────────────────────────────────────────────────
 
 function TableSkeletonRows({ cols }: { cols: number }) {
@@ -654,6 +974,9 @@ export default function PoolPage() {
 
   const [deaktivierenOpen, setDeaktivierenOpen] = React.useState(false)
   const [deaktivierenRessource, setDeaktivierenRessource] = React.useState<Ressource | null>(null)
+
+  const [detailOpen, setDetailOpen] = React.useState(false)
+  const [detailRessource, setDetailRessource] = React.useState<Ressource | null>(null)
 
   async function fetchRessourcen() {
     setLoading(true)
@@ -832,7 +1155,14 @@ export default function PoolPage() {
                         </TableRow>
                       ) : (
                         filtered.map((r) => (
-                          <TableRow key={r.id}>
+                          <TableRow
+                            key={r.id}
+                            className="cursor-pointer"
+                            onClick={() => {
+                              setDetailRessource(r)
+                              setDetailOpen(true)
+                            }}
+                          >
                             <TableCell className="font-medium">{r.name}</TableCell>
                             <TableCell>
                               <SkillTags skills={r.skills} />
@@ -876,7 +1206,7 @@ export default function PoolPage() {
                                 <span className="text-xs text-muted-foreground">Kein CV</span>
                               )}
                             </TableCell>
-                            <TableCell>
+                            <TableCell onClick={(e) => e.stopPropagation()}>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button variant="ghost" size="icon" className="size-8">
@@ -948,6 +1278,12 @@ export default function PoolPage() {
         onOpenChange={setDeaktivierenOpen}
         ressource={deaktivierenRessource}
         onSuccess={fetchRessourcen}
+      />
+
+      <AgenturDetailSheet
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        ressource={detailRessource}
       />
     </SidebarProvider>
   )

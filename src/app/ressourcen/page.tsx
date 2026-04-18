@@ -3,7 +3,11 @@
 import * as React from "react"
 import { toast } from "sonner"
 import {
+  IconArrowRight,
+  IconClock,
   IconDownload,
+  IconLink,
+  IconPlus,
   IconSearch,
   IconX,
 } from "@tabler/icons-react"
@@ -14,7 +18,16 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -39,6 +52,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -62,6 +76,40 @@ interface Ressource {
   agenturen?: Agentur | null
 }
 
+type LinkStatus =
+  | "Gespielt"
+  | "Interview geplant"
+  | "Zugesagt"
+  | "Abgesagt"
+  | "Abgelehnt"
+
+interface VakanzLink {
+  id: string
+  ressource_id: string
+  vakanz_id: string
+  status: LinkStatus
+  interview_datum: string | null
+  created_at: string
+  updated_at: string
+  vakanzen_data: { id: string; rolle: string; status: string } | null
+}
+
+interface Vakanz {
+  id: string
+  rolle: string
+  status: string
+}
+
+// ── Constants ──────────────────────────────────────────────────────────────────
+
+const VALID_TRANSITIONS: Record<LinkStatus, LinkStatus[]> = {
+  Gespielt: ["Interview geplant", "Abgesagt", "Abgelehnt"],
+  "Interview geplant": ["Zugesagt", "Abgesagt", "Abgelehnt"],
+  Zugesagt: [],
+  Abgesagt: [],
+  Abgelehnt: [],
+}
+
 // ── Color maps ─────────────────────────────────────────────────────────────────
 
 const verfuegbarkeitColors: Record<RessourceVerfuegbarkeit, string> = {
@@ -76,6 +124,14 @@ const erfahrungsColors: Record<Erfahrungslevel, string> = {
   Mid: "bg-violet-100 text-violet-700 border-violet-200",
   Senior: "bg-emerald-100 text-emerald-700 border-emerald-200",
   Expert: "bg-rose-100 text-rose-700 border-rose-200",
+}
+
+const linkStatusColors: Record<LinkStatus, string> = {
+  Gespielt: "bg-blue-100 text-blue-700 border-blue-200",
+  "Interview geplant": "bg-amber-100 text-amber-700 border-amber-200",
+  Zugesagt: "bg-green-100 text-green-700 border-green-200",
+  Abgesagt: "bg-gray-100 text-gray-500 border-gray-200",
+  Abgelehnt: "bg-red-100 text-red-700 border-red-200",
 }
 
 // ── SkillTags ──────────────────────────────────────────────────────────────────
@@ -102,6 +158,257 @@ function SkillTags({ skills }: { skills: string[] }) {
   )
 }
 
+// ── VakanzSpielenDialog ────────────────────────────────────────────────────────
+
+interface VakanzSpielenDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  ressourceId: string
+  ressourceName: string
+  onSuccess: () => void
+}
+
+function VakanzSpielenDialog({
+  open,
+  onOpenChange,
+  ressourceId,
+  ressourceName,
+  onSuccess,
+}: VakanzSpielenDialogProps) {
+  const [vakanzen, setVakanzen] = React.useState<Vakanz[]>([])
+  const [loadingVakanzen, setLoadingVakanzen] = React.useState(false)
+  const [selectedVakanzId, setSelectedVakanzId] = React.useState("")
+  const [saving, setSaving] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!open) {
+      setSelectedVakanzId("")
+      return
+    }
+    setLoadingVakanzen(true)
+    fetch("/api/vakanzen")
+      .then((r) => r.json())
+      .then((d) =>
+        setVakanzen(
+          (d.vakanzen ?? []).filter((v: Vakanz) => v.status === "Offen")
+        )
+      )
+      .catch(() => toast.error("Vakanzen konnten nicht geladen werden"))
+      .finally(() => setLoadingVakanzen(false))
+  }, [open])
+
+  async function handleSpiele() {
+    if (!selectedVakanzId) return
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/ressourcen/${ressourceId}/spielen`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vakanz_id: selectedVakanzId }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error ?? "Fehler")
+      }
+      toast.success(`„${ressourceName}" wurde auf die Vakanz gespielt`)
+      onOpenChange(false)
+      onSuccess()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Fehler beim Spielen")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[440px]">
+        <DialogHeader>
+          <DialogTitle>Auf Vakanz spielen</DialogTitle>
+          <DialogDescription>
+            Wählen Sie eine offene Vakanz für „{ressourceName}".
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-3 py-2">
+          <div className="flex flex-col gap-1.5">
+            <Label>Vakanz</Label>
+            {loadingVakanzen ? (
+              <Skeleton className="h-9 w-full" />
+            ) : vakanzen.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Keine offenen Vakanzen vorhanden.
+              </p>
+            ) : (
+              <Select
+                value={selectedVakanzId}
+                onValueChange={setSelectedVakanzId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Vakanz auswählen…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {vakanzen.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>
+                      {v.rolle}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={saving}
+          >
+            Abbrechen
+          </Button>
+          <Button
+            onClick={handleSpiele}
+            disabled={saving || !selectedVakanzId || loadingVakanzen}
+          >
+            {saving ? "Spielen…" : "Auf Vakanz spielen"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ── StatusUpdateDialog ─────────────────────────────────────────────────────────
+
+interface StatusUpdateDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  link: VakanzLink | null
+  onSuccess: () => void
+}
+
+function StatusUpdateDialog({
+  open,
+  onOpenChange,
+  link,
+  onSuccess,
+}: StatusUpdateDialogProps) {
+  const [selectedStatus, setSelectedStatus] = React.useState<LinkStatus | "">(
+    ""
+  )
+  const [interviewDatum, setInterviewDatum] = React.useState("")
+  const [saving, setSaving] = React.useState(false)
+
+  const allowedStatuses = link ? VALID_TRANSITIONS[link.status] : []
+
+  React.useEffect(() => {
+    if (open) {
+      setSelectedStatus("")
+      setInterviewDatum("")
+    }
+  }, [open])
+
+  async function handleUpdate() {
+    if (!link || !selectedStatus) return
+    if (selectedStatus === "Interview geplant" && !interviewDatum) {
+      toast.error("Bitte Datum eingeben")
+      return
+    }
+    setSaving(true)
+    try {
+      const body: Record<string, string> = { status: selectedStatus }
+      if (selectedStatus === "Interview geplant") {
+        body.interview_datum = interviewDatum
+      }
+      const res = await fetch(`/api/ressource-links/${link.id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error ?? "Fehler")
+      }
+      toast.success(`Status auf „${selectedStatus}" gesetzt`)
+      onOpenChange(false)
+      onSuccess()
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Fehler beim Aktualisieren"
+      )
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!link) return null
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[400px]">
+        <DialogHeader>
+          <DialogTitle>Status weiterschalten</DialogTitle>
+          <DialogDescription>
+            Aktuell:{" "}
+            <span className="font-medium">{link.status}</span>
+            {link.vakanzen_data && <> · {link.vakanzen_data.rolle}</>}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-3 py-2">
+          <div className="flex flex-col gap-1.5">
+            <Label>Neuer Status</Label>
+            <Select
+              value={selectedStatus}
+              onValueChange={(v) => setSelectedStatus(v as LinkStatus)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Status wählen…" />
+              </SelectTrigger>
+              <SelectContent>
+                {allowedStatuses.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {selectedStatus === "Interview geplant" && (
+            <div className="flex flex-col gap-1.5">
+              <Label>
+                Interview-Datum <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                type="date"
+                value={interviewDatum}
+                onChange={(e) => setInterviewDatum(e.target.value)}
+              />
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={saving}
+          >
+            Abbrechen
+          </Button>
+          <Button
+            onClick={handleUpdate}
+            disabled={
+              saving ||
+              !selectedStatus ||
+              (selectedStatus === "Interview geplant" && !interviewDatum)
+            }
+          >
+            {saving ? "Speichern…" : "Status setzen"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── RessourceDetailSheet ───────────────────────────────────────────────────────
 
 interface RessourceDetailSheetProps {
@@ -115,6 +422,36 @@ function RessourceDetailSheet({
   onOpenChange,
   ressource,
 }: RessourceDetailSheetProps) {
+  const [links, setLinks] = React.useState<VakanzLink[]>([])
+  const [linksLoading, setLinksLoading] = React.useState(false)
+  const [spielenOpen, setSpielenOpen] = React.useState(false)
+  const [statusDialogOpen, setStatusDialogOpen] = React.useState(false)
+  const [activeLink, setActiveLink] = React.useState<VakanzLink | null>(null)
+
+  async function fetchLinks() {
+    if (!ressource) return
+    setLinksLoading(true)
+    try {
+      const res = await fetch(`/api/ressourcen/${ressource.id}/links`)
+      if (!res.ok) return
+      const d = await res.json()
+      setLinks(d.links ?? [])
+    } catch {
+      // silently fail
+    } finally {
+      setLinksLoading(false)
+    }
+  }
+
+  React.useEffect(() => {
+    if (open && ressource) {
+      fetchLinks()
+    } else {
+      setLinks([])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, ressource?.id])
+
   async function handleCvDownload() {
     if (!ressource?.cv_pfad) return
     try {
@@ -126,127 +463,257 @@ function RessourceDetailSheet({
       const { url } = await res.json()
       window.open(url, "_blank")
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "CV-Download fehlgeschlagen")
+      toast.error(
+        err instanceof Error ? err.message : "CV-Download fehlgeschlagen"
+      )
     }
   }
 
   if (!ressource) return null
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="flex w-[420px] flex-col gap-0 overflow-hidden p-0 sm:w-[480px]"
-      >
-        <SheetHeader className="border-b px-6 py-4">
-          <SheetTitle>{ressource.name}</SheetTitle>
-          <SheetDescription>
-            {ressource.agenturen?.name ?? "Unbekannte Agentur"}
-          </SheetDescription>
-        </SheetHeader>
+    <>
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent
+          side="right"
+          className="flex w-[480px] flex-col gap-0 overflow-hidden p-0 sm:w-[540px]"
+        >
+          <SheetHeader className="flex-none border-b px-6 py-4">
+            <SheetTitle>{ressource.name}</SheetTitle>
+            <SheetDescription>
+              {ressource.agenturen?.name ?? "Unbekannte Agentur"}
+            </SheetDescription>
+          </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto px-6 py-4">
-          <div className="flex flex-col gap-5">
-
-            {/* Badges */}
-            <div className="flex flex-wrap gap-2">
-              <Badge
-                variant="outline"
-                className={verfuegbarkeitColors[ressource.verfuegbarkeit]}
-              >
-                {ressource.verfuegbarkeit}
-                {ressource.verfuegbarkeit === "Verfügbar ab" &&
-                  ressource.verfuegbar_ab &&
-                  ` ${new Date(ressource.verfuegbar_ab).toLocaleDateString("de-DE")}`}
-              </Badge>
-              <Badge
-                variant="outline"
-                className={erfahrungsColors[ressource.erfahrungslevel]}
-              >
-                {ressource.erfahrungslevel}
-              </Badge>
-            </div>
-
-            {/* Skills */}
-            <div>
-              <p className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Skills
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {ressource.skills.map((s) => (
-                  <span
-                    key={s}
-                    className="inline-flex items-center rounded border border-border bg-muted px-2 py-0.5 text-sm"
-                  >
-                    {s}
+          <Tabs
+            defaultValue="details"
+            className="flex flex-1 flex-col overflow-hidden"
+          >
+            <TabsList className="mx-6 mt-3 self-start">
+              <TabsTrigger value="details">Details</TabsTrigger>
+              <TabsTrigger value="verknuepfungen">
+                Verknüpfungen
+                {links.length > 0 && (
+                  <span className="ml-1.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">
+                    {links.length}
                   </span>
-                ))}
+                )}
+              </TabsTrigger>
+            </TabsList>
+
+            {/* ── Tab 1: Details ── */}
+            <TabsContent
+              value="details"
+              className="mt-0 flex-1 overflow-y-auto px-6 py-4"
+            >
+              <div className="flex flex-col gap-5">
+                {/* Status badges */}
+                <div className="flex flex-wrap gap-2">
+                  <Badge
+                    variant="outline"
+                    className={verfuegbarkeitColors[ressource.verfuegbarkeit]}
+                  >
+                    {ressource.verfuegbarkeit}
+                    {ressource.verfuegbarkeit === "Verfügbar ab" &&
+                      ressource.verfuegbar_ab &&
+                      ` ${new Date(ressource.verfuegbar_ab).toLocaleDateString(
+                        "de-DE"
+                      )}`}
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className={erfahrungsColors[ressource.erfahrungslevel]}
+                  >
+                    {ressource.erfahrungslevel}
+                  </Badge>
+                </div>
+
+                {/* Skills */}
+                <div>
+                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Skills
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {ressource.skills.map((s) => (
+                      <span
+                        key={s}
+                        className="inline-flex items-center rounded border border-border bg-muted px-2 py-0.5 text-sm"
+                      >
+                        {s}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* EK-Tagesrate */}
+                <div>
+                  <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    EK-Tagesrate
+                  </p>
+                  <p className="text-sm">
+                    {ressource.ek_tagesrate != null
+                      ? `${ressource.ek_tagesrate.toLocaleString("de-DE")} €/Tag`
+                      : "Nicht angegeben"}
+                  </p>
+                </div>
+
+                {/* Notizen */}
+                {ressource.notizen && (
+                  <div>
+                    <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Notizen
+                    </p>
+                    <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+                      {ressource.notizen}
+                    </p>
+                  </div>
+                )}
+
+                {/* CV */}
+                <div>
+                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Lebenslauf
+                  </p>
+                  {ressource.cv_pfad ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={handleCvDownload}
+                    >
+                      <IconDownload className="size-4" />
+                      CV herunterladen
+                    </Button>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Kein CV vorhanden
+                    </p>
+                  )}
+                </div>
+
+                {/* Metadata */}
+                <div className="rounded-lg border bg-muted/40 px-4 py-3">
+                  <div className="grid grid-cols-2 gap-y-2 text-xs">
+                    <span className="text-muted-foreground">Agentur</span>
+                    <span>{ressource.agenturen?.name ?? "—"}</span>
+                    <span className="text-muted-foreground">Angelegt</span>
+                    <span>
+                      {new Date(ressource.created_at).toLocaleDateString(
+                        "de-DE"
+                      )}
+                    </span>
+                    <span className="text-muted-foreground">Aktualisiert</span>
+                    <span>
+                      {new Date(ressource.updated_at).toLocaleDateString(
+                        "de-DE"
+                      )}
+                    </span>
+                  </div>
+                </div>
               </div>
-            </div>
+            </TabsContent>
 
-            {/* EK-Tagesrate */}
-            <div>
-              <p className="mb-1 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                EK-Tagesrate
-              </p>
-              <p className="text-sm">
-                {ressource.ek_tagesrate != null
-                  ? `${ressource.ek_tagesrate.toLocaleString("de-DE")} €/Tag`
-                  : "Nicht angegeben"}
-              </p>
-            </div>
+            {/* ── Tab 2: Verknüpfungen ── */}
+            <TabsContent
+              value="verknuepfungen"
+              className="mt-0 flex-1 overflow-y-auto px-6 py-4"
+            >
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Vakanz-Verknüpfungen
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5"
+                    disabled={ressource.verfuegbarkeit === "Deaktiviert"}
+                    onClick={() => setSpielenOpen(true)}
+                  >
+                    <IconPlus className="size-3.5" />
+                    Auf Vakanz spielen
+                  </Button>
+                </div>
 
-            {/* Notizen */}
-            {ressource.notizen && (
-              <div>
-                <p className="mb-1 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Notizen
-                </p>
-                <p className="whitespace-pre-wrap text-sm text-muted-foreground">
-                  {ressource.notizen}
-                </p>
+                {linksLoading ? (
+                  <div className="flex flex-col gap-2">
+                    {[1, 2, 3].map((i) => (
+                      <Skeleton key={i} className="h-16 w-full rounded-lg" />
+                    ))}
+                  </div>
+                ) : links.length === 0 ? (
+                  <div className="flex flex-col items-center gap-2 py-10 text-center">
+                    <IconLink className="size-8 text-muted-foreground/30" />
+                    <p className="text-sm text-muted-foreground">
+                      Noch keine Vakanz-Verknüpfungen.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col divide-y rounded-lg border">
+                    {links.map((link) => (
+                      <div
+                        key={link.id}
+                        className="flex items-start justify-between gap-2 px-4 py-3"
+                      >
+                        <div className="flex min-w-0 flex-col gap-1.5">
+                          <p className="truncate text-sm font-medium">
+                            {link.vakanzen_data?.rolle ?? "Unbekannte Vakanz"}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <Badge
+                              variant="outline"
+                              className={linkStatusColors[link.status]}
+                            >
+                              {link.status}
+                            </Badge>
+                            {link.interview_datum && (
+                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <IconClock className="size-3" />
+                                {new Date(
+                                  link.interview_datum
+                                ).toLocaleDateString("de-DE")}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {VALID_TRANSITIONS[link.status].length > 0 && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="shrink-0 gap-1 text-xs"
+                            onClick={() => {
+                              setActiveLink(link)
+                              setStatusDialogOpen(true)
+                            }}
+                          >
+                            <IconArrowRight className="size-3.5" />
+                            Status
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
+            </TabsContent>
+          </Tabs>
+        </SheetContent>
+      </Sheet>
 
-            {/* CV */}
-            <div>
-              <p className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Lebenslauf
-              </p>
-              {ressource.cv_pfad ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5"
-                  onClick={handleCvDownload}
-                >
-                  <IconDownload className="size-4" />
-                  CV herunterladen
-                </Button>
-              ) : (
-                <p className="text-sm text-muted-foreground">Kein CV vorhanden</p>
-              )}
-            </div>
-
-            {/* Metadata */}
-            <div className="rounded-lg border bg-muted/40 px-4 py-3">
-              <div className="grid grid-cols-2 gap-y-2 text-xs">
-                <span className="text-muted-foreground">Agentur</span>
-                <span>{ressource.agenturen?.name ?? "—"}</span>
-                <span className="text-muted-foreground">Angelegt</span>
-                <span>
-                  {new Date(ressource.created_at).toLocaleDateString("de-DE")}
-                </span>
-                <span className="text-muted-foreground">Aktualisiert</span>
-                <span>
-                  {new Date(ressource.updated_at).toLocaleDateString("de-DE")}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </SheetContent>
-    </Sheet>
+      <VakanzSpielenDialog
+        open={spielenOpen}
+        onOpenChange={setSpielenOpen}
+        ressourceId={ressource.id}
+        ressourceName={ressource.name}
+        onSuccess={fetchLinks}
+      />
+      <StatusUpdateDialog
+        open={statusDialogOpen}
+        onOpenChange={setStatusDialogOpen}
+        link={activeLink}
+        onSuccess={fetchLinks}
+      />
+    </>
   )
 }
 
@@ -282,7 +749,8 @@ export default function RessourcenPage() {
   const [showDeaktiviert, setShowDeaktiviert] = React.useState(false)
 
   const [detailOpen, setDetailOpen] = React.useState(false)
-  const [selectedRessource, setSelectedRessource] = React.useState<Ressource | null>(null)
+  const [selectedRessource, setSelectedRessource] =
+    React.useState<Ressource | null>(null)
 
   async function fetchRessourcen() {
     setLoading(true)
@@ -298,7 +766,9 @@ export default function RessourcenPage() {
       const data = await res.json()
       setRessourcen(data.ressourcen ?? [])
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Daten konnten nicht geladen werden.")
+      setError(
+        err instanceof Error ? err.message : "Daten konnten nicht geladen werden."
+      )
     } finally {
       setLoading(false)
     }
@@ -309,7 +779,6 @@ export default function RessourcenPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showDeaktiviert])
 
-  // Unique agentur list for filter
   const agenturen = React.useMemo(() => {
     const seen = new Map<string, string>()
     for (const r of ressourcen) {
@@ -355,7 +824,6 @@ export default function RessourcenPage() {
         <div className="flex flex-1 flex-col">
           <div className="@container/main flex flex-1 flex-col gap-2">
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-
               {/* Header */}
               <div className="flex items-center justify-between px-4 lg:px-6">
                 <div>
@@ -386,7 +854,7 @@ export default function RessourcenPage() {
 
               {/* Filter Bar */}
               <div className="flex flex-wrap items-center gap-3 px-4 lg:px-6">
-                <div className="relative min-w-[200px] flex-1 max-w-sm">
+                <div className="relative min-w-[200px] max-w-sm flex-1">
                   <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     className="pl-9"
@@ -402,13 +870,13 @@ export default function RessourcenPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="alle">Alle Status</SelectItem>
-                    {RESSOURCE_VERFUEGBARKEIT.filter((v) => v !== "Deaktiviert").map(
-                      (v) => (
-                        <SelectItem key={v} value={v}>
-                          {v}
-                        </SelectItem>
-                      )
-                    )}
+                    {RESSOURCE_VERFUEGBARKEIT.filter(
+                      (v) => v !== "Deaktiviert"
+                    ).map((v) => (
+                      <SelectItem key={v} value={v}>
+                        {v}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
 
@@ -495,7 +963,9 @@ export default function RessourcenPage() {
                               setDetailOpen(true)
                             }}
                           >
-                            <TableCell className="font-medium">{r.name}</TableCell>
+                            <TableCell className="font-medium">
+                              {r.name}
+                            </TableCell>
                             <TableCell className="text-muted-foreground">
                               {r.agenturen?.name ?? "—"}
                             </TableCell>
@@ -513,21 +983,29 @@ export default function RessourcenPage() {
                             <TableCell>
                               <Badge
                                 variant="outline"
-                                className={verfuegbarkeitColors[r.verfuegbarkeit]}
+                                className={
+                                  verfuegbarkeitColors[r.verfuegbarkeit]
+                                }
                               >
                                 {r.verfuegbarkeit}
                                 {r.verfuegbarkeit === "Verfügbar ab" &&
                                   r.verfuegbar_ab &&
-                                  ` ${new Date(r.verfuegbar_ab).toLocaleDateString("de-DE")}`}
+                                  ` ${new Date(
+                                    r.verfuegbar_ab
+                                  ).toLocaleDateString("de-DE")}`}
                               </Badge>
                             </TableCell>
                             <TableCell>
-                              {r.ek_tagesrate != null
-                                ? `${r.ek_tagesrate.toLocaleString("de-DE")} €`
-                                : <span className="text-muted-foreground">—</span>}
+                              {r.ek_tagesrate != null ? (
+                                `${r.ek_tagesrate.toLocaleString("de-DE")} €`
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
                             </TableCell>
-                            <TableCell className="text-muted-foreground text-xs">
-                              {new Date(r.updated_at).toLocaleDateString("de-DE")}
+                            <TableCell className="text-xs text-muted-foreground">
+                              {new Date(r.updated_at).toLocaleDateString(
+                                "de-DE"
+                              )}
                             </TableCell>
                           </TableRow>
                         ))

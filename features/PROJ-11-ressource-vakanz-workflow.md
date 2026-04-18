@@ -197,6 +197,17 @@ Abgelehnt         → (Terminal)
 
 **Tests:** 13 Vitest-Integration-Tests (7 spielen + 6 status), alle grün; Gesamtsuite 92/92
 
+**Frontend (Manager `/ressourcen`):**
+- `RessourceDetailSheet` erweitert mit shadcn `Tabs`: Tab "Details" (bestehend) + Tab "Verknüpfungen" (neu)
+- `VakanzSpielenDialog`: Dialog mit Vakanz-Select (nur offene Vakanzen via `/api/vakanzen`), POST zu `/api/ressourcen/[id]/spielen`
+- `StatusUpdateDialog`: Dialog mit Status-Select (nur erlaubte Vorwärts-Schritte per `VALID_TRANSITIONS`), PATCH zu `/api/ressource-links/[id]/status`
+- Link-Liste zeigt Status-Badges + Interview-Datum; "Status"-Button nur für nicht-terminale Status sichtbar
+
+**Frontend (Agentur `/pool`):**
+- Row-Click öffnet `AgenturDetailSheet` (read-only); Dropdown-Zelle hat `stopPropagation`
+- `AgenturDetailSheet`: Tab "Details" (Skills, Status, Level, CV-Download) + Tab "Verlauf" (Links + Historie-Timeline)
+- Verlauf lädt parallel via `/api/ressourcen/[id]/links` und `/api/ressourcen/[id]/historie`
+
 ## QA Test Results
 _To be added by /qa_
 
