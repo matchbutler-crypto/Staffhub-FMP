@@ -10,9 +10,12 @@ import {
   IconDownload,
   IconDotsVertical,
   IconLink,
+  IconMessage,
   IconPencil,
   IconPlus,
   IconSearch,
+  IconStar,
+  IconStarFilled,
   IconTrash,
   IconUpload,
 } from "@tabler/icons-react"
@@ -645,12 +648,232 @@ interface HistorieEintrag {
   created_at: string
 }
 
+interface PoolFeedback {
+  id: string
+  text: string
+  bewertung: number | null
+  created_at: string
+  vakanz_id: string | null
+  vakanzen_data: { id: string; rolle: string } | null
+  profiles: { id: string; name: string; rolle: string } | null
+}
+
 const linkStatusColors: Record<LinkStatus, string> = {
   Gespielt: "bg-blue-100 text-blue-700 border-blue-200",
   "Interview geplant": "bg-amber-100 text-amber-700 border-amber-200",
   Zugesagt: "bg-green-100 text-green-700 border-green-200",
   Abgesagt: "bg-gray-100 text-gray-500 border-gray-200",
   Abgelehnt: "bg-red-100 text-red-700 border-red-200",
+}
+
+// ── PoolStarRating ─────────────────────────────────────────────────────────────
+
+function PoolStarRating({
+  value,
+  onChange,
+  readonly = false,
+}: {
+  value: number | null
+  onChange?: (v: number | null) => void
+  readonly?: boolean
+}) {
+  return (
+    <div className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button
+          key={n}
+          type="button"
+          disabled={readonly}
+          className={readonly ? "cursor-default" : "cursor-pointer"}
+          onClick={() => {
+            if (readonly || !onChange) return
+            onChange(value === n ? null : n)
+          }}
+        >
+          {value != null && n <= value ? (
+            <IconStarFilled className="size-4 text-amber-400" />
+          ) : (
+            <IconStar className="size-4 text-muted-foreground/40" />
+          )}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// ── PoolFeedbackTab ────────────────────────────────────────────────────────────
+
+function PoolFeedbackTab({ ressourceId }: { ressourceId: string }) {
+  const [feedbacks, setFeedbacks] = React.useState<PoolFeedback[]>([])
+  const [loading, setLoading] = React.useState(true)
+  const [text, setText] = React.useState("")
+  const [bewertung, setBewertung] = React.useState<number | null>(null)
+  const [saving, setSaving] = React.useState(false)
+
+  async function loadFeedback() {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/ressourcen/${ressourceId}/feedback`)
+      if (res.ok) {
+        const d = await res.json()
+        setFeedbacks(d.feedback ?? [])
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  React.useEffect(() => {
+    loadFeedback()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ressourceId])
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!text.trim()) return
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/ressourcen/${ressourceId}/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: text.trim(), bewertung }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error ?? "Fehler")
+      }
+      setText("")
+      setBewertung(null)
+      await loadFeedback()
+      toast.success("Feedback gespeichert")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Fehler beim Speichern")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleDelete(id: string) {
+    try {
+      const res = await fetch(`/api/ressource-feedback/${id}`, { method: "DELETE" })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error ?? "Fehler")
+      }
+      setFeedbacks((prev) => prev.filter((f) => f.id !== id))
+      toast.success("Feedback gelöscht")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Fehler beim Löschen")
+    }
+  }
+
+  const rated = feedbacks.filter((f) => f.bewertung != null)
+  const avgRating =
+    rated.length > 0
+      ? rated.reduce((sum, f) => sum + f.bewertung!, 0) / rated.length
+      : null
+
+  return (
+    <div className="flex flex-col gap-4">
+      {avgRating != null && (
+        <div className="flex items-center gap-3 rounded-lg border bg-muted/40 px-4 py-3">
+          <div className="flex flex-col">
+            <span className="text-2xl font-bold">{avgRating.toFixed(1)}</span>
+            <PoolStarRating value={Math.round(avgRating)} readonly />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Durchschnitt aus {rated.length} Bewertung{rated.length !== 1 ? "en" : ""}
+          </p>
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="flex flex-col gap-2 rounded-lg border p-3">
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-xs">Bewertung (optional)</Label>
+          <PoolStarRating value={bewertung} onChange={setBewertung} />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-xs">
+            Feedback-Text <span className="text-destructive">*</span>
+          </Label>
+          <textarea
+            className="min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            placeholder="Ihre Einschätzung zur Ressource…"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            maxLength={2000}
+          />
+        </div>
+        <div className="flex justify-end">
+          <Button type="submit" size="sm" disabled={saving || !text.trim()}>
+            {saving ? "Speichern…" : "Feedback senden"}
+          </Button>
+        </div>
+      </form>
+
+      {loading ? (
+        <div className="flex flex-col gap-2">
+          {[1, 2].map((i) => (
+            <Skeleton key={i} className="h-20 w-full rounded-lg" />
+          ))}
+        </div>
+      ) : feedbacks.length === 0 ? (
+        <div className="flex flex-col items-center gap-2 py-8 text-center">
+          <IconMessage className="size-8 text-muted-foreground/30" />
+          <p className="text-sm text-muted-foreground">
+            Noch kein Feedback vorhanden.
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col divide-y rounded-lg border">
+          {feedbacks.map((fb) => (
+            <div key={fb.id} className="flex flex-col gap-1.5 px-4 py-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs font-medium">
+                    {fb.profiles?.name ?? "Unbekannt"}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(fb.created_at).toLocaleDateString("de-DE", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  {fb.bewertung != null && (
+                    <PoolStarRating value={fb.bewertung} readonly />
+                  )}
+                  <button
+                    type="button"
+                    className="ml-1 rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                    title="Feedback löschen"
+                    onClick={() => handleDelete(fb.id)}
+                  >
+                    <IconTrash className="size-3.5" />
+                  </button>
+                </div>
+              </div>
+              <p className="whitespace-pre-wrap text-sm">{fb.text}</p>
+              {fb.vakanzen_data && (
+                <span className="text-xs text-muted-foreground">
+                  Vakanz: {fb.vakanzen_data.rolle}
+                </span>
+              )}
+              {fb.vakanz_id && !fb.vakanzen_data && (
+                <span className="text-xs text-muted-foreground">
+                  Vakanz nicht mehr vorhanden
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ── AgenturDetailSheet ─────────────────────────────────────────────────────────
@@ -736,6 +959,7 @@ function AgenturDetailSheet({
                 </span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="feedback">Feedback</TabsTrigger>
           </TabsList>
 
           {/* ── Tab 1: Details (read-only) ── */}
@@ -930,6 +1154,14 @@ function AgenturDetailSheet({
                 )}
               </div>
             </div>
+          </TabsContent>
+
+          {/* ── Tab 3: Feedback ── */}
+          <TabsContent
+            value="feedback"
+            className="mt-0 flex-1 overflow-y-auto px-6 py-4"
+          >
+            <PoolFeedbackTab ressourceId={ressource.id} />
           </TabsContent>
         </Tabs>
       </SheetContent>
