@@ -10,6 +10,7 @@ export const ROLE_ROUTES: Record<string, string[]> = {
     '/admin',
     '/meine-profile',
     '/slack-log',
+    '/ressourcen',
     '/api',
   ],
   'Staffhub Manager': [
@@ -20,9 +21,10 @@ export const ROLE_ROUTES: Record<string, string[]> = {
     '/beauftragungen',
     '/abrechnung',
     '/slack-log',
+    '/ressourcen',
     '/api',
   ],
-  Agentur: ['/dashboard', '/vakanzen', '/meine-profile', '/api'],
+  Agentur: ['/dashboard', '/vakanzen', '/meine-profile', '/pool', '/api'],
 }
 
 /** Returns true if the given pathname is accessible for the given role */

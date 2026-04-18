@@ -42,6 +42,17 @@ export const ROLLEN = ['Admin', 'Staffhub Manager', 'Agentur'] as const
 
 export type Rolle = typeof ROLLEN[number]
 
+// ── Ressourcen-Verfügbarkeit ───────────────────────────────────────────────────
+
+export const RESSOURCE_VERFUEGBARKEIT = [
+  'Jetzt verfügbar',
+  'Verfügbar ab',
+  'Nicht verfügbar',
+  'Deaktiviert',
+] as const
+
+export type RessourceVerfuegbarkeit = typeof RESSOURCE_VERFUEGBARKEIT[number]
+
 // ── Branchen ───────────────────────────────────────────────────────────────────
 
 export const BRANCHEN = [

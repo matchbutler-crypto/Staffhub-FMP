@@ -55,18 +55,17 @@ function makeRequest(body?: unknown): NextRequest {
 }
 
 const validVakanz = {
-  titel: 'Senior React Developer',
   branche: 'IT',
   rolle: 'Frontend Engineer',
   beschreibung: 'React-Experte für unser Team',
   skills: ['React', 'TypeScript'],
   erfahrungslevel: 'Senior',
   startdatum: '2026-05-01',
-  laufzeit: '6 Monate',
+  enddatum: '2026-11-01',
   fte_anzahl: 1,
   auslastung: 100,
   arbeitsmodell: 'Remote',
-  ansprechpartner: 'Max Mustermann',
+  budget_intern: 750,
 }
 
 // ── GET Tests ──────────────────────────────────────────────────────────────────
@@ -185,7 +184,7 @@ describe('POST /api/vakanzen', () => {
       error: null,
     })
 
-    const res = await POST(makeRequest({ titel: '' }))
+    const res = await POST(makeRequest({ rolle: '' }))
     expect(res.status).toBe(400)
     const json = await res.json()
     expect(json.error).toBe('Validierungsfehler')
@@ -198,7 +197,7 @@ describe('POST /api/vakanzen', () => {
       error: null,
     })
     mockInsert.mockResolvedValue({
-      data: { id: 'new-id', titel: validVakanz.titel, status: 'Offen', created_at: '2026-04-12T00:00:00Z' },
+      data: { id: 'new-id', rolle: validVakanz.rolle, status: 'Offen', created_at: '2026-04-12T00:00:00Z' },
       error: null,
     })
 

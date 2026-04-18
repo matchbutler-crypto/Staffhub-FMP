@@ -6,6 +6,7 @@ import {
   IconBriefcase,
   IconBuilding,
   IconClipboardList,
+  IconDatabase,
   IconLayoutDashboard,
   IconReceipt,
   IconSettings,
@@ -69,6 +70,18 @@ const ALL_NAV_MAIN = [
     url: '/meine-profile',
     icon: IconUserCheck,
     roles: ['Admin', 'Agentur'],
+  },
+  {
+    title: 'Mein Pool',
+    url: '/pool',
+    icon: IconDatabase,
+    roles: ['Agentur'],
+  },
+  {
+    title: 'Ressourcen',
+    url: '/ressourcen',
+    icon: IconDatabase,
+    roles: ['Admin', 'Staffhub Manager'],
   },
   {
     title: 'Slack Log',
