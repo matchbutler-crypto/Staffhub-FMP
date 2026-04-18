@@ -1,6 +1,6 @@
 # PROJ-11: Ressource auf Vakanz spielen + Status-Workflow
 
-## Status: Planned
+## Status: In Progress
 **Created:** 2026-04-18
 **Last Updated:** 2026-04-18
 
@@ -73,7 +73,129 @@ Rückschritte sind nicht erlaubt (kein "Zugesagt → Interview geplant").
 ---
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Übersicht
+
+PROJ-11 erweitert bestehende Seiten (`/ressourcen` und `/pool`) um einen zweiten Tab — keine neuen Seiten nötig. Zwei neue Datenbank-Tabellen speichern Verknüpfungen und automatische Historien-Einträge.
+
+---
+
+### UI-Struktur
+
+**Manager-Seite `/ressourcen` — RessourceDetailSheet erweitert:**
+```
+RessourceDetailSheet
+├── Tab 1: "Details" (wie bisher — Skills, Level, CV-Download)
+└── Tab 2: "Verknüpfungen" [NEU]
+    ├── Button "Auf Vakanz spielen"
+    │   └── VakanzSpielenDialog
+    │       ├── Vakanz-Suche / Dropdown (nur offene Vakanzen)
+    │       └── Confirm-Button
+    └── VakanzLinkListe
+        └── VakanzLinkRow
+            ├── Vakanz-Rolle, Status-Badge, Interview-Datum
+            └── Button "Status weiterschalten"
+                └── StatusWeiterschaltenSheet
+                    ├── Status-Select (nur erlaubte Vorwärts-Schritte)
+                    └── Interview-Datum (Pflicht wenn "Interview geplant")
+```
+
+**Agentur-Seite `/pool` — Zeilen-Klick öffnet read-only DetailSheet:**
+```
+RessourceRow → Klick → RessourceDetailSheet (Agentur, read-only)
+├── Tab 1: "Details" (Skills, Status-Badge, CV-Download)
+└── Tab 2: "Verlauf" [NEU]
+    ├── AktiveVerknüpfungen (Vakanz-Rolle, Status, Datum — read-only)
+    └── Statushistorie (chronologische System-Einträge)
+```
+
+---
+
+### Datenmodell
+
+**Tabelle `ressource_vakanz_links`**
+
+| Feld | Typ | Beschreibung |
+|------|-----|--------------|
+| id | UUID | Primärschlüssel |
+| ressource_id | UUID → ressourcen | Welche Ressource |
+| vakanz_id | UUID → vakanzen_data | Auf welche Vakanz gespielt |
+| status | Enum | Gespielt / Interview geplant / Zugesagt / Abgesagt / Abgelehnt |
+| interview_datum | Date | Nur wenn Status = "Interview geplant" |
+| created_by | UUID → auth.users | Manager der gespielt hat |
+| created_at / updated_at | Timestamptz | Automatisch |
+
+**Tabelle `ressource_historie`**
+
+| Feld | Typ | Beschreibung |
+|------|-----|--------------|
+| id | UUID | Primärschlüssel |
+| ressource_id | UUID → ressourcen | Zu welcher Ressource |
+| link_id | UUID → ressource_vakanz_links | Optional (welche Verknüpfung) |
+| typ | `system` / `manuell` | Automatisch vs. manuell (PROJ-12) |
+| text | Text | z.B. "Auf Vakanz 'Senior Java Dev' gespielt" |
+| erstellt_von | UUID → auth.users | null = System |
+| created_at | Timestamptz | Automatisch |
+
+**Sicherheit (RLS):**
+- `ressource_vakanz_links`: Agentur liest nur eigene (via `ressource.agentur_id`); Manager liest + schreibt alle
+- `ressource_historie`: Agentur liest nur eigene; Manager liest alle; System schreibt (via API-Logik)
+- Status-Weiterschalten: Nur Manager/Admin darf PATCH aufrufen
+
+**Status-Vorwärts-Logik (im Backend validiert):**
+```
+Gespielt          → Interview geplant | Abgesagt | Abgelehnt
+Interview geplant → Zugesagt | Abgesagt | Abgelehnt
+Zugesagt          → (Terminal — keine weiteren Schritte)
+Abgesagt          → (Terminal)
+Abgelehnt         → (Terminal)
+```
+
+---
+
+### API-Routen
+
+| Route | Methode | Wer | Zweck |
+|-------|---------|-----|-------|
+| `/api/ressourcen/[id]/links` | GET | Alle (eigene/alle per RLS) | Verknüpfungen einer Ressource |
+| `/api/ressourcen/[id]/spielen` | POST | Manager/Admin | Neue Verknüpfung anlegen + Historie-Eintrag |
+| `/api/ressourcen/[id]/historie` | GET | Alle (eigene/alle per RLS) | Statushistorie einer Ressource |
+| `/api/ressource-links/[id]/status` | PATCH | Manager/Admin | Status weiterschalten + Histoire-Eintrag |
+
+---
+
+### Wiederverwendete Komponenten
+
+| Komponente | Herkunft | Verwendung |
+|------------|----------|------------|
+| `Tabs`, `TabsList`, `TabsContent` | shadcn/ui | Tab-Struktur im Detail-Sheet |
+| `Sheet`, `Dialog` | shadcn/ui | Spielen-Dialog + Status-Sheet |
+| `Select`, `Input`, `Badge` | shadcn/ui | Formulare + Status-Anzeige |
+| `RessourceDetailSheet` | PROJ-9 `/ressourcen/page.tsx` | Wird um Tabs erweitert |
+
+---
+
+### Build-Reihenfolge
+
+1. **DB** — Tabellen `ressource_vakanz_links` + `ressource_historie` + RLS + Trigger
+2. **API** — 4 neue Routen (GET links, POST spielen, GET historie, PATCH status)
+3. **UI Manager** — RessourceDetailSheet Tab "Verknüpfungen" + VakanzSpielenDialog + StatusWeiterschaltenSheet
+4. **UI Agentur** — /pool Zeilen-Klick + Tab "Verlauf" (read-only)
+
+## Implementation Notes (Backend)
+
+**DB Migration:** `supabase/migrations/20260418_proj11_ressource_vakanz_workflow.sql`
+- Tabelle `ressource_vakanz_links`: UUID PK, FKs auf `ressourcen` + `vakanzen_data`, status-Enum CHECK, UNIQUE(ressource_id, vakanz_id), trigger `set_updated_at`
+- Tabelle `ressource_historie`: UUID PK, FK auf `ressourcen` CASCADE, FK auf `ressource_vakanz_links` SET NULL, typ CHECK ('system'|'manuell'), text max 500 Zeichen
+- RLS auf beiden Tabellen: Agentur sieht nur eigene (via `ressourcen.agentur_id`-Join), Manager/Admin sehen + schreiben alle
+
+**API Routes:**
+- `GET /api/ressourcen/[id]/links` — Verknüpfungen einer Ressource mit Vakanz-Join
+- `POST /api/ressourcen/[id]/spielen` — Manager/Admin; Zod UUID-Validierung; prüft Ressource nicht Deaktiviert + Vakanz nicht Geschlossen/Besetzt; 409 bei Duplikat (23505); schreibt Historie-Eintrag
+- `GET /api/ressourcen/[id]/historie` — Statushistorie, limit 200
+- `PATCH /api/ressource-links/[id]/status` — Manager/Admin; VALID_TRANSITIONS-Map; interview_datum Pflicht bei "Interview geplant"; löscht interview_datum bei anderen Status; schreibt Historie-Eintrag
+
+**Tests:** 13 Vitest-Integration-Tests (7 spielen + 6 status), alle grün; Gesamtsuite 92/92
 
 ## QA Test Results
 _To be added by /qa_
