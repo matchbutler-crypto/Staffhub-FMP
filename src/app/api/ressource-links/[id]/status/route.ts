@@ -5,7 +5,8 @@ import { createClient } from '@/lib/supabase/server'
 const LINK_STATUS = ['Gespielt', 'Interview geplant', 'Zugesagt', 'Abgesagt', 'Abgelehnt'] as const
 type LinkStatus = typeof LINK_STATUS[number]
 
-// Erlaubte Vorwärts-Übergänge
+// Erlaubte Vorwärts-Übergänge (Manager-Workflow)
+// 'Zurückgezogen' ist ein terminaler Status (nur via /rueckzug Endpunkt erreichbar)
 const VALID_TRANSITIONS: Record<LinkStatus, LinkStatus[]> = {
   'Gespielt':          ['Interview geplant', 'Abgesagt', 'Abgelehnt'],
   'Interview geplant': ['Zugesagt', 'Abgesagt', 'Abgelehnt'],
@@ -13,6 +14,8 @@ const VALID_TRANSITIONS: Record<LinkStatus, LinkStatus[]> = {
   'Abgesagt':          [],
   'Abgelehnt':         [],
 }
+
+const TERMINAL_STATUSES = ['Zurückgezogen']
 
 const statusSchema = z.object({
   status: z.enum(LINK_STATUS),
@@ -67,6 +70,14 @@ export async function PATCH(
 
   if (!link) {
     return NextResponse.json({ error: 'Verknüpfung nicht gefunden' }, { status: 404 })
+  }
+
+  // Zurückgezogene Links können nicht weiter bearbeitet werden (AC-6 PROJ-14)
+  if (TERMINAL_STATUSES.includes(link.status)) {
+    return NextResponse.json(
+      { error: `Verknüpfung mit Status "${link.status}" kann nicht weiter bearbeitet werden` },
+      { status: 409 }
+    )
   }
 
   const currentStatus = link.status as LinkStatus
