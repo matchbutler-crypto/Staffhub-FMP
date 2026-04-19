@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
   const isManager = profile.rolle === 'Admin' || profile.rolle === 'Staffhub Manager'
   const { searchParams } = new URL(request.url)
   const inclDeaktiviert = searchParams.get('deaktiviert') === 'true'
+  const vakanzId = searchParams.get('vakanz_id')
 
   let query = supabase
     .from('ressourcen')
@@ -58,20 +59,34 @@ export async function GET(request: NextRequest) {
     query = query.neq('verfuegbarkeit', 'Deaktiviert')
   }
 
+  // When called from "Ressource einsetzen" dialog: restrict to own pool for Agentur
+  if (vakanzId && !isManager && profile.agentur_id) {
+    query = query.eq('agentur_id', profile.agentur_id)
+  }
+
   const { data, error } = await query
   if (error) {
     return NextResponse.json({ error: 'Fehler beim Laden der Ressourcen' }, { status: 500 })
   }
 
-  const result = (data ?? []).map((r) => {
+  let result = (data ?? []).map((r) => {
     const { ek_tagesrate, notizen, ...rest } = r
-    // Agentur sees ek+notizen for own resources; Manager sees all
     const canSeePrivate = isManager || r.agentur_id === profile.agentur_id
     return {
       ...rest,
       ...(canSeePrivate ? { ek_tagesrate, notizen } : {}),
     }
   })
+
+  // Add bereits_gespielt flag when filtering for a specific vacancy
+  if (vakanzId) {
+    const { data: links } = await supabase
+      .from('ressource_vakanz_links')
+      .select('ressource_id')
+      .eq('vakanz_id', vakanzId)
+    const gespielteIds = new Set((links ?? []).map((l: { ressource_id: string }) => l.ressource_id))
+    result = result.map((r) => ({ ...r, bereits_gespielt: gespielteIds.has(r.id) }))
+  }
 
   return NextResponse.json({ ressourcen: result })
 }

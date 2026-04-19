@@ -33,7 +33,9 @@ export async function POST(
   if (!profile?.aktiv) {
     return NextResponse.json({ error: 'Account deaktiviert' }, { status: 403 })
   }
-  if (profile.rolle !== 'Admin' && profile.rolle !== 'Staffhub Manager') {
+  const isManager = profile.rolle === 'Admin' || profile.rolle === 'Staffhub Manager'
+  const isAgentur = profile.rolle === 'Agentur'
+  if (!isManager && !isAgentur) {
     return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
   }
 
@@ -48,15 +50,18 @@ export async function POST(
 
   const { vakanz_id } = parsed.data
 
-  // Ressource prüfen (existiert + nicht deaktiviert)
+  // Ressource prüfen (existiert + nicht deaktiviert + Ownership für Agentur)
   const { data: ressource } = await supabase
     .from('ressourcen')
-    .select('id, name, verfuegbarkeit')
+    .select('id, name, verfuegbarkeit, agentur_id')
     .eq('id', ressourceId)
     .single()
 
   if (!ressource) {
     return NextResponse.json({ error: 'Ressource nicht gefunden' }, { status: 404 })
+  }
+  if (isAgentur && ressource.agentur_id !== profile.agentur_id) {
+    return NextResponse.json({ error: 'Keine Berechtigung für diese Ressource' }, { status: 403 })
   }
   if (ressource.verfuegbarkeit === 'Deaktiviert') {
     return NextResponse.json({ error: 'Deaktivierte Ressource kann nicht gespielt werden' }, { status: 400 })

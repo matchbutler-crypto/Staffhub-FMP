@@ -60,8 +60,8 @@ function makeRequest(body?: unknown): NextRequest {
 const managerProfile = { rolle: 'Staffhub Manager', aktiv: true, agentur_id: null }
 const agenturProfile = { rolle: 'Agentur', aktiv: true, agentur_id: 'ag-1' }
 const VAKANZ_UUID = '00000000-0000-0000-0000-000000000001'
-const aktiveRessource = { id: 'res-1', name: 'Max M.', verfuegbarkeit: 'Jetzt verfügbar' }
-const deaktivierteRessource = { id: 'res-1', name: 'Max M.', verfuegbarkeit: 'Deaktiviert' }
+const aktiveRessource = { id: 'res-1', name: 'Max M.', verfuegbarkeit: 'Jetzt verfügbar', agentur_id: 'ag-1' }
+const deaktivierteRessource = { id: 'res-1', name: 'Max M.', verfuegbarkeit: 'Deaktiviert', agentur_id: 'ag-1' }
 const offeneVakanz = { id: VAKANZ_UUID, rolle: 'Senior Java Dev', status: 'Offen' }
 const geschlosseneVakanz = { id: VAKANZ_UUID, rolle: 'Senior Java Dev', status: 'Geschlossen' }
 
@@ -74,11 +74,30 @@ describe('POST /api/ressourcen/[id]/spielen', () => {
     expect(res.status).toBe(401)
   })
 
-  it('gibt 403 zurück für Agentur-User', async () => {
+  it('gibt 403 zurück für Agentur-User mit fremder Ressource', async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: 'u1' } }, error: null })
-    mockProfileSelect.mockResolvedValue({ data: agenturProfile, error: null })
+    mockProfileSelect.mockResolvedValue({ data: { ...agenturProfile, agentur_id: 'ag-2' }, error: null })
+    mockRessourceSelect.mockResolvedValue({ data: aktiveRessource, error: null }) // agentur_id: 'ag-1'
     const res = await POST(makeRequest({ vakanz_id: VAKANZ_UUID }), { params: Promise.resolve({ id: 'res-1' }) })
     expect(res.status).toBe(403)
+    expect((await res.json()).error).toContain('Berechtigung')
+  })
+
+  it('legt Verknüpfung für Agentur mit eigener Ressource an', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u1' } }, error: null })
+    mockProfileSelect.mockResolvedValue({ data: agenturProfile, error: null }) // agentur_id: 'ag-1'
+    mockRessourceSelect.mockResolvedValue({ data: aktiveRessource, error: null }) // agentur_id: 'ag-1'
+    mockVakanzSelect.mockResolvedValue({ data: offeneVakanz, error: null })
+    mockLinkInsert.mockResolvedValue({
+      data: { id: 'link-2', ressource_id: 'res-1', vakanz_id: VAKANZ_UUID, status: 'Gespielt', created_at: '2026-04-19T00:00:00Z' },
+      error: null,
+    })
+    mockHistorieInsert.mockResolvedValue({ error: null })
+
+    const res = await POST(makeRequest({ vakanz_id: VAKANZ_UUID }), { params: Promise.resolve({ id: 'res-1' }) })
+    expect(res.status).toBe(201)
+    const json = await res.json()
+    expect(json.link.status).toBe('Gespielt')
   })
 
   it('gibt 400 zurück bei fehlender vakanz_id', async () => {

@@ -23,6 +23,12 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { ProfilEinreichenSheet } from "@/components/profil-einreichen-sheet"
 import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs"
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -97,12 +103,13 @@ interface Vakanz {
   skills_nice_have: string[]
   erfahrungslevel: Erfahrungslevel
   startdatum: string
-  laufzeit: string
+  enddatum?: string | null
   teamgroesse?: number | null
   fte_anzahl: number
   auslastung: number
   arbeitsmodell: Arbeitsmodell
-  ansprechpartner: string
+  onsite_anteil?: number | null
+  ansprechpartner?: string | null
   status: VakanzStatus
   standort?: string | null
   budget_intern?: number | null
@@ -116,7 +123,6 @@ interface Vakanz {
 // ── Zod Schema ─────────────────────────────────────────────────────────────────
 
 const vakanzSchema = z.object({
-  titel: z.string().min(1, "Titel ist erforderlich"),
   branche: z.string().min(1, "Branche ist erforderlich"),
   kunde: z.string().optional(),
   rolle: z.string().min(1, "Benötigte Rolle ist erforderlich"),
@@ -127,7 +133,7 @@ const vakanzSchema = z.object({
     required_error: "Erfahrungslevel ist erforderlich",
   }),
   startdatum: z.string().min(1, "Geplanter Projektstart ist erforderlich"),
-  laufzeit: z.string().min(1, "Beauftragungsdauer ist erforderlich"),
+  enddatum: z.string().min(1, "Projektende ist erforderlich"),
   teamgroesse: z.number().int().min(1).nullable().optional(),
   fte_anzahl: z
     .number({ invalid_type_error: "Muss eine Zahl sein" })
@@ -138,10 +144,13 @@ const vakanzSchema = z.object({
   arbeitsmodell: z.enum(ARBEITSMODELL, {
     required_error: "Arbeitsmodell ist erforderlich",
   }),
-  ansprechpartner: z.string().min(1, "Ansprechpartner ist erforderlich"),
+  onsite_anteil: z.number().int().min(0).max(100).nullable().optional(),
+  ansprechpartner: z.string().optional(),
   status: z.enum(VAKANZ_STATUS).optional(),
   standort: z.string().optional(),
-  budget_intern: z.number().nullable().optional(),
+  budget_intern: z
+    .number({ invalid_type_error: "Muss eine Zahl sein" })
+    .positive("EK Tagesrate ist erforderlich"),
   weitere_kommentare: z.string().optional(),
 })
 
@@ -433,7 +442,6 @@ function VakanzFormSheet({
   } = useForm<VakanzFormData>({
     resolver: zodResolver(vakanzSchema),
     defaultValues: {
-      titel: "",
       branche: "",
       kunde: "",
       rolle: "",
@@ -442,15 +450,16 @@ function VakanzFormSheet({
       skills_nice_have: [],
       erfahrungslevel: undefined,
       startdatum: "",
-      laufzeit: "",
+      enddatum: "",
       teamgroesse: null,
       fte_anzahl: 1,
       auslastung: 100,
       arbeitsmodell: undefined,
+      onsite_anteil: null,
       ansprechpartner: "",
       status: "Offen",
       standort: "",
-      budget_intern: null,
+      budget_intern: undefined,
       weitere_kommentare: "",
     },
   })
@@ -460,7 +469,6 @@ function VakanzFormSheet({
     if (open) {
       if (mode === "edit" && vakanz) {
         reset({
-          titel: vakanz.titel,
           branche: vakanz.branche,
           kunde: vakanz.kunde ?? "",
           rolle: vakanz.rolle,
@@ -469,20 +477,20 @@ function VakanzFormSheet({
           skills_nice_have: vakanz.skills_nice_have ?? [],
           erfahrungslevel: vakanz.erfahrungslevel,
           startdatum: vakanz.startdatum,
-          laufzeit: vakanz.laufzeit,
+          enddatum: vakanz.enddatum ?? "",
           teamgroesse: vakanz.teamgroesse ?? null,
           fte_anzahl: vakanz.fte_anzahl,
           auslastung: vakanz.auslastung,
           arbeitsmodell: vakanz.arbeitsmodell,
-          ansprechpartner: vakanz.ansprechpartner,
+          onsite_anteil: vakanz.onsite_anteil ?? null,
+          ansprechpartner: vakanz.ansprechpartner ?? "",
           status: vakanz.status,
           standort: vakanz.standort ?? "",
-          budget_intern: vakanz.budget_intern ?? null,
+          budget_intern: vakanz.budget_intern ?? undefined,
           weitere_kommentare: vakanz.weitere_kommentare ?? "",
         })
       } else {
         reset({
-          titel: "",
           branche: "",
           kunde: "",
           rolle: "",
@@ -491,15 +499,16 @@ function VakanzFormSheet({
           skills_nice_have: [],
           erfahrungslevel: undefined,
           startdatum: "",
-          laufzeit: "",
+          enddatum: "",
           teamgroesse: null,
           fte_anzahl: 1,
           auslastung: 100,
           arbeitsmodell: undefined,
+          onsite_anteil: null,
           ansprechpartner: "",
           status: "Offen",
           standort: "",
-          budget_intern: null,
+          budget_intern: undefined,
           weitere_kommentare: "",
         })
       }
@@ -514,7 +523,6 @@ function VakanzFormSheet({
       const method = mode === "create" ? "POST" : "PUT"
 
       const body: Record<string, unknown> = {
-        titel: data.titel,
         branche: data.branche,
         kunde: data.kunde || null,
         rolle: data.rolle,
@@ -523,21 +531,20 @@ function VakanzFormSheet({
         skills_nice_have: data.skills_nice_have ?? [],
         erfahrungslevel: data.erfahrungslevel,
         startdatum: data.startdatum,
-        laufzeit: data.laufzeit,
+        enddatum: data.enddatum,
         teamgroesse: data.teamgroesse ?? null,
         fte_anzahl: data.fte_anzahl,
         auslastung: data.auslastung ?? 100,
         arbeitsmodell: data.arbeitsmodell,
-        ansprechpartner: data.ansprechpartner,
+        onsite_anteil: data.arbeitsmodell === "Hybrid" ? (data.onsite_anteil ?? null) : null,
+        ansprechpartner: data.ansprechpartner || null,
         standort: data.standort || null,
+        budget_intern: data.budget_intern,
         weitere_kommentare: data.weitere_kommentare || null,
       }
 
       if (mode === "edit") {
         body.status = data.status
-      }
-      if (showBudget && data.budget_intern != null) {
-        body.budget_intern = data.budget_intern
       }
 
       const res = await fetch(url, {
@@ -565,6 +572,7 @@ function VakanzFormSheet({
 
   const skills = watch("skills")
   const skillsNiceHave = watch("skills_nice_have")
+  const watchedArbeitsmodell = watch("arbeitsmodell")
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -590,18 +598,18 @@ function VakanzFormSheet({
           <div className="flex-1 overflow-y-auto px-6 py-4">
             <div className="flex flex-col gap-4">
 
-              {/* Titel (intern) */}
+              {/* Benötigte Rolle */}
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="v-titel">
-                  Titel (intern) <span className="text-destructive">*</span>
+                <Label htmlFor="v-rolle">
+                  Benötigte Rolle <span className="text-destructive">*</span>
                 </Label>
                 <Input
-                  id="v-titel"
-                  placeholder="z.B. Senior React Developer – Telekom"
-                  {...register("titel")}
-                  className={errors.titel ? "border-destructive" : ""}
+                  id="v-rolle"
+                  placeholder="z.B. Senior Frontend Engineer"
+                  {...register("rolle")}
+                  className={errors.rolle ? "border-destructive" : ""}
                 />
-                {errors.titel && <p className="text-xs text-destructive">{errors.titel.message}</p>}
+                {errors.rolle && <p className="text-xs text-destructive">{errors.rolle.message}</p>}
               </div>
 
               {/* Projektkontext */}
@@ -661,16 +669,16 @@ function VakanzFormSheet({
                   {errors.startdatum && <p className="text-xs text-destructive">{errors.startdatum.message}</p>}
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="v-laufzeit">
-                    Beauftragungsdauer <span className="text-destructive">*</span>
+                  <Label htmlFor="v-enddatum">
+                    Projektende <span className="text-destructive">*</span>
                   </Label>
                   <Input
-                    id="v-laufzeit"
-                    placeholder="z.B. 6 Monate"
-                    {...register("laufzeit")}
-                    className={errors.laufzeit ? "border-destructive" : ""}
+                    id="v-enddatum"
+                    type="date"
+                    {...register("enddatum")}
+                    className={errors.enddatum ? "border-destructive" : ""}
                   />
-                  {errors.laufzeit && <p className="text-xs text-destructive">{errors.laufzeit.message}</p>}
+                  {errors.enddatum && <p className="text-xs text-destructive">{errors.enddatum.message}</p>}
                 </div>
               </div>
 
@@ -696,27 +704,13 @@ function VakanzFormSheet({
                     id="v-fte"
                     type="number"
                     min={0.1}
-                    step={0.5}
+                    step={0.1}
                     placeholder="z.B. 1"
                     {...register("fte_anzahl", { valueAsNumber: true })}
                     className={errors.fte_anzahl ? "border-destructive" : ""}
                   />
                   {errors.fte_anzahl && <p className="text-xs text-destructive">{errors.fte_anzahl.message}</p>}
                 </div>
-              </div>
-
-              {/* Benötigte Rolle */}
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="v-rolle">
-                  Benötigte Rolle <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="v-rolle"
-                  placeholder="z.B. Senior Frontend Engineer"
-                  {...register("rolle")}
-                  className={errors.rolle ? "border-destructive" : ""}
-                />
-                {errors.rolle && <p className="text-xs text-destructive">{errors.rolle.message}</p>}
               </div>
 
               {/* Erfahrungslevel + Arbeitsmodell */}
@@ -768,6 +762,26 @@ function VakanzFormSheet({
                 </div>
               </div>
 
+              {/* Onsite-Anteil (nur bei Hybrid) */}
+              {watchedArbeitsmodell === "Hybrid" && (
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="v-onsite">
+                    Onsite-Anteil (%) <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="v-onsite"
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={5}
+                    placeholder="z.B. 40"
+                    {...register("onsite_anteil", { valueAsNumber: true })}
+                    className={errors.onsite_anteil ? "border-destructive" : ""}
+                  />
+                  {errors.onsite_anteil && <p className="text-xs text-destructive">{errors.onsite_anteil.message}</p>}
+                </div>
+              )}
+
               {/* Skills Must Have */}
               <div className="flex flex-col gap-1.5">
                 <Label>
@@ -794,21 +808,22 @@ function VakanzFormSheet({
                 />
               </div>
 
-              {/* Tagesrate + Sourcing Region */}
+              {/* EK Tagesrate + Sourcing Region */}
               <div className="grid grid-cols-2 gap-3">
                 {showBudget && (
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor="v-budget">
-                      Tagesrate (€/Tag) <span className="text-muted-foreground text-xs font-normal">intern</span>
+                      EK Tagesrate (€/Tag) <span className="text-destructive">*</span>
                     </Label>
                     <Input
                       id="v-budget"
                       type="number"
-                      placeholder="nur intern sichtbar"
-                      {...register("budget_intern", {
-                        setValueAs: (v) => (v === "" || v === null ? null : Number(v)),
-                      })}
+                      min={1}
+                      placeholder="z.B. 800"
+                      {...register("budget_intern", { valueAsNumber: true })}
+                      className={errors.budget_intern ? "border-destructive" : ""}
                     />
+                    {errors.budget_intern && <p className="text-xs text-destructive">{errors.budget_intern.message}</p>}
                   </div>
                 )}
                 <div className="flex flex-col gap-1.5">
@@ -826,16 +841,12 @@ function VakanzFormSheet({
 
               {/* Ansprechpartner */}
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="v-ansprech">
-                  Ansprechpartner <span className="text-destructive">*</span>
-                </Label>
+                <Label htmlFor="v-ansprech">Ansprechpartner</Label>
                 <Input
                   id="v-ansprech"
-                  placeholder="Name oder E-Mail"
+                  placeholder="optional"
                   {...register("ansprechpartner")}
-                  className={errors.ansprechpartner ? "border-destructive" : ""}
                 />
-                {errors.ansprechpartner && <p className="text-xs text-destructive">{errors.ansprechpartner.message}</p>}
               </div>
 
               {/* Weitere Kommentare */}
@@ -950,7 +961,7 @@ function VakanzSchließenDialog({
             Alle offenen Einreichungen bleiben bestehen.{" "}
             {vakanz && (
               <span className="font-medium text-foreground">
-                &ldquo;{vakanz.titel}&rdquo;
+                &ldquo;{vakanz.rolle}&rdquo;
               </span>
             )}{" "}
             wird auf den Status &ldquo;Geschlossen&rdquo; gesetzt.
@@ -989,6 +1000,346 @@ function TableSkeletonRows({ cols }: { cols: number }) {
   )
 }
 
+// ── RessourceEinsetzenDialog ───────────────────────────────────────────────────
+
+interface PoolRessource {
+  id: string
+  name: string
+  skills: string[]
+  erfahrungslevel: string
+  verfuegbarkeit: string
+  bereits_gespielt?: boolean
+}
+
+const verfuegbarkeitColors: Record<string, string> = {
+  "Jetzt verfügbar": "bg-green-100 text-green-700 border-green-200",
+  "Verfügbar ab": "bg-yellow-100 text-yellow-700 border-yellow-200",
+  "Nicht verfügbar": "bg-red-100 text-red-700 border-red-200",
+  "Deaktiviert": "bg-gray-100 text-gray-600 border-gray-200",
+}
+
+function RessourceEinsetzenDialog({
+  open,
+  onOpenChange,
+  vakanzId,
+  vakanzTitel,
+  onSuccess,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  vakanzId: string
+  vakanzTitel: string
+  onSuccess: () => void
+}) {
+  const [tab, setTab] = React.useState("pool")
+  const [ressourcen, setRessourcen] = React.useState<PoolRessource[]>([])
+  const [loadingPool, setLoadingPool] = React.useState(false)
+  const [search, setSearch] = React.useState("")
+  const [selectedRessource, setSelectedRessource] = React.useState<PoolRessource | null>(null)
+  const [submitting, setSubmitting] = React.useState(false)
+
+  // Neu anlegen fields
+  const [neuName, setNeuName] = React.useState("")
+  const [neuSkills, setNeuSkills] = React.useState<string[]>([])
+  const [neuErfahrungslevel, setNeuErfahrungslevel] = React.useState("")
+  const [neuVerfuegbarkeit, setNeuVerfuegbarkeit] = React.useState("Jetzt verfügbar")
+  const [neuError, setNeuError] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (!open) {
+      setTab("pool")
+      setSearch("")
+      setSelectedRessource(null)
+      setNeuName("")
+      setNeuSkills([])
+      setNeuErfahrungslevel("")
+      setNeuVerfuegbarkeit("Jetzt verfügbar")
+      setNeuError(null)
+      return
+    }
+    setLoadingPool(true)
+    fetch(`/api/ressourcen?vakanz_id=${vakanzId}`)
+      .then((r) => r.json())
+      .then((d) => setRessourcen(d.ressourcen ?? []))
+      .catch(() => {})
+      .finally(() => setLoadingPool(false))
+  }, [open, vakanzId])
+
+  const filtered = ressourcen.filter(
+    (r) =>
+      r.name.toLowerCase().includes(search.toLowerCase()) ||
+      r.skills.some((s) => s.toLowerCase().includes(search.toLowerCase()))
+  )
+
+  async function handleSpielen() {
+    if (!selectedRessource) return
+    setSubmitting(true)
+    try {
+      const res = await fetch(`/api/ressourcen/${selectedRessource.id}/spielen`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vakanz_id: vakanzId }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(body.error ?? "Fehler beim Einreichen")
+      toast.success(`${selectedRessource.name} auf Vakanz gespielt`)
+      onOpenChange(false)
+      onSuccess()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Fehler beim Einreichen")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function handleNeuAnlegen() {
+    setNeuError(null)
+    if (!neuName.trim()) { setNeuError("Name ist erforderlich"); return }
+    if (neuSkills.length === 0) { setNeuError("Mindestens ein Skill erforderlich"); return }
+    if (!neuErfahrungslevel) { setNeuError("Erfahrungslevel ist erforderlich"); return }
+    setSubmitting(true)
+    try {
+      const createRes = await fetch("/api/ressourcen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: neuName.trim(),
+          skills: neuSkills,
+          erfahrungslevel: neuErfahrungslevel,
+          verfuegbarkeit: neuVerfuegbarkeit,
+        }),
+      })
+      const createBody = await createRes.json().catch(() => ({}))
+      if (!createRes.ok) throw new Error(createBody.error ?? "Fehler beim Anlegen")
+      const ressourceId = createBody.ressource.id
+
+      const spielenRes = await fetch(`/api/ressourcen/${ressourceId}/spielen`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vakanz_id: vakanzId }),
+      })
+      const spielenBody = await spielenRes.json().catch(() => ({}))
+      if (!spielenRes.ok) {
+        toast.warning(`Im Pool angelegt, Einreichung fehlgeschlagen: ${spielenBody.error ?? "Fehler"}`)
+      } else {
+        toast.success(`${neuName.trim()} im Pool angelegt und auf Vakanz gespielt`)
+      }
+      onOpenChange(false)
+      onSuccess()
+    } catch (err) {
+      setNeuError(err instanceof Error ? err.message : "Fehler beim Anlegen")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle>Ressource einsetzen</DialogTitle>
+          <DialogDescription>
+            Vakanz:{" "}
+            <span className="font-medium text-foreground">{vakanzTitel}</span>
+          </DialogDescription>
+        </DialogHeader>
+
+        <Tabs value={tab} onValueChange={setTab} className="flex flex-col flex-1 overflow-hidden">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="pool">Aus Pool auswählen</TabsTrigger>
+            <TabsTrigger value="neu">Neu anlegen</TabsTrigger>
+          </TabsList>
+
+          {/* ── Tab: Aus Pool ── */}
+          <TabsContent value="pool" className="flex flex-col gap-3 flex-1 overflow-hidden mt-3">
+            <div className="relative">
+              <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="pl-9"
+                placeholder="Name oder Skill suchen…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+
+            <div className="flex-1 overflow-y-auto rounded-md border divide-y min-h-[200px] max-h-[280px]">
+              {loadingPool ? (
+                <div className="p-4 text-center text-sm text-muted-foreground">Lädt…</div>
+              ) : filtered.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 p-6 text-center text-sm text-muted-foreground">
+                  {ressourcen.length === 0 ? (
+                    <>
+                      <p>Noch keine Pool-Ressourcen vorhanden.</p>
+                      <button
+                        className="text-primary underline-offset-4 hover:underline"
+                        onClick={() => setTab("neu")}
+                      >
+                        Erste Ressource anlegen
+                      </button>
+                    </>
+                  ) : (
+                    "Keine Ressourcen gefunden."
+                  )}
+                </div>
+              ) : (
+                filtered.map((r) => {
+                  const isDisabled = !!r.bereits_gespielt
+                  const isSelected = selectedRessource?.id === r.id
+                  return (
+                    <button
+                      key={r.id}
+                      disabled={isDisabled}
+                      onClick={() => setSelectedRessource(isSelected ? null : r)}
+                      className={`w-full px-4 py-3 text-left flex items-start gap-3 transition-colors ${
+                        isDisabled
+                          ? "cursor-not-allowed opacity-50"
+                          : isSelected
+                          ? "bg-primary/5"
+                          : "hover:bg-muted/50"
+                      }`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-medium">{r.name}</span>
+                          <span
+                            className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${
+                              verfuegbarkeitColors[r.verfuegbarkeit] ?? "bg-gray-100 text-gray-600 border-gray-200"
+                            }`}
+                          >
+                            {r.verfuegbarkeit}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {r.skills.slice(0, 4).map((s) => (
+                            <span
+                              key={s}
+                              className="inline-flex items-center rounded border border-border bg-muted px-1 py-0.5 text-[10px] text-muted-foreground"
+                            >
+                              {s}
+                            </span>
+                          ))}
+                          {r.skills.length > 4 && (
+                            <span className="text-[10px] text-muted-foreground">
+                              +{r.skills.length - 4}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {isDisabled && (
+                        <span className="text-[10px] text-muted-foreground whitespace-nowrap mt-0.5">
+                          Bereits eingereicht
+                        </span>
+                      )}
+                      {isSelected && !isDisabled && (
+                        <IconCheck className="size-4 text-primary mt-0.5 shrink-0" />
+                      )}
+                    </button>
+                  )
+                })
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={submitting}
+              >
+                Abbrechen
+              </Button>
+              <Button
+                onClick={handleSpielen}
+                disabled={!selectedRessource || submitting}
+              >
+                {submitting
+                  ? "Wird eingereicht…"
+                  : selectedRessource
+                  ? `${selectedRessource.name} einsetzen`
+                  : "Ressource auswählen"}
+              </Button>
+            </DialogFooter>
+          </TabsContent>
+
+          {/* ── Tab: Neu anlegen ── */}
+          <TabsContent value="neu" className="flex flex-col gap-3 mt-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="re-name">
+                Name <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="re-name"
+                placeholder="z.B. Max Mustermann"
+                value={neuName}
+                onChange={(e) => setNeuName(e.target.value)}
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label>
+                Skills <span className="text-destructive">*</span>
+              </Label>
+              <TagInput value={neuSkills} onChange={setNeuSkills} />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="re-level">
+                  Erfahrungslevel <span className="text-destructive">*</span>
+                </Label>
+                <Select value={neuErfahrungslevel} onValueChange={setNeuErfahrungslevel}>
+                  <SelectTrigger id="re-level">
+                    <SelectValue placeholder="Wählen…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Junior">Junior</SelectItem>
+                    <SelectItem value="Mid">Mid</SelectItem>
+                    <SelectItem value="Senior">Senior</SelectItem>
+                    <SelectItem value="Expert">Expert</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="re-verf">Verfügbarkeit</Label>
+                <Select value={neuVerfuegbarkeit} onValueChange={setNeuVerfuegbarkeit}>
+                  <SelectTrigger id="re-verf">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Jetzt verfügbar">Jetzt verfügbar</SelectItem>
+                    <SelectItem value="Verfügbar ab">Verfügbar ab</SelectItem>
+                    <SelectItem value="Nicht verfügbar">Nicht verfügbar</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {neuError && (
+              <p className="text-sm text-destructive">{neuError}</p>
+            )}
+
+            <div className="rounded-md border border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+              Die Ressource wird im Pool gespeichert und sofort auf diese Vakanz gespielt.
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={submitting}
+              >
+                Abbrechen
+              </Button>
+              <Button onClick={handleNeuAnlegen} disabled={submitting}>
+                {submitting ? "Wird angelegt…" : "Anlegen & einsetzen"}
+              </Button>
+            </DialogFooter>
+          </TabsContent>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── VakanzenPage ───────────────────────────────────────────────────────────────
 
 export default function VakanzenPage() {
@@ -1017,6 +1368,9 @@ export default function VakanzenPage() {
 
   const [profilSheetOpen, setProfilSheetOpen] = React.useState(false)
   const [profilVakanz, setProfilVakanz] = React.useState<Vakanz | null>(null)
+
+  const [ressourceEinsetzenOpen, setRessourceEinsetzenOpen] = React.useState(false)
+  const [ressourceEinsetzenVakanz, setRessourceEinsetzenVakanz] = React.useState<Vakanz | null>(null)
 
   // Slack posting state
   const [detailpostDialogOpen, setDetailpostDialogOpen] = React.useState(false)
@@ -1055,7 +1409,6 @@ export default function VakanzenPage() {
     const matchesStatus = statusFilter === "alle" || v.status === statusFilter
     const matchesSearch =
       searchQuery === "" ||
-      v.titel.toLowerCase().includes(searchQuery.toLowerCase()) ||
       v.rolle.toLowerCase().includes(searchQuery.toLowerCase())
     return matchesStatus && matchesSearch
   })
@@ -1131,7 +1484,7 @@ export default function VakanzenPage() {
   }
 
   // ── Column count for skeleton (budget + gepostet columns conditional) ──────
-  const colCount = isManagerOrAdmin ? 11 : 9
+  const colCount = isManagerOrAdmin ? 10 : 8
 
   return (
     <SidebarProvider
@@ -1215,13 +1568,12 @@ export default function VakanzenPage() {
                   <Table>
                     <TableHeader className="bg-muted sticky top-0 z-10">
                       <TableRow>
-                        <TableHead>Titel</TableHead>
+                        <TableHead>Status</TableHead>
                         <TableHead>Rolle</TableHead>
                         <TableHead>Skills</TableHead>
                         <TableHead>Level</TableHead>
                         <TableHead>Start</TableHead>
                         <TableHead>Modell</TableHead>
-                        <TableHead>Status</TableHead>
                         <TableHead className="text-center">Profile</TableHead>
                         {isManagerOrAdmin && (
                           <>
@@ -1259,10 +1611,14 @@ export default function VakanzenPage() {
                       ) : (
                         filtered.map((v) => (
                           <TableRow key={v.id}>
-                            <TableCell className="font-medium">{v.titel}</TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                              {v.rolle}
+                            <TableCell>
+                              <span
+                                className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusColors[v.status]}`}
+                              >
+                                {v.status}
+                              </span>
                             </TableCell>
+                            <TableCell className="font-medium">{v.rolle}</TableCell>
                             <TableCell>
                               <SkillTags skills={v.skills} />
                             </TableCell>
@@ -1281,13 +1637,6 @@ export default function VakanzenPage() {
                                 className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${arbeitsmodellColors[v.arbeitsmodell]}`}
                               >
                                 {v.arbeitsmodell}
-                              </span>
-                            </TableCell>
-                            <TableCell>
-                              <span
-                                className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusColors[v.status]}`}
-                              >
-                                {v.status}
                               </span>
                             </TableCell>
                             <TableCell className="text-center text-sm font-medium tabular-nums">
@@ -1359,15 +1708,27 @@ export default function VakanzenPage() {
                                       </DropdownMenuItem>
                                     </>
                                   ) : isAgentur ? (
-                                    <DropdownMenuItem
-                                      disabled={v.status !== "Offen"}
-                                      onClick={() => {
-                                        setProfilVakanz(v)
-                                        setProfilSheetOpen(true)
-                                      }}
-                                    >
-                                      Profil einreichen
-                                    </DropdownMenuItem>
+                                    <>
+                                      <DropdownMenuItem
+                                        disabled={v.status !== "Offen"}
+                                        onClick={() => {
+                                          setRessourceEinsetzenVakanz(v)
+                                          setRessourceEinsetzenOpen(true)
+                                        }}
+                                      >
+                                        Ressource einsetzen
+                                      </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem
+                                        disabled={v.status !== "Offen"}
+                                        onClick={() => {
+                                          setProfilVakanz(v)
+                                          setProfilSheetOpen(true)
+                                        }}
+                                      >
+                                        Profil einreichen
+                                      </DropdownMenuItem>
+                                    </>
                                   ) : (
                                     <DropdownMenuItem>Details anzeigen</DropdownMenuItem>
                                   )}
@@ -1411,7 +1772,7 @@ export default function VakanzenPage() {
           open={profilSheetOpen}
           onOpenChange={setProfilSheetOpen}
           vakanzId={profilVakanz.id}
-          vakanzTitel={profilVakanz.titel}
+          vakanzTitel={profilVakanz.rolle}
           onSuccess={(newProfilId?: string) => {
             fetchVakanzen()
             if (newProfilId) {
@@ -1421,12 +1782,23 @@ export default function VakanzenPage() {
         />
       )}
 
+      {/* RessourceEinsetzenDialog */}
+      {ressourceEinsetzenVakanz && (
+        <RessourceEinsetzenDialog
+          open={ressourceEinsetzenOpen}
+          onOpenChange={setRessourceEinsetzenOpen}
+          vakanzId={ressourceEinsetzenVakanz.id}
+          vakanzTitel={ressourceEinsetzenVakanz.rolle}
+          onSuccess={fetchVakanzen}
+        />
+      )}
+
       {/* Detailpost Dialog */}
       <SlackPostDialog
         open={detailpostDialogOpen}
         onOpenChange={setDetailpostDialogOpen}
         postType="detail"
-        vakanzTitel={detailpostVakanz?.titel}
+        vakanzTitel={detailpostVakanz?.rolle}
         onConfirm={handleDetailpostConfirm}
       />
 
