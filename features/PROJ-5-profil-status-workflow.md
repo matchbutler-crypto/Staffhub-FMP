@@ -1,6 +1,6 @@
 # PROJ-5: Profil-Status-Workflow + Kommentarfunktion
 
-## Status: In Progress
+## Status: Deployed
 **Created:** 2026-04-13
 **Last Updated:** 2026-04-13
 

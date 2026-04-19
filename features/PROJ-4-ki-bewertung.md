@@ -1,6 +1,6 @@
 # PROJ-4: KI-Bewertung via Ollama
 
-**Status:** In Progress  
+**Status:** Deployed  
 **Erstellt:** 2026-04-13  
 **Priorität:** P0 (MVP)
 

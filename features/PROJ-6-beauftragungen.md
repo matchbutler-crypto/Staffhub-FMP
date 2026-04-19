@@ -1,6 +1,6 @@
 # PROJ-6: Beauftragungen + Margenberechnung
 
-## Status: In Progress
+## Status: Deployed
 **Created:** 2026-04-13
 **Last Updated:** 2026-04-13
 

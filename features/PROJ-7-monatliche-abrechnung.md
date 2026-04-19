@@ -1,6 +1,6 @@
 # PROJ-7: Monatliche Abrechnung + CSV/PDF-Export
 
-**Status:** In Progress  
+**Status:** Deployed  
 **Erstellt:** 2026-04-13  
 **Priorität:** P0 (MVP)
 
