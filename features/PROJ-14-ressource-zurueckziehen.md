@@ -1,6 +1,6 @@
 # PROJ-14: Ressource zurückziehen (Agentur zieht Einreichung zurück)
 
-**Status:** Architected  
+**Status:** In Progress  
 **Erstellt:** 2026-04-19  
 **Priorität:** P1
 

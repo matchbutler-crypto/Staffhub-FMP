@@ -640,6 +640,7 @@ type LinkStatus =
   | "Zugesagt"
   | "Abgesagt"
   | "Abgelehnt"
+  | "Zurückgezogen"
 
 interface VakanzLink {
   id: string
@@ -673,6 +674,91 @@ const linkStatusColors: Record<LinkStatus, string> = {
   Zugesagt: "bg-green-100 text-green-700 border-green-200",
   Abgesagt: "bg-gray-100 text-gray-500 border-gray-200",
   Abgelehnt: "bg-red-100 text-red-700 border-red-200",
+  Zurückgezogen: "bg-gray-100 text-gray-400 border-gray-200",
+}
+
+const RUECKZUG_ERLAUBT: LinkStatus[] = ["Gespielt"]
+
+// ── RueckzugDialog ────────────────────────────────────────────────────────────
+
+interface RueckzugDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  linkId: string
+  vakanzRolle: string
+  onSuccess: () => void
+}
+
+function RueckzugDialog({ open, onOpenChange, linkId, vakanzRolle, onSuccess }: RueckzugDialogProps) {
+  const [grund, setGrund] = React.useState("")
+  const [loading, setLoading] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!open) setGrund("")
+  }, [open])
+
+  async function handleConfirm() {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/ressource-links/${linkId}/rueckzug`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ grund: grund.trim() || undefined }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        if (res.status === 409) {
+          throw new Error("Rückzug nicht mehr möglich — Status wurde bereits geändert.")
+        }
+        throw new Error(err.error ?? "Unbekannter Fehler")
+      }
+      toast.success(`Einreichung für „${vakanzRolle}" zurückgezogen`)
+      onOpenChange(false)
+      onSuccess()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Fehler beim Zurückziehen")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Einreichung zurückziehen?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Die Ressource wird aus der Vakanz{" "}
+            <span className="font-medium text-foreground">„{vakanzRolle}"</span>{" "}
+            zurückgezogen. Dieser Schritt kann nicht rückgängig gemacht werden.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="flex flex-col gap-1.5 px-1 pb-2">
+          <Label htmlFor="rueckzug-grund" className="text-sm">
+            Grund (optional)
+          </Label>
+          <Textarea
+            id="rueckzug-grund"
+            placeholder="z.B. Ressource nicht mehr verfügbar…"
+            className="min-h-[80px]"
+            value={grund}
+            onChange={(e) => setGrund(e.target.value)}
+            maxLength={500}
+          />
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={loading}>Abbrechen</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleConfirm}
+            disabled={loading}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            {loading ? "Zurückziehen…" : "Zurückziehen"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
 }
 
 // ── ProfilEinreichenDialog ─────────────────────────────────────────────────────
@@ -1088,10 +1174,25 @@ function AgenturDetailSheet({
   onOpenChange,
   ressource,
 }: AgenturDetailSheetProps) {
+  const { user } = useUser()
+  const isAgentur = user?.rolle === "Agentur"
+
   const [links, setLinks] = React.useState<VakanzLink[]>([])
   const [historie, setHistorie] = React.useState<HistorieEintrag[]>([])
   const [linksLoading, setLinksLoading] = React.useState(false)
   const [historieLoading, setHistorieLoading] = React.useState(false)
+
+  const [rueckzugOpen, setRueckzugOpen] = React.useState(false)
+  const [rueckzugLink, setRueckzugLink] = React.useState<{ id: string; rolle: string } | null>(null)
+
+  function loadLinks(id: string) {
+    setLinksLoading(true)
+    fetch(`/api/ressourcen/${id}/links`)
+      .then((r) => r.json())
+      .then((d) => setLinks(d.links ?? []))
+      .catch(() => {})
+      .finally(() => setLinksLoading(false))
+  }
 
   React.useEffect(() => {
     if (!open || !ressource) {
@@ -1099,12 +1200,7 @@ function AgenturDetailSheet({
       setHistorie([])
       return
     }
-    setLinksLoading(true)
-    fetch(`/api/ressourcen/${ressource.id}/links`)
-      .then((r) => r.json())
-      .then((d) => setLinks(d.links ?? []))
-      .catch(() => {})
-      .finally(() => setLinksLoading(false))
+    loadLinks(ressource.id)
 
     setHistorieLoading(true)
     fetch(`/api/ressourcen/${ressource.id}/historie`)
@@ -1284,20 +1380,38 @@ function AgenturDetailSheet({
                         <p className="text-sm font-medium">
                           {link.vakanzen_data?.rolle ?? "Unbekannte Vakanz"}
                         </p>
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant="outline"
-                            className={linkStatusColors[link.status]}
-                          >
-                            {link.status}
-                          </Badge>
-                          {link.interview_datum && (
-                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <IconClock className="size-3" />
-                              {new Date(link.interview_datum).toLocaleDateString(
-                                "de-DE"
-                              )}
-                            </span>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <Badge
+                              variant="outline"
+                              className={linkStatusColors[link.status]}
+                            >
+                              {link.status}
+                            </Badge>
+                            {link.interview_datum && (
+                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <IconClock className="size-3" />
+                                {new Date(link.interview_datum).toLocaleDateString(
+                                  "de-DE"
+                                )}
+                              </span>
+                            )}
+                          </div>
+                          {isAgentur && RUECKZUG_ERLAUBT.includes(link.status) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              onClick={() => {
+                                setRueckzugLink({
+                                  id: link.id,
+                                  rolle: link.vakanzen_data?.rolle ?? "Unbekannte Vakanz",
+                                })
+                                setRueckzugOpen(true)
+                              }}
+                            >
+                              Zurückziehen
+                            </Button>
                           )}
                         </div>
                       </div>
@@ -1364,6 +1478,18 @@ function AgenturDetailSheet({
           </TabsContent>
         </Tabs>
       </SheetContent>
+
+      {rueckzugLink && (
+        <RueckzugDialog
+          open={rueckzugOpen}
+          onOpenChange={setRueckzugOpen}
+          linkId={rueckzugLink.id}
+          vakanzRolle={rueckzugLink.rolle}
+          onSuccess={() => {
+            if (ressource) loadLinks(ressource.id)
+          }}
+        />
+      )}
     </Sheet>
   )
 }
