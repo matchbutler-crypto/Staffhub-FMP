@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { toast } from "sonner"
 import {
+  IconBrain,
   IconClock,
   IconDownload,
   IconDotsVertical,
@@ -679,6 +680,37 @@ const linkStatusColors: Record<LinkStatus, string> = {
 
 const RUECKZUG_ERLAUBT: LinkStatus[] = ["Gespielt"]
 
+// ── KI-Score Types ─────────────────────────────────────────────────────────────
+
+interface KiScore {
+  id: string
+  score: number
+  empfehlung: "Empfohlen" | "Bedingt geeignet" | "Nicht geeignet"
+  begruendung: string
+  skill_vorhanden: string[]
+  skill_fehlend: string[]
+  model: string
+  berechnet_am: string
+}
+
+interface VakanzOption {
+  id: string
+  rolle: string
+  titel: string
+}
+
+const empfehlungColors: Record<KiScore["empfehlung"], string> = {
+  "Empfohlen": "bg-green-100 text-green-700 border-green-200",
+  "Bedingt geeignet": "bg-amber-100 text-amber-700 border-amber-200",
+  "Nicht geeignet": "bg-red-100 text-red-700 border-red-200",
+}
+
+function scoreColor(score: number): string {
+  if (score >= 70) return "text-green-600"
+  if (score >= 40) return "text-amber-600"
+  return "text-red-600"
+}
+
 // ── RueckzugDialog ────────────────────────────────────────────────────────────
 
 interface RueckzugDialogProps {
@@ -762,12 +794,6 @@ function RueckzugDialog({ open, onOpenChange, linkId, vakanzRolle, onSuccess }: 
 }
 
 // ── ProfilEinreichenDialog ─────────────────────────────────────────────────────
-
-interface VakanzOption {
-  id: string
-  rolle: string
-  titel: string
-}
 
 interface ProfilEinreichenDialogProps {
   open: boolean
@@ -1185,6 +1211,13 @@ function AgenturDetailSheet({
   const [rueckzugOpen, setRueckzugOpen] = React.useState(false)
   const [rueckzugLink, setRueckzugLink] = React.useState<{ id: string; rolle: string } | null>(null)
 
+  // KI-Match State
+  const [kiVakanzen, setKiVakanzen] = React.useState<VakanzOption[]>([])
+  const [kiVakanzId, setKiVakanzId] = React.useState("")
+  const [kiScore, setKiScore] = React.useState<KiScore | null>(null)
+  const [kiScoreLoading, setKiScoreLoading] = React.useState(false)
+  const [kiBerechnend, setKiBerechnend] = React.useState(false)
+
   function loadLinks(id: string) {
     setLinksLoading(true)
     fetch(`/api/ressourcen/${id}/links`)
@@ -1198,6 +1231,9 @@ function AgenturDetailSheet({
     if (!open || !ressource) {
       setLinks([])
       setHistorie([])
+      setKiVakanzen([])
+      setKiVakanzId("")
+      setKiScore(null)
       return
     }
     loadLinks(ressource.id)
@@ -1208,7 +1244,50 @@ function AgenturDetailSheet({
       .then((d) => setHistorie(d.historie ?? []))
       .catch(() => {})
       .finally(() => setHistorieLoading(false))
+
+    // Vakanzen für KI-Match laden
+    fetch("/api/vakanzen")
+      .then((r) => r.json())
+      .then((d) => setKiVakanzen(
+        (d.vakanzen ?? []).filter((v: VakanzOption & { status: string }) => v.status === "Offen")
+      ))
+      .catch(() => {})
   }, [open, ressource?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Score laden wenn Vakanz gewählt
+  React.useEffect(() => {
+    if (!kiVakanzId || !ressource) { setKiScore(null); return }
+    setKiScoreLoading(true)
+    fetch(`/api/ressourcen/${ressource.id}/ki-match?vakanz_id=${kiVakanzId}`)
+      .then((r) => r.json())
+      .then((d) => setKiScore(d.score ?? null))
+      .catch(() => setKiScore(null))
+      .finally(() => setKiScoreLoading(false))
+  }, [kiVakanzId, ressource?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleKiMatch() {
+    if (!ressource || !kiVakanzId) return
+    setKiBerechnend(true)
+    try {
+      const res = await fetch(`/api/ressourcen/${ressource.id}/ki-match`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vakanz_id: kiVakanzId }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? "Fehler bei der KI-Bewertung")
+      setKiScore(data.score)
+      toast.success("KI-Match berechnet")
+    } catch (err) {
+      if (err instanceof Error && err.message.includes("503")) {
+        toast.error("Ollama nicht erreichbar — bitte lokale Ollama-Instanz starten")
+      } else {
+        toast.error(err instanceof Error ? err.message : "Fehler bei der KI-Bewertung")
+      }
+    } finally {
+      setKiBerechnend(false)
+    }
+  }
 
   async function handleCvDownload() {
     if (!ressource?.cv_pfad) return
@@ -1346,6 +1425,118 @@ function AgenturDetailSheet({
                   <span>
                     {new Date(ressource.updated_at).toLocaleDateString("de-DE")}
                   </span>
+                </div>
+              </div>
+
+              {/* KI-Match */}
+              <div>
+                <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  KI-Match
+                </p>
+                <div className="flex flex-col gap-3">
+                  <div className="flex gap-2">
+                    <Select value={kiVakanzId} onValueChange={setKiVakanzId}>
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Vakanz wählen…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {kiVakanzen.length === 0 ? (
+                          <SelectItem value="__none__" disabled>
+                            Keine offenen Vakanzen
+                          </SelectItem>
+                        ) : (
+                          kiVakanzen.map((v) => (
+                            <SelectItem key={v.id} value={v.id}>
+                              {v.titel || v.rolle}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0 gap-1.5"
+                      disabled={!kiVakanzId || kiBerechnend}
+                      onClick={handleKiMatch}
+                    >
+                      <IconBrain className="size-4" />
+                      {kiBerechnend ? "Berechne…" : "KI-Match"}
+                    </Button>
+                  </div>
+
+                  {kiScoreLoading && (
+                    <div className="flex flex-col gap-2">
+                      <Skeleton className="h-4 w-1/3" />
+                      <Skeleton className="h-16 w-full rounded-lg" />
+                    </div>
+                  )}
+
+                  {!kiScoreLoading && kiScore && (
+                    <div className="flex flex-col gap-3 rounded-lg border p-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={`text-3xl font-bold ${scoreColor(kiScore.score)}`}>
+                          {kiScore.score}
+                          <span className="text-sm font-normal text-muted-foreground">/100</span>
+                        </span>
+                        <Badge variant="outline" className={empfehlungColors[kiScore.empfehlung]}>
+                          {kiScore.empfehlung}
+                        </Badge>
+                      </div>
+
+                      <p className="text-sm text-muted-foreground">{kiScore.begruendung}</p>
+
+                      {kiScore.skill_vorhanden.length > 0 && (
+                        <div className="flex flex-col gap-1">
+                          <p className="text-xs font-medium text-green-700">Vorhandene Skills</p>
+                          <div className="flex flex-wrap gap-1">
+                            {kiScore.skill_vorhanden.map((s) => (
+                              <span
+                                key={s}
+                                className="inline-flex items-center rounded border border-green-200 bg-green-50 px-1.5 py-0.5 text-xs text-green-700"
+                              >
+                                {s}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {kiScore.skill_fehlend.length > 0 && (
+                        <div className="flex flex-col gap-1">
+                          <p className="text-xs font-medium text-red-700">Fehlende Skills</p>
+                          <div className="flex flex-wrap gap-1">
+                            {kiScore.skill_fehlend.map((s) => (
+                              <span
+                                key={s}
+                                className="inline-flex items-center rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-xs text-red-700"
+                              >
+                                {s}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <p className="text-xs text-muted-foreground">
+                        Berechnet{" "}
+                        {new Date(kiScore.berechnet_am).toLocaleString("de-DE", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}{" "}
+                        · Modell: {kiScore.model}
+                      </p>
+                    </div>
+                  )}
+
+                  {!kiScoreLoading && kiVakanzId && !kiScore && !kiBerechnend && (
+                    <p className="text-sm text-muted-foreground">
+                      Noch kein Score für diese Vakanz. Klicken Sie auf „KI-Match" um einen zu berechnen.
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
