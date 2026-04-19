@@ -1,6 +1,6 @@
 # PROJ-15: Ollama Matching für Pool-Ressourcen
 
-**Status:** In Progress  
+**Status:** In Review  
 **Erstellt:** 2026-04-19  
 **Priorität:** P2
 
@@ -119,3 +119,76 @@ Neue Tabelle `ressource_ki_scores` (keine Änderung an bestehenden Tabellen):
 ### Neue Pakete
 
 Keine — Ollama-Infrastruktur aus PROJ-4 bereits vorhanden.
+
+---
+
+## QA Test Results
+
+**Datum:** 2026-04-19
+**Tester:** QA Engineer (Claude)
+**Umgebung:** Lokal (localhost:3000), Chromium
+
+### Automated Tests
+
+| Suite | Ergebnis |
+|---|---|
+| Vitest (126 Tests, 13 Files) | ✅ 126/126 passed |
+| Playwright E2E PROJ-15 (8 Tests) | ✅ 5 passed, 3 skipped (keine Test-Credentials) |
+| Playwright Regression (gesamt) | ⚠️ 1 pre-existing failure (PROJ-1 Login-Text), nicht PROJ-15-related |
+
+### Acceptance Criteria
+
+| AC | Beschreibung | Ergebnis | Notiz |
+|---|---|---|---|
+| AC-1 | KI-Match-Bereich mit Vakanz-Select + Button im Details-Tab | ✅ PASS | Select + „KI-Match"-Button + Score-Karte implementiert |
+| AC-2 | Skills, Erfahrungslevel, Notizen werden an Ollama gesendet | ✅ PASS | API-Route sendet vollständige Ressource-Daten via `bewerteProfilMitOllama()` |
+| AC-3 | Score, Skill-Coverage, Begründung, Empfehlung angezeigt | ✅ PASS | Score-Karte mit Farb-Badge, Skill-Tags (grün/rot), Begründung, Zeitstempel |
+| AC-4 | Score im Pool-Sheet ✅ + als Badge in Tabelle | ⚠️ PARTIAL | Sheet-Anzeige ✅; Tabellen-Badge fehlt → BUG-15-1 |
+| AC-5 | Score in `ressource_ki_scores` gespeichert (UPSERT) | ✅ PASS | DB-Migration angewendet; UPSERT via `ON CONFLICT (ressource_id, vakanz_id)` |
+| AC-6 | Manager kann nach Vakanz filtern + nach KI-Score sortieren | ❌ FAIL | Kein Vakanz-Filter in Pool-Tabelle, kein KI-Score-Sort → BUG-15-2 |
+| AC-7 | ProfilEinreichenDialog zeigt vorhandenen Score | ❌ FAIL | Dialog wurde nicht erweitert → BUG-15-3 |
+| AC-8 | Agentur sieht nur eigene Scores; Manager sieht alle | ✅ PASS | RLS-Policies + API-Ownership-Check korrekt implementiert |
+
+### Edge Cases
+
+| Edge Case | Ergebnis | Notiz |
+|---|---|---|
+| Ollama nicht erreichbar → 503 | ✅ PASS | API gibt 503 mit „Ollama nicht erreichbar"; kein Score gespeichert |
+| Ressource ohne Skills/Notizen → reduzierte Datenbasis | ✅ PASS | API sendet leere Skills-Array + Fallback-Text; Score wird trotzdem berechnet |
+| Score bereits vorhanden → UPSERT überschreibt | ✅ PASS | `ON CONFLICT DO UPDATE`; Zeitstempel wird aktualisiert |
+| Massen-Match (AC-6 Basis) | ⚠️ N/A | Nicht testbar ohne Vakanz-Filter-UI (BUG-15-2) |
+| Frontend 503-Erkennung | ⚠️ LOW | `err.message.includes("503")` schlägt nie an; Fehlermeldung kommt trotzdem via else-Branch → BUG-15-4 |
+
+### Security Audit
+
+| Prüfung | Ergebnis |
+|---|---|
+| Unauthentifizierter GET | ✅ 401 |
+| Unauthentifizierter POST | ✅ 401 |
+| Agentur matched fremde Ressource | ✅ 403 — Ownership-Check im Backend |
+| Ungültige UUID als vakanz_id | ✅ 400 — Zod-Validierung |
+| XSS in begruendung/skill-Feldern | ✅ React escaped, keine Injection möglich |
+| RLS auf ressource_ki_scores | ✅ Policies für alle Rollen implementiert |
+| Kandidatendaten bleiben lokal | ✅ Nur lokale Ollama-Instanz, kein Cloud-AI |
+
+### Regression Testing
+
+| Feature | Ergebnis |
+|---|---|
+| PROJ-9: Freelancer-Pool CRUD | ✅ Pool-Seite lädt korrekt, bestehende Funktionen unverändert |
+| PROJ-14: Ressource zurückziehen | ✅ Zurückziehen-Funktion unverändert |
+| PROJ-12: Ressourcen-Feedback | ✅ Feedback-Tab unverändert |
+| PROJ-11: Ressource auf Vakanz spielen | ✅ Status-Workflow unverändert |
+
+### Bugs
+
+| ID | Schwere | Beschreibung | Schritte |
+|---|---|---|---|
+| BUG-15-1 | **High** | KI-Score-Badge fehlt in Pool-Tabelle (AC-4 partial) | Pool → Tabelle → Zeile: kein KI-Score-Badge sichtbar, auch wenn Score vorhanden |
+| BUG-15-2 | **High** | Kein Vakanz-Filter + kein KI-Score-Sort in Pool-Tabelle (AC-6) | Pool → Tabelle: Kein Dropdown für Vakanz-Filter; Tabelle kann nicht nach Score sortiert werden |
+| BUG-15-3 | **Medium** | ProfilEinreichenDialog zeigt keinen KI-Score (AC-7) | Pool → Dropdown → „Profil einreichen" → Vakanz auswählen: kein KI-Score-Hinweis sichtbar |
+| BUG-15-4 | **Low** | Frontend 503-Erkennung greift nicht | `handleKiMatch()` prüft `err.message.includes("503")` — API gibt aber `"Ollama nicht erreichbar"` als Text; 503-Branch wird nie ausgeführt |
+
+### Produktion-Ready-Entscheidung
+
+**NOT READY** — BUG-15-1 und BUG-15-2 sind High-Bugs (fehlende Kernfunktionen laut Spec). BUG-15-3 ist Medium. Müssen behoben werden vor Deployment.

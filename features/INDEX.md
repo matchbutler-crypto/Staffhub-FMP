@@ -28,7 +28,7 @@
 | PROJ-12 | Ressourcen-Feedback (Manager + Agentur, Sterne-Bewertung) | Deployed | [PROJ-12](PROJ-12-ressourcen-feedback.md) | 2026-04-18 |
 | PROJ-13 | Easy Action Button – Ressource auf Vakanz spielen aus Vakanz-Ansicht | Deployed | [PROJ-13](PROJ-13-easy-action-button-agentur.md) | 2026-04-19 |
 | PROJ-14 | Ressource zurückziehen (Agentur zieht Einreichung zurück) | Deployed | [PROJ-14](PROJ-14-ressource-zurueckziehen.md) | 2026-04-19 |
-| PROJ-15 | Ollama Matching für Pool-Ressourcen (vor Einreichung, manuell) | In Progress | [PROJ-15](PROJ-15-ollama-pool-matching.md) | 2026-04-19 |
+| PROJ-15 | Ollama Matching für Pool-Ressourcen (vor Einreichung, manuell) | In Review | [PROJ-15](PROJ-15-ollama-pool-matching.md) | 2026-04-19 |
 
 <!-- Add features above this line -->
 
