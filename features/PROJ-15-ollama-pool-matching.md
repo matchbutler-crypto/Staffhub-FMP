@@ -1,6 +1,6 @@
 # PROJ-15: Ollama Matching für Pool-Ressourcen
 
-**Status:** Approved  
+**Status:** Deployed  
 **Erstellt:** 2026-04-19  
 **Priorität:** P2
 
