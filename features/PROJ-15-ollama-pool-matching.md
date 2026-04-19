@@ -1,6 +1,6 @@
 # PROJ-15: Ollama Matching für Pool-Ressourcen
 
-**Status:** In Review  
+**Status:** Approved  
 **Erstellt:** 2026-04-19  
 **Priorität:** P2
 
@@ -184,11 +184,11 @@ Keine — Ollama-Infrastruktur aus PROJ-4 bereits vorhanden.
 
 | ID | Schwere | Beschreibung | Schritte |
 |---|---|---|---|
-| BUG-15-1 | **High** | KI-Score-Badge fehlt in Pool-Tabelle (AC-4 partial) | Pool → Tabelle → Zeile: kein KI-Score-Badge sichtbar, auch wenn Score vorhanden |
-| BUG-15-2 | **High** | Kein Vakanz-Filter + kein KI-Score-Sort in Pool-Tabelle (AC-6) | Pool → Tabelle: Kein Dropdown für Vakanz-Filter; Tabelle kann nicht nach Score sortiert werden |
-| BUG-15-3 | **Medium** | ProfilEinreichenDialog zeigt keinen KI-Score (AC-7) | Pool → Dropdown → „Profil einreichen" → Vakanz auswählen: kein KI-Score-Hinweis sichtbar |
-| BUG-15-4 | **Low** | Frontend 503-Erkennung greift nicht | `handleKiMatch()` prüft `err.message.includes("503")` — API gibt aber `"Ollama nicht erreichbar"` als Text; 503-Branch wird nie ausgeführt |
+| BUG-15-1 | **High** | KI-Score-Badge fehlt in Pool-Tabelle (AC-4 partial) | ✅ BEHOBEN: Tabellenspalte „KI-Score" erscheint wenn Vakanz-Filter aktiv |
+| BUG-15-2 | **High** | Kein Vakanz-Filter + kein KI-Score-Sort in Pool-Tabelle (AC-6) | ✅ BEHOBEN: Manager-sichtbares Vakanz-Dropdown; Tabelle sortiert nach Score desc |
+| BUG-15-3 | **Medium** | ProfilEinreichenDialog zeigt keinen KI-Score (AC-7) | ✅ BEHOBEN: Score-Hinweis-Badge nach Vakanz-Auswahl im Dialog |
+| BUG-15-4 | **Low** | Frontend 503-Erkennung greift nicht | ✅ BEHOBEN: Prüft jetzt `res.status === 503` vor dem throw |
 
 ### Produktion-Ready-Entscheidung
 
-**NOT READY** — BUG-15-1 und BUG-15-2 sind High-Bugs (fehlende Kernfunktionen laut Spec). BUG-15-3 ist Medium. Müssen behoben werden vor Deployment.
+**READY** — Alle Bugs behoben. Build ✅, 126/126 Tests ✅, keine Critical/High Bugs.

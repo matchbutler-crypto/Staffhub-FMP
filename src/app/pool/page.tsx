@@ -812,10 +812,23 @@ function ProfilEinreichenDialog({ open, onOpenChange, ressource, onSuccess }: Pr
   const [profiltext, setProfiltext] = React.useState("")
   const [kommentar, setKommentar] = React.useState("")
   const [saving, setSaving] = React.useState(false)
+  const [kiHint, setKiHint] = React.useState<KiScore | null>(null)
+  const [kiHintLoading, setKiHintLoading] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!vakanzId || !ressource) { setKiHint(null); return }
+    setKiHintLoading(true)
+    fetch(`/api/ressourcen/${ressource.id}/ki-match?vakanz_id=${vakanzId}`)
+      .then((r) => r.json())
+      .then((d) => setKiHint(d.score ?? null))
+      .catch(() => setKiHint(null))
+      .finally(() => setKiHintLoading(false))
+  }, [vakanzId, ressource?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   React.useEffect(() => {
     if (!open) {
       setVakanzId("")
+      setKiHint(null)
       setVerfuegbarkeit("")
       setVerfuegbarAb("")
       setVerkaufspreis("")
@@ -898,6 +911,33 @@ function ProfilEinreichenDialog({ open, onOpenChange, ressource, onSuccess }: Pr
               </Select>
             )}
           </div>
+
+          {/* KI-Score Hint */}
+          {vakanzId && (
+            <div className="rounded-lg border bg-muted/40 px-3 py-2.5">
+              {kiHintLoading ? (
+                <Skeleton className="h-4 w-2/3" />
+              ) : kiHint ? (
+                <div className="flex items-center gap-2">
+                  <IconBrain className="size-4 shrink-0 text-muted-foreground" />
+                  <span className="text-sm">
+                    KI-Score:{" "}
+                    <span className={`font-semibold ${scoreColor(kiHint.score)}`}>
+                      {kiHint.score}/100
+                    </span>
+                  </span>
+                  <Badge variant="outline" className={`ml-auto text-xs ${empfehlungColors[kiHint.empfehlung]}`}>
+                    {kiHint.empfehlung}
+                  </Badge>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <IconBrain className="size-3.5 shrink-0" />
+                  Noch kein KI-Score für diese Vakanz. Im Pool-Detail berechnen.
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Verfügbarkeit Stunden */}
           <div className="flex flex-col gap-1.5">
@@ -1275,15 +1315,15 @@ function AgenturDetailSheet({
         body: JSON.stringify({ vakanz_id: kiVakanzId }),
       })
       const data = await res.json().catch(() => ({}))
+      if (res.status === 503) {
+        toast.error("Ollama nicht erreichbar — bitte lokale Ollama-Instanz starten")
+        return
+      }
       if (!res.ok) throw new Error(data.error ?? "Fehler bei der KI-Bewertung")
       setKiScore(data.score)
       toast.success("KI-Match berechnet")
     } catch (err) {
-      if (err instanceof Error && err.message.includes("503")) {
-        toast.error("Ollama nicht erreichbar — bitte lokale Ollama-Instanz starten")
-      } else {
-        toast.error(err instanceof Error ? err.message : "Fehler bei der KI-Bewertung")
-      }
+      toast.error(err instanceof Error ? err.message : "Fehler bei der KI-Bewertung")
     } finally {
       setKiBerechnend(false)
     }
@@ -1707,6 +1747,7 @@ function TableSkeletonRows({ cols }: { cols: number }) {
 
 export default function PoolPage() {
   const { user } = useUser()
+  const isManager = user?.rolle === "Staffhub Manager" || user?.rolle === "Admin"
 
   const [ressourcen, setRessourcen] = React.useState<Ressource[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -1715,6 +1756,12 @@ export default function PoolPage() {
   const [searchQuery, setSearchQuery] = React.useState("")
   const [statusFilter, setStatusFilter] = React.useState("alle")
   const [showDeaktiviert, setShowDeaktiviert] = React.useState(false)
+
+  // KI-Score Vakanz-Filter (Manager only)
+  const [allVakanzen, setAllVakanzen] = React.useState<VakanzOption[]>([])
+  const [vakanzFilter, setVakanzFilter] = React.useState("keine")
+  const [tableKiScores, setTableKiScores] = React.useState<Record<string, KiScore | null>>({})
+  const [kiScoresLoading, setKiScoresLoading] = React.useState(false)
 
   const [sheetOpen, setSheetOpen] = React.useState(false)
   const [sheetMode, setSheetMode] = React.useState<"create" | "edit">("create")
@@ -1754,16 +1801,54 @@ export default function PoolPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showDeaktiviert])
 
-  const filtered = ressourcen.filter((r) => {
-    const matchesStatus =
-      statusFilter === "alle" || r.verfuegbarkeit === statusFilter
-    const q = searchQuery.toLowerCase()
-    const matchesSearch =
-      q === "" ||
-      r.name.toLowerCase().includes(q) ||
-      r.skills.some((s) => s.toLowerCase().includes(q))
-    return matchesStatus && matchesSearch
-  })
+  // Load open vakanzen for Manager KI-Filter dropdown
+  React.useEffect(() => {
+    if (!isManager) return
+    fetch("/api/vakanzen")
+      .then((r) => r.json())
+      .then((d) => setAllVakanzen(
+        (d.vakanzen ?? []).filter((v: VakanzOption & { status: string }) => v.status === "Offen")
+      ))
+      .catch(() => {})
+  }, [isManager])
+
+  // Load KI scores for all ressourcen when vakanzFilter changes
+  React.useEffect(() => {
+    if (vakanzFilter === "keine" || ressourcen.length === 0) {
+      setTableKiScores({})
+      return
+    }
+    setKiScoresLoading(true)
+    Promise.all(
+      ressourcen.map((r) =>
+        fetch(`/api/ressourcen/${r.id}/ki-match?vakanz_id=${vakanzFilter}`)
+          .then((res) => res.json())
+          .then((d) => [r.id, d.score ?? null] as [string, KiScore | null])
+          .catch(() => [r.id, null] as [string, KiScore | null])
+      )
+    )
+      .then((entries) => setTableKiScores(Object.fromEntries(entries)))
+      .finally(() => setKiScoresLoading(false))
+  }, [vakanzFilter, ressourcen]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const filtered = (() => {
+    const base = ressourcen.filter((r) => {
+      const matchesStatus =
+        statusFilter === "alle" || r.verfuegbarkeit === statusFilter
+      const q = searchQuery.toLowerCase()
+      const matchesSearch =
+        q === "" ||
+        r.name.toLowerCase().includes(q) ||
+        r.skills.some((s) => s.toLowerCase().includes(q))
+      return matchesStatus && matchesSearch
+    })
+    if (vakanzFilter === "keine") return base
+    return [...base].sort((a, b) => {
+      const scoreA = tableKiScores[a.id]?.score ?? -1
+      const scoreB = tableKiScores[b.id]?.score ?? -1
+      return scoreB - scoreA
+    })
+  })()
 
   async function handleCvDownload(ressource: Ressource) {
     if (!ressource.cv_pfad) return
@@ -1866,6 +1951,22 @@ export default function PoolPage() {
                 >
                   Deaktivierte anzeigen
                 </Button>
+                {isManager && allVakanzen.length > 0 && (
+                  <Select value={vakanzFilter} onValueChange={setVakanzFilter}>
+                    <SelectTrigger className="w-[220px] gap-1.5">
+                      <IconBrain className="size-4 shrink-0 text-muted-foreground" />
+                      <SelectValue placeholder="KI-Filter: Vakanz…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="keine">Kein KI-Filter</SelectItem>
+                      {allVakanzen.map((v) => (
+                        <SelectItem key={v.id} value={v.id}>
+                          {v.titel || v.rolle}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
               {/* Error */}
@@ -1886,17 +1987,20 @@ export default function PoolPage() {
                         <TableHead>Level</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>EK-Rate</TableHead>
+                        {vakanzFilter !== "keine" && (
+                          <TableHead>KI-Score</TableHead>
+                        )}
                         <TableHead>CV</TableHead>
                         <TableHead className="w-10" />
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {loading ? (
-                        <TableSkeletonRows cols={7} />
+                      {loading || kiScoresLoading ? (
+                        <TableSkeletonRows cols={vakanzFilter !== "keine" ? 8 : 7} />
                       ) : filtered.length === 0 ? (
                         <TableRow>
                           <TableCell
-                            colSpan={7}
+                            colSpan={vakanzFilter !== "keine" ? 8 : 7}
                             className="py-12 text-center text-muted-foreground"
                           >
                             {ressourcen.length === 0
@@ -1942,6 +2046,25 @@ export default function PoolPage() {
                                 ? `${r.ek_tagesrate.toLocaleString("de-DE")} €`
                                 : <span className="text-muted-foreground">—</span>}
                             </TableCell>
+                            {vakanzFilter !== "keine" && (
+                              <TableCell onClick={(e) => e.stopPropagation()}>
+                                {tableKiScores[r.id] ? (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className={`text-sm font-semibold ${scoreColor(tableKiScores[r.id]!.score)}`}>
+                                      {tableKiScores[r.id]!.score}
+                                    </span>
+                                    <Badge
+                                      variant="outline"
+                                      className={`text-xs ${empfehlungColors[tableKiScores[r.id]!.empfehlung]}`}
+                                    >
+                                      {tableKiScores[r.id]!.empfehlung}
+                                    </Badge>
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">—</span>
+                                )}
+                              </TableCell>
+                            )}
                             <TableCell>
                               {r.cv_pfad ? (
                                 <Button
