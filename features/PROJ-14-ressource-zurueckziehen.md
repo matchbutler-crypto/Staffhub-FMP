@@ -1,6 +1,6 @@
 # PROJ-14: Ressource zurückziehen (Agentur zieht Einreichung zurück)
 
-**Status:** In Review  
+**Status:** Approved  
 **Erstellt:** 2026-04-19  
 **Priorität:** P1
 
@@ -189,9 +189,4 @@ Keine — `AlertDialog`, `Textarea`, `Badge` sind bereits installiert.
 
 ### Produktion-Ready-Entscheidung
 
-**NOT READY** — BUG-14-1 ist **Medium**: Manager-Ansicht crasht bei zurückgezogenen Links. Muss vor Deployment behoben werden.
-
-Fix benötigt in `src/app/ressourcen/page.tsx`:
-- `"Zurückgezogen"` zu `LinkStatus` type hinzufügen
-- `VALID_TRANSITIONS["Zurückgezogen"] = []` hinzufügen  
-- `linkStatusColors["Zurückgezogen"]` mit grauem Styling hinzufügen
+**READY** — BUG-14-1 wurde behoben: `ressourcen/page.tsx` kennt jetzt `"Zurückgezogen"` als terminalen Status mit grauem Badge. Alle ACs bestehen, keine Critical/High Bugs.

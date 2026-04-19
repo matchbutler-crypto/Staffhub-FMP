@@ -86,6 +86,7 @@ type LinkStatus =
   | "Zugesagt"
   | "Abgesagt"
   | "Abgelehnt"
+  | "Zurückgezogen"
 
 interface VakanzLink {
   id: string
@@ -128,6 +129,7 @@ const VALID_TRANSITIONS: Record<LinkStatus, LinkStatus[]> = {
   Zugesagt: [],
   Abgesagt: [],
   Abgelehnt: [],
+  Zurückgezogen: [],
 }
 
 // ── Color maps ─────────────────────────────────────────────────────────────────
@@ -152,6 +154,7 @@ const linkStatusColors: Record<LinkStatus, string> = {
   Zugesagt: "bg-green-100 text-green-700 border-green-200",
   Abgesagt: "bg-gray-100 text-gray-500 border-gray-200",
   Abgelehnt: "bg-red-100 text-red-700 border-red-200",
+  Zurückgezogen: "bg-gray-100 text-gray-400 border-gray-200",
 }
 
 // ── SkillTags ──────────────────────────────────────────────────────────────────
