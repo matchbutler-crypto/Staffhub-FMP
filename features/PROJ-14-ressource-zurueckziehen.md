@@ -1,6 +1,6 @@
 # PROJ-14: Ressource zurückziehen (Agentur zieht Einreichung zurück)
 
-**Status:** In Progress  
+**Status:** In Review  
 **Erstellt:** 2026-04-19  
 **Priorität:** P1
 
@@ -122,3 +122,76 @@ Manager-Ansicht: "Zurückgezogen" = grauer Badge, keine weiteren Aktionen mögli
 ### Neue Pakete
 
 Keine — `AlertDialog`, `Textarea`, `Badge` sind bereits installiert.
+
+---
+
+## QA Test Results
+
+**Datum:** 2026-04-19  
+**Tester:** QA Engineer (Claude)  
+**Umgebung:** Lokal (localhost:3000), Chromium
+
+### Automated Tests
+
+| Suite | Ergebnis |
+|---|---|
+| Vitest (116 Tests, 12 Files) | ✅ 116/116 passed |
+| Playwright E2E PROJ-14 (8 Tests) | ✅ 1 passed, 7 skipped (keine Test-Credentials) |
+| Playwright Regression (gesamt) | ⚠️ 1 pre-existing failure (PROJ-1 Login-Text), nicht PROJ-14-related |
+
+### Acceptance Criteria
+
+| AC | Beschreibung | Ergebnis | Notiz |
+|---|---|---|---|
+| AC-1 | „Zurückziehen"-Button im Verlauf-Tab pro Vakanz-Link | ✅ PASS | Code-Review: Button korrekt in `AgenturDetailSheet` implementiert |
+| AC-2 | Button nur aktiv für Status = „Gespielt" | ✅ PASS | `RUECKZUG_ERLAUBT = ["Gespielt"]` Konstante; Button nicht gerendert für andere Status |
+| AC-3 | Dialog mit Bestätigungstext + optionalem Grund-Textfeld | ✅ PASS | `RueckzugDialog` mit AlertDialog + Textarea |
+| AC-4 | Status → „Zurückgezogen" + `grund_rueckzug` gespeichert | ✅ PASS | Integration-Tests verifiziert; DB-Migration angewendet |
+| AC-5 | Manager sieht „Zurückgezogen" mit grauem Badge | ⚠️ PARTIAL | Agentur-Ansicht ✓ grauer Badge; Manager-Ansicht (`/ressourcen`) → BUG-14-1 |
+| AC-6 | Manager kann zurückgezogene Einträge nicht weiter schieben | ✅ PASS | Status-Route gibt 409 für „Zurückgezogen" — Integration-Test ✓ |
+| AC-7 | Pool-Ressource bleibt nach Rückzug erhalten | ✅ PASS | Backend ändert nur `ressource_vakanz_links`, nicht `ressourcen` |
+| AC-8 | Historien-Eintrag wird automatisch erstellt | ✅ PASS | Integration-Test: `mockHistorieInsert` wurde aufgerufen mit korrektem Text |
+
+### Edge Cases
+
+| Edge Case | Ergebnis | Notiz |
+|---|---|---|
+| Status bereits weiter (Interview geplant) | ✅ PASS | API gibt 409; Dialog zeigt `toast.error` |
+| Race Condition / gleichzeitiger Statuswechsel | ✅ PASS | Backend prüft Status atomisch vor Update; 409 bei Konflikt |
+| Agentur zieht fremde Ressource zurück | ✅ PASS | Ownership-Check: `ressource.agentur_id !== profile.agentur_id` → 403 |
+| Netzwerkfehler | ✅ PASS | Atomare DB-Operation; kein Teilzustand möglich |
+
+### Security Audit
+
+| Prüfung | Ergebnis |
+|---|---|
+| Unauthentifizierter Zugriff auf PATCH /rueckzug | ✅ 401 |
+| Manager versucht Rückzug (falsche Rolle) | ✅ 403 — Agentur-only Check |
+| Agentur zieht fremde Ressource zurück | ✅ 403 — Ownership-Check |
+| XSS im Grund-Textfeld | ✅ React escaped, keine Injection möglich |
+| Grund-Text länger als 500 Zeichen | ✅ 400 — Zod-Validierung |
+| Duplikat-Rückzug (bereits zurückgezogen) | ✅ 409 — Status-Check |
+
+### Bugs
+
+| ID | Schwere | Beschreibung | Schritte |
+|---|---|---|---|
+| BUG-14-1 | **Medium** | Manager-Ansicht (`/ressourcen`) kennt Status „Zurückgezogen" nicht: `VALID_TRANSITIONS["Zurückgezogen"]` ist `undefined` → Runtime-Crash `TypeError: Cannot read properties of undefined (reading 'length')` wenn Manager eine Ressource mit zurückgezogenem Link öffnet | Manager → `/ressourcen` → Ressource öffnen die auf einer Vakanz gespielt und zurückgezogen wurde |
+
+### Regression Testing
+
+| Feature | Ergebnis |
+|---|---|
+| PROJ-11: Ressource auf Vakanz spielen (Status-Workflow) | ✅ API-Tests unverändert; 409 für Zurückgezogen blockiert korrekt |
+| PROJ-12: Ressourcen-Feedback | ✅ Unverändert |
+| PROJ-13: Easy Action Button | ✅ Unverändert |
+| PROJ-9: Pool CRUD | ✅ Ressource bleibt nach Rückzug im Pool |
+
+### Produktion-Ready-Entscheidung
+
+**NOT READY** — BUG-14-1 ist **Medium**: Manager-Ansicht crasht bei zurückgezogenen Links. Muss vor Deployment behoben werden.
+
+Fix benötigt in `src/app/ressourcen/page.tsx`:
+- `"Zurückgezogen"` zu `LinkStatus` type hinzufügen
+- `VALID_TRANSITIONS["Zurückgezogen"] = []` hinzufügen  
+- `linkStatusColors["Zurückgezogen"]` mit grauem Styling hinzufügen
