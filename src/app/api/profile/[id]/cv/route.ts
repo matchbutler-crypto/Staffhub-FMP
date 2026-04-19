@@ -21,7 +21,7 @@ export async function GET(
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('rolle, aktiv')
+    .select('rolle, aktiv, agentur_id')
     .eq('id', user.id)
     .single()
 
@@ -32,12 +32,17 @@ export async function GET(
   // Fetch the profil record (RLS ensures access control)
   const { data: profil, error: fetchError } = await supabase
     .from('kandidaten_profile')
-    .select('cv_pfad')
+    .select('cv_pfad, agentur_id')
     .eq('id', id)
     .single()
 
   if (fetchError || !profil) {
     return NextResponse.json({ error: 'Profil nicht gefunden' }, { status: 404 })
+  }
+
+  // Application-level ownership check for Agentur role (defense in depth)
+  if (profile.rolle === 'Agentur' && profil.agentur_id !== profile.agentur_id) {
+    return NextResponse.json({ error: 'Zugriff verweigert' }, { status: 403 })
   }
 
   if (!profil.cv_pfad) {
@@ -50,7 +55,7 @@ export async function GET(
     .createSignedUrl(profil.cv_pfad, 3600)
 
   if (signError || !signedData) {
-    console.error('Signed URL error:', signError)
+    console.error('GET /api/profile/[id]/cv signed URL error:', { message: signError?.message })
     return NextResponse.json({ error: 'Fehler beim Erstellen des Download-Links' }, { status: 500 })
   }
 

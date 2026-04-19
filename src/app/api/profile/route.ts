@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
   const { data, error } = await query
 
   if (error) {
-    console.error('GET /api/profile error:', error)
+    console.error('GET /api/profile error:', { code: error.code, message: error.message })
     return NextResponse.json({ error: 'Fehler beim Laden der Profile' }, { status: 500 })
   }
 
@@ -140,12 +140,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Lebenslauf (PDF) ist erforderlich' }, { status: 400 })
   }
 
-  // Validate file
+  // Validate file type + size
   if (cvFile.type !== 'application/pdf') {
     return NextResponse.json({ error: 'Nur PDF-Dateien erlaubt' }, { status: 400 })
   }
   if (cvFile.size > 10 * 1024 * 1024) {
     return NextResponse.json({ error: 'Datei darf maximal 10 MB groß sein' }, { status: 400 })
+  }
+  // Magic-Byte-Check: echte PDF-Datei prüfen (%PDF)
+  const header = new Uint8Array(await cvFile.slice(0, 4).arrayBuffer())
+  if (header[0] !== 0x25 || header[1] !== 0x50 || header[2] !== 0x44 || header[3] !== 0x46) {
+    return NextResponse.json({ error: 'Ungültige PDF-Datei (Dateiinhalt stimmt nicht überein)' }, { status: 400 })
   }
 
   // Validate structured fields
@@ -204,7 +209,7 @@ export async function POST(request: NextRequest) {
     })
 
   if (uploadError) {
-    console.error('CV upload error:', uploadError)
+    console.error('CV upload error:', { error: uploadError.message })
     return NextResponse.json({ error: 'Fehler beim Hochladen des Lebenslaufs' }, { status: 500 })
   }
 
@@ -221,7 +226,7 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (insertError) {
-    console.error('DB insert error:', insertError)
+    console.error('POST /api/profile DB insert error:', { code: insertError.code, message: insertError.message })
     // Cleanup: remove uploaded file
     await supabase.storage.from('cv-uploads').remove([cvStoragePath])
     return NextResponse.json({ error: 'Fehler beim Speichern des Profils' }, { status: 500 })

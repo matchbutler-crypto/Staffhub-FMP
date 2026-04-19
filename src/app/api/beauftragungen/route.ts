@@ -7,7 +7,7 @@ const beauftragungSchema = z.object({
   agentur_id: z.string().uuid(),
   einkaufspreis: z.number().min(0),
   margenaufschlag: z.number().min(0).default(0),
-  startdatum: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  startdatum: z.string().date('Ungültiges Datum (erwartet YYYY-MM-DD)'),
   stunden_woche: z.number().int().min(1).max(168),
 })
 
@@ -38,6 +38,10 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url)
   const nurAktive = searchParams.get('aktiv') !== 'false'
+  const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10))
+  const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get('pageSize') ?? '100', 10)))
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
 
   const query = supabase
     .from('beauftragungen')
@@ -55,16 +59,16 @@ export async function GET(request: NextRequest) {
       updated_at,
       kandidaten_profile!inner(kandidatenname, erfahrungslevel, vakanz_id, vakanzen!inner(titel)),
       agenturen!inner(name)
-    `)
+    `, { count: 'exact' })
     .order('created_at', { ascending: false })
-    .limit(500)
+    .range(from, to)
 
   if (nurAktive) query.eq('aktiv', true)
 
-  const { data, error } = await query
+  const { data, error, count } = await query
 
   if (error) {
-    console.error('GET /api/beauftragungen error:', error)
+    console.error('GET /api/beauftragungen error:', { code: error.code, message: error.message })
     return NextResponse.json({ error: 'Fehler beim Laden der Beauftragungen' }, { status: 500 })
   }
 
@@ -85,7 +89,7 @@ export async function GET(request: NextRequest) {
     }
   })
 
-  return NextResponse.json(result)
+  return NextResponse.json({ data: result, total: count ?? 0, page, pageSize })
 }
 
 // ── POST /api/beauftragungen ───────────────────────────────────────────────────

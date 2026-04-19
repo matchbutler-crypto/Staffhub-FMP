@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 const updateSchema = z.object({
   einkaufspreis: z.number().min(0),
   margenaufschlag: z.number().min(0).default(0),
-  startdatum: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  startdatum: z.string().date('Ungültiges Datum (erwartet YYYY-MM-DD)'),
   stunden_woche: z.number().int().min(1).max(168),
 })
 

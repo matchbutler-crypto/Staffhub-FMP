@@ -5,7 +5,6 @@ import { createClient } from '@/lib/supabase/server'
 // ── Zod Schema ─────────────────────────────────────────────────────────────────
 
 const createVakanzSchema = z.object({
-  titel: z.string().min(1, 'Titel ist erforderlich'),
   branche: z.string().min(1, 'Branche ist erforderlich'),
   kunde: z.string().nullable().optional(),
   rolle: z.string().min(1, 'Rolle ist erforderlich'),
@@ -14,14 +13,15 @@ const createVakanzSchema = z.object({
   skills_nice_have: z.array(z.string()).max(20).optional().default([]),
   erfahrungslevel: z.enum(['Junior', 'Mid', 'Senior', 'Expert']),
   startdatum: z.string().min(1, 'Projektstart ist erforderlich'),
-  laufzeit: z.string().min(1, 'Beauftragungsdauer ist erforderlich'),
+  enddatum: z.string().min(1, 'Projektende ist erforderlich'),
   teamgroesse: z.number().int().min(1).nullable().optional(),
   fte_anzahl: z.number().min(0.1, 'FTE Anzahl ist erforderlich'),
   auslastung: z.number().int().min(1).max(100).optional().default(100),
   arbeitsmodell: z.enum(['Remote', 'Hybrid', 'Onsite']),
-  ansprechpartner: z.string().min(1, 'Ansprechpartner ist erforderlich'),
+  onsite_anteil: z.number().int().min(0).max(100).nullable().optional(),
+  ansprechpartner: z.string().nullable().optional(),
   standort: z.string().nullable().optional(),
-  budget_intern: z.number().nullable().optional(),
+  budget_intern: z.number({ invalid_type_error: 'Muss eine Zahl sein' }).positive('EK Tagesrate ist erforderlich'),
   weitere_kommentare: z.string().nullable().optional(),
 })
 
@@ -133,6 +133,7 @@ export async function POST(request: NextRequest) {
     .from('vakanzen')
     .insert({
       ...parsed.data,
+      titel: parsed.data.rolle,
       status: 'Offen',
       created_by: user.id,
     })

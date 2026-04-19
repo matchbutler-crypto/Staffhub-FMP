@@ -25,7 +25,7 @@ function buildDetailBlocks(
     skills: string[]
     erfahrungslevel: string
     startdatum: string
-    laufzeit: string
+    enddatum?: string | null
     auslastung: number
     arbeitsmodell: string
     standort?: string | null
@@ -57,7 +57,7 @@ function buildDetailBlocks(
     `\n *Team Size:* ${vakanz.teamgroesse ?? '–'}` +
     `\n *Job Type:* ${jobType}` +
     `\n *Start date:* ${startFormatiert}` +
-    `\n *Duration:* ${vakanz.laufzeit}` +
+    `\n *End date:* ${vakanz.enddatum ? new Date(vakanz.enddatum).toLocaleDateString('de-DE') : '–'}` +
     `\n *Project Language:* –`
 
   if (workspace === 'partner' && vakanz.budget_intern != null) {
@@ -158,7 +158,7 @@ export async function POST(
   // ── Vakanz laden ────────────────────────────────────────────────────────────
   const { data: vakanz, error: vakanzError } = await supabase
     .from('vakanzen')
-    .select('id, titel, rolle, beschreibung, skills, erfahrungslevel, startdatum, laufzeit, auslastung, arbeitsmodell, standort, branche, teamgroesse, budget_intern')
+    .select('id, titel, rolle, beschreibung, skills, erfahrungslevel, startdatum, enddatum, auslastung, arbeitsmodell, standort, branche, teamgroesse, budget_intern')
     .eq('id', id)
     .single()
 

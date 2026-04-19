@@ -5,18 +5,25 @@ import { createClient } from '@/lib/supabase/server'
 // ── Zod Schema ─────────────────────────────────────────────────────────────────
 
 const updateVakanzSchema = z.object({
-  titel: z.string().min(1, 'Titel ist erforderlich'),
+  branche: z.string().min(1, 'Branche ist erforderlich'),
+  kunde: z.string().nullable().optional(),
   rolle: z.string().min(1, 'Rolle ist erforderlich'),
-  beschreibung: z.string().min(1, 'Beschreibung ist erforderlich'),
-  skills: z.array(z.string()).min(1, 'Mindestens ein Skill erforderlich').max(20),
+  beschreibung: z.string().min(1, 'Projektkontext ist erforderlich'),
+  skills: z.array(z.string()).min(1, 'Mindestens ein Must-Have-Skill erforderlich').max(20),
+  skills_nice_have: z.array(z.string()).max(20).optional().default([]),
   erfahrungslevel: z.enum(['Junior', 'Mid', 'Senior', 'Expert']),
-  startdatum: z.string().min(1, 'Startdatum ist erforderlich'),
-  laufzeit: z.string().min(1, 'Laufzeit ist erforderlich'),
-  auslastung: z.number().int().min(1).max(100),
+  startdatum: z.string().min(1, 'Projektstart ist erforderlich'),
+  enddatum: z.string().min(1, 'Projektende ist erforderlich'),
+  teamgroesse: z.number().int().min(1).nullable().optional(),
+  fte_anzahl: z.number().min(0.1, 'FTE Anzahl ist erforderlich'),
+  auslastung: z.number().int().min(1).max(100).optional().default(100),
   arbeitsmodell: z.enum(['Remote', 'Hybrid', 'Onsite']),
+  onsite_anteil: z.number().int().min(0).max(100).nullable().optional(),
+  ansprechpartner: z.string().nullable().optional(),
   status: z.enum(['Offen', 'In Auswahl', 'Besetzt', 'Pausiert', 'Geschlossen']),
   standort: z.string().nullable().optional(),
-  budget_intern: z.number().nullable().optional(),
+  budget_intern: z.number({ invalid_type_error: 'Muss eine Zahl sein' }).positive('EK Tagesrate ist erforderlich'),
+  weitere_kommentare: z.string().nullable().optional(),
 })
 
 // ── PUT /api/vakanzen/[id] ─────────────────────────────────────────────────────
@@ -57,18 +64,26 @@ export async function PUT(
 
   // budget_intern nur speichern wenn Manager/Admin
   const updateData: Record<string, unknown> = {
-    titel: parsed.data.titel,
+    titel: parsed.data.rolle,
+    branche: parsed.data.branche,
+    kunde: parsed.data.kunde ?? null,
     rolle: parsed.data.rolle,
     beschreibung: parsed.data.beschreibung,
     skills: parsed.data.skills,
+    skills_nice_have: parsed.data.skills_nice_have ?? [],
     erfahrungslevel: parsed.data.erfahrungslevel,
     startdatum: parsed.data.startdatum,
-    laufzeit: parsed.data.laufzeit,
-    auslastung: parsed.data.auslastung,
+    enddatum: parsed.data.enddatum,
+    teamgroesse: parsed.data.teamgroesse ?? null,
+    fte_anzahl: parsed.data.fte_anzahl,
+    auslastung: parsed.data.auslastung ?? 100,
     arbeitsmodell: parsed.data.arbeitsmodell,
+    onsite_anteil: parsed.data.onsite_anteil ?? null,
+    ansprechpartner: parsed.data.ansprechpartner ?? null,
     status: parsed.data.status,
     standort: parsed.data.standort ?? null,
-    budget_intern: parsed.data.budget_intern ?? null,
+    budget_intern: parsed.data.budget_intern,
+    weitere_kommentare: parsed.data.weitere_kommentare ?? null,
   }
 
   const { data: vakanz, error } = await supabase

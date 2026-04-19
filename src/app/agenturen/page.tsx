@@ -89,7 +89,7 @@ export default function AgenturenPage() {
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         return r.json()
       })
-      .then(setBeauftragungen)
+      .then((body) => setBeauftragungen(Array.isArray(body) ? body : (body.data ?? [])))
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
   }, [])

@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { VAKANZ_STATUS } from '@/lib/constants'
 
 // ── Zod Schema ─────────────────────────────────────────────────────────────────
 
 const statusSchema = z.object({
-  status: z.enum(['Offen', 'In Auswahl', 'Besetzt', 'Pausiert', 'Geschlossen']),
+  status: z.enum(VAKANZ_STATUS),
 })
 
 // ── PATCH /api/vakanzen/[id]/status ───────────────────────────────────────────
@@ -55,6 +56,7 @@ export async function PATCH(
     if (error.code === 'PGRST116') {
       return NextResponse.json({ error: 'Vakanz nicht gefunden' }, { status: 404 })
     }
+    console.error('PATCH /api/vakanzen/[id]/status error:', { code: error.code, message: error.message })
     return NextResponse.json({ error: 'Fehler beim Aktualisieren des Status' }, { status: 500 })
   }
 

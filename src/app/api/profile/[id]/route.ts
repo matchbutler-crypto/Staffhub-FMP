@@ -143,6 +143,11 @@ export async function PUT(
     if (cvFile.size > 10 * 1024 * 1024) {
       return NextResponse.json({ error: 'Datei darf maximal 10 MB groß sein' }, { status: 400 })
     }
+    // Magic-Byte-Check: echte PDF-Datei prüfen (%PDF)
+    const header = new Uint8Array(await cvFile.slice(0, 4).arrayBuffer())
+    if (header[0] !== 0x25 || header[1] !== 0x50 || header[2] !== 0x44 || header[3] !== 0x46) {
+      return NextResponse.json({ error: 'Ungültige PDF-Datei (Dateiinhalt stimmt nicht überein)' }, { status: 400 })
+    }
   }
 
   // Validate structured fields

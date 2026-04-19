@@ -1,17 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { PROFIL_STATUS } from '@/lib/constants'
 
 const statusSchema = z.object({
-  status: z.enum([
-    'Eingereicht',
-    'In Prüfung',
-    'Präsentiert',
-    'Interview',
-    'Beauftragt',
-    'Abgelehnt',
-    'Archiviert',
-  ]),
+  status: z.enum(PROFIL_STATUS),
 })
 
 // ── PATCH /api/profile/[id]/status ────────────────────────────────────────────
@@ -64,6 +57,7 @@ export async function PATCH(
     if (error.code === 'PGRST116') {
       return NextResponse.json({ error: 'Profil nicht gefunden' }, { status: 404 })
     }
+    console.error('PATCH /api/profile/[id]/status error:', { code: error.code, message: error.message })
     return NextResponse.json({ error: 'Fehler beim Aktualisieren des Status' }, { status: 500 })
   }
 

@@ -18,6 +18,16 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { type KandidatenProfil, type ProfilStatus } from "@/components/profil-einreichen-sheet"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import {
   Select,
@@ -124,6 +134,16 @@ export default function ProfilDetailPage() {
   const [kiExpanded, setKiExpanded] = React.useState(false)
   const kommentarEndRef = React.useRef<HTMLDivElement>(null)
 
+  // Beauftragung-Dialog
+  const [beauftragungDialog, setBeauftragungDialog] = React.useState(false)
+  const [beauftragungForm, setBeauftragungForm] = React.useState({
+    einkaufspreis: "",
+    margenaufschlag: "0",
+    startdatum: "",
+    stunden_woche: "",
+  })
+  const [savingBeauftragung, setSavingBeauftragung] = React.useState(false)
+
   async function fetchProfil() {
     try {
       const res = await fetch(`/api/profile/${id}`)
@@ -194,6 +214,12 @@ export default function ProfilDetailPage() {
 
   async function handleStatusChange(newStatus: ProfilStatus) {
     if (!profil) return
+    // Beauftragung-Dialog öffnen statt direkt Status setzen
+    if (newStatus === "Beauftragt") {
+      setBeauftragungForm({ einkaufspreis: "", margenaufschlag: "0", startdatum: "", stunden_woche: "" })
+      setBeauftragungDialog(true)
+      return
+    }
     setUpdatingStatus(true)
     try {
       const res = await fetch(`/api/profile/${id}/status`, {
@@ -212,6 +238,60 @@ export default function ProfilDetailPage() {
       toast.error("Verbindungsfehler.")
     } finally {
       setUpdatingStatus(false)
+    }
+  }
+
+  async function handleBeauftragungSubmit() {
+    if (!profil) return
+    const ek = parseFloat(beauftragungForm.einkaufspreis)
+    const mg = parseFloat(beauftragungForm.margenaufschlag || "0")
+    const stunden = parseInt(beauftragungForm.stunden_woche)
+
+    if (isNaN(ek) || ek < 0) { toast.error("Einkaufspreis ungültig."); return }
+    if (isNaN(mg) || mg < 0) { toast.error("Margenaufschlag ungültig."); return }
+    if (isNaN(stunden) || stunden < 1 || stunden > 168) { toast.error("Stunden/Woche: Wert zwischen 1 und 168."); return }
+    if (!beauftragungForm.startdatum) { toast.error("Startdatum ist erforderlich."); return }
+
+    setSavingBeauftragung(true)
+    try {
+      // 1. Status auf "Beauftragt" setzen
+      const statusRes = await fetch(`/api/profile/${id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Beauftragt" }),
+      })
+      if (!statusRes.ok) {
+        const b = await statusRes.json().catch(() => ({}))
+        toast.error(b.error ?? "Fehler beim Status-Update.")
+        return
+      }
+
+      // 2. Beauftragung anlegen
+      const bRes = await fetch("/api/beauftragungen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          profil_id: id,
+          agentur_id: profil.agentur_id,
+          einkaufspreis: ek,
+          margenaufschlag: mg,
+          startdatum: beauftragungForm.startdatum,
+          stunden_woche: stunden,
+        }),
+      })
+      if (!bRes.ok) {
+        const b = await bRes.json().catch(() => ({}))
+        toast.error(b.error ?? "Fehler beim Anlegen der Beauftragung.")
+        return
+      }
+
+      setProfil((p) => p ? { ...p, status: "Beauftragt" } : p)
+      setBeauftragungDialog(false)
+      toast.success("Beauftragung angelegt und Status gesetzt.")
+    } catch {
+      toast.error("Verbindungsfehler.")
+    } finally {
+      setSavingBeauftragung(false)
     }
   }
 
@@ -542,6 +622,109 @@ export default function ProfilDetailPage() {
           </div>
         </div>
       </SidebarInset>
+
+      {/* ── Beauftragung-Dialog ─────────────────────────────────────────────────── */}
+      <Dialog
+        open={beauftragungDialog}
+        onOpenChange={(open) => { if (!savingBeauftragung) setBeauftragungDialog(open) }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Beauftragung anlegen</DialogTitle>
+            <DialogDescription>
+              Preise und Einsatzdetails für{" "}
+              <span className="font-medium text-foreground">
+                {profil?.kandidatenname ?? "Kandidat"}
+              </span>{" "}
+              eintragen. Der Status wird automatisch auf „Beauftragt" gesetzt.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-2">
+            <div className="grid gap-1.5">
+              <Label htmlFor="b-ek">Einkaufspreis (€ / Tag)</Label>
+              <Input
+                id="b-ek"
+                type="number"
+                min={0}
+                step={1}
+                placeholder="z.B. 600"
+                value={beauftragungForm.einkaufspreis}
+                onChange={(e) =>
+                  setBeauftragungForm((f) => ({ ...f, einkaufspreis: e.target.value }))
+                }
+              />
+            </div>
+
+            <div className="grid gap-1.5">
+              <Label htmlFor="b-mg">Margenaufschlag (€ / Tag)</Label>
+              <Input
+                id="b-mg"
+                type="number"
+                min={0}
+                step={1}
+                placeholder="z.B. 100"
+                value={beauftragungForm.margenaufschlag}
+                onChange={(e) =>
+                  setBeauftragungForm((f) => ({ ...f, margenaufschlag: e.target.value }))
+                }
+              />
+              {beauftragungForm.einkaufspreis && (
+                <p className="text-xs text-muted-foreground">
+                  Verkaufspreis:{" "}
+                  {(
+                    parseFloat(beauftragungForm.einkaufspreis || "0") +
+                    parseFloat(beauftragungForm.margenaufschlag || "0")
+                  ).toLocaleString("de-DE")}{" "}
+                  €/Tag
+                </p>
+              )}
+            </div>
+
+            <div className="grid gap-1.5">
+              <Label htmlFor="b-start">Startdatum</Label>
+              <Input
+                id="b-start"
+                type="date"
+                value={beauftragungForm.startdatum}
+                onChange={(e) =>
+                  setBeauftragungForm((f) => ({ ...f, startdatum: e.target.value }))
+                }
+              />
+            </div>
+
+            <div className="grid gap-1.5">
+              <Label htmlFor="b-stunden">Stunden / Woche</Label>
+              <Input
+                id="b-stunden"
+                type="number"
+                min={1}
+                max={168}
+                step={1}
+                placeholder="z.B. 40"
+                value={beauftragungForm.stunden_woche}
+                onChange={(e) =>
+                  setBeauftragungForm((f) => ({ ...f, stunden_woche: e.target.value }))
+                }
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              disabled={savingBeauftragung}
+              onClick={() => setBeauftragungDialog(false)}
+            >
+              Abbrechen
+            </Button>
+            <Button disabled={savingBeauftragung} onClick={handleBeauftragungSubmit}>
+              {savingBeauftragung ? "Wird gespeichert…" : "Beauftragung anlegen"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </SidebarProvider>
   )
 }

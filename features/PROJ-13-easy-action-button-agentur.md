@@ -1,6 +1,6 @@
 # PROJ-13: Easy Action Button – Ressource auf Vakanz spielen aus Vakanz-Ansicht
 
-**Status:** In Review  
+**Status:** Deployed  
 **Erstellt:** 2026-04-19  
 **Priorität:** P1
 

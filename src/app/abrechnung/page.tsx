@@ -194,7 +194,8 @@ export default function AbrechnungPage() {
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         return r.json()
       })
-      .then((data: Beauftragung[]) => {
+      .then((body) => {
+        const data: Beauftragung[] = Array.isArray(body) ? body : (body.data ?? [])
         setBeauftragungen(data)
         // Expand all agencies by default
         const ids = [...new Set(data.map((b) => b.agentur_id))]

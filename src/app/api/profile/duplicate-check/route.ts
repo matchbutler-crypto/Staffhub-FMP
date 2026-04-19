@@ -42,7 +42,8 @@ export async function GET(request: NextRequest) {
     .ilike('kandidatenname', kandidatenname.trim())
 
   if (error) {
-    return NextResponse.json({ exists: false })
+    console.error('duplicate-check error:', error.code, error.message)
+    return NextResponse.json({ error: 'Fehler beim Duplikat-Check' }, { status: 500 })
   }
 
   return NextResponse.json({ exists: (count ?? 0) > 0 })
