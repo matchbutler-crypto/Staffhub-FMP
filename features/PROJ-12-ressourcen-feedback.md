@@ -1,6 +1,6 @@
 # PROJ-12: Ressourcen-Feedback
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-04-18
 **Last Updated:** 2026-04-18
 
@@ -120,4 +120,7 @@ _Skipped — Spec war klar genug für direkte Implementierung_
 Keine Critical/High Bugs gefunden.
 
 ## Deployment
-_To be added by /deploy_
+
+**Deployed:** 2026-04-19
+**Commit:** e18234b
+**Via:** Vercel Auto-Deploy (push to main)

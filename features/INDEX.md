@@ -25,7 +25,7 @@
 | PROJ-9 | Freelancer-Pool CRUD (Agentur-Pool, Manager-Übersicht, CV-Upload) | Deployed | [PROJ-9](PROJ-9-freelancer-pool-crud.md) | 2026-04-18 |
 | PROJ-10 | Verfügbarkeits-Reminder (E-Mail Cron nach 7 Tagen Inaktivität) | Planned | [PROJ-10](PROJ-10-verfuegbarkeits-reminder.md) | 2026-04-18 |
 | PROJ-11 | Ressource auf Vakanz spielen + Status-Workflow + Historie | Deployed | [PROJ-11](PROJ-11-ressource-vakanz-workflow.md) | 2026-04-18 |
-| PROJ-12 | Ressourcen-Feedback (Manager + Agentur, Sterne-Bewertung) | Approved | [PROJ-12](PROJ-12-ressourcen-feedback.md) | 2026-04-18 |
+| PROJ-12 | Ressourcen-Feedback (Manager + Agentur, Sterne-Bewertung) | Deployed | [PROJ-12](PROJ-12-ressourcen-feedback.md) | 2026-04-18 |
 
 <!-- Add features above this line -->
 
