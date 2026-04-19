@@ -65,9 +65,11 @@ export async function GET(request: NextRequest) {
 
   const result = (data ?? []).map((r) => {
     const { ek_tagesrate, notizen, ...rest } = r
+    // Agentur sees ek+notizen for own resources; Manager sees all
+    const canSeePrivate = isManager || r.agentur_id === profile.agentur_id
     return {
       ...rest,
-      ...(isManager ? { ek_tagesrate, notizen } : {}),
+      ...(canSeePrivate ? { ek_tagesrate, notizen } : {}),
     }
   })
 

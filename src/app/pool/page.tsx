@@ -9,6 +9,7 @@ import {
   IconClock,
   IconDownload,
   IconDotsVertical,
+  IconFileText,
   IconLink,
   IconMessage,
   IconPencil,
@@ -54,6 +55,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   Sheet,
   SheetContent,
@@ -666,6 +675,196 @@ const linkStatusColors: Record<LinkStatus, string> = {
   Abgelehnt: "bg-red-100 text-red-700 border-red-200",
 }
 
+// ── ProfilEinreichenDialog ─────────────────────────────────────────────────────
+
+interface VakanzOption {
+  id: string
+  rolle: string
+  titel: string
+}
+
+interface ProfilEinreichenDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  ressource: Ressource | null
+  onSuccess: () => void
+}
+
+function ProfilEinreichenDialog({ open, onOpenChange, ressource, onSuccess }: ProfilEinreichenDialogProps) {
+  const [vakanzen, setVakanzen] = React.useState<VakanzOption[]>([])
+  const [loadingVakanzen, setLoadingVakanzen] = React.useState(false)
+  const [vakanzId, setVakanzId] = React.useState("")
+  const [verfuegbarkeit, setVerfuegbarkeit] = React.useState("")
+  const [verfuegbarAb, setVerfuegbarAb] = React.useState("")
+  const [verkaufspreis, setVerkaufspreis] = React.useState("")
+  const [profiltext, setProfiltext] = React.useState("")
+  const [kommentar, setKommentar] = React.useState("")
+  const [saving, setSaving] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!open) {
+      setVakanzId("")
+      setVerfuegbarkeit("")
+      setVerfuegbarAb("")
+      setVerkaufspreis("")
+      setProfiltext("")
+      setKommentar("")
+      return
+    }
+    if (ressource?.verfuegbar_ab) {
+      setVerfuegbarAb(ressource.verfuegbar_ab.slice(0, 10))
+    }
+    setLoadingVakanzen(true)
+    fetch("/api/vakanzen")
+      .then((r) => r.json())
+      .then((d) => setVakanzen((d.vakanzen ?? []).filter((v: VakanzOption) => (v as unknown as { status: string }).status === "Offen")))
+      .catch(() => toast.error("Vakanzen konnten nicht geladen werden"))
+      .finally(() => setLoadingVakanzen(false))
+  }, [open, ressource])
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!ressource || !vakanzId || !verfuegbarkeit || !verfuegbarAb || !verkaufspreis || !profiltext) return
+    setSaving(true)
+    try {
+      const res = await fetch("/api/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          vakanz_id: vakanzId,
+          kandidatenname: ressource.name,
+          verfuegbarkeit_stunden: parseInt(verfuegbarkeit, 10),
+          verfuegbar_ab: verfuegbarAb,
+          verkaufspreis: parseFloat(verkaufspreis),
+          skills: ressource.skills,
+          erfahrungslevel: ressource.erfahrungslevel,
+          profiltext,
+          kommentar_agentur: kommentar || undefined,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error ?? "Fehler")
+      }
+      toast.success(`Profil für „${ressource.name}" eingereicht`)
+      onOpenChange(false)
+      onSuccess()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Fehler beim Einreichen")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const canSubmit = !!vakanzId && !!verfuegbarkeit && !!verfuegbarAb && !!verkaufspreis && !!profiltext
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Profil einreichen</DialogTitle>
+          <DialogDescription>
+            Ressource „{ressource?.name}" auf eine offene Vakanz einreichen.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 py-2">
+          {/* Vakanz */}
+          <div className="flex flex-col gap-1.5">
+            <Label>Vakanz <span className="text-destructive">*</span></Label>
+            {loadingVakanzen ? (
+              <Skeleton className="h-9 w-full" />
+            ) : vakanzen.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Keine offenen Vakanzen vorhanden.</p>
+            ) : (
+              <Select value={vakanzId} onValueChange={setVakanzId}>
+                <SelectTrigger><SelectValue placeholder="Vakanz wählen…" /></SelectTrigger>
+                <SelectContent>
+                  {vakanzen.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>{v.titel || v.rolle}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+
+          {/* Verfügbarkeit Stunden */}
+          <div className="flex flex-col gap-1.5">
+            <Label>Verfügbarkeit (h/Woche) <span className="text-destructive">*</span></Label>
+            <Input
+              type="number"
+              min="1"
+              max="40"
+              placeholder="z.B. 40"
+              value={verfuegbarkeit}
+              onChange={(e) => setVerfuegbarkeit(e.target.value)}
+            />
+          </div>
+
+          {/* Verfügbar ab */}
+          <div className="flex flex-col gap-1.5">
+            <Label>Verfügbar ab <span className="text-destructive">*</span></Label>
+            <Input
+              type="date"
+              value={verfuegbarAb}
+              onChange={(e) => setVerfuegbarAb(e.target.value)}
+            />
+          </div>
+
+          {/* Verkaufspreis */}
+          <div className="flex flex-col gap-1.5">
+            <Label>VK-Tagesrate (€/Tag) <span className="text-destructive">*</span></Label>
+            <Input
+              type="number"
+              min="1"
+              step="0.01"
+              placeholder="z.B. 850"
+              value={verkaufspreis}
+              onChange={(e) => setVerkaufspreis(e.target.value)}
+            />
+          </div>
+
+          {/* Profiltext */}
+          <div className="flex flex-col gap-1.5">
+            <Label>Profil-Beschreibung <span className="text-destructive">*</span></Label>
+            <Textarea
+              placeholder="Kurzbeschreibung des Kandidaten…"
+              className="min-h-[100px]"
+              value={profiltext}
+              onChange={(e) => setProfiltext(e.target.value)}
+              maxLength={5000}
+            />
+          </div>
+
+          {/* Kommentar */}
+          <div className="flex flex-col gap-1.5">
+            <Label>Kommentar (optional)</Label>
+            <Textarea
+              placeholder="Interne Notiz an den Manager…"
+              className="min-h-[60px]"
+              value={kommentar}
+              onChange={(e) => setKommentar(e.target.value)}
+              maxLength={2000}
+            />
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            Skills und Erfahrungslevel werden automatisch aus dem Pool übernommen.
+          </p>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+              Abbrechen
+            </Button>
+            <Button type="submit" disabled={saving || !canSubmit || loadingVakanzen}>
+              {saving ? "Einreichen…" : "Profil einreichen"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── PoolStarRating ─────────────────────────────────────────────────────────────
 
 function PoolStarRating({
@@ -1210,6 +1409,9 @@ export default function PoolPage() {
   const [detailOpen, setDetailOpen] = React.useState(false)
   const [detailRessource, setDetailRessource] = React.useState<Ressource | null>(null)
 
+  const [profilEinreichenOpen, setProfilEinreichenOpen] = React.useState(false)
+  const [profilEinreichenRessource, setProfilEinreichenRessource] = React.useState<Ressource | null>(null)
+
   async function fetchRessourcen() {
     setLoading(true)
     setError(null)
@@ -1448,6 +1650,17 @@ export default function PoolPage() {
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuItem
                                     onClick={() => {
+                                      setProfilEinreichenRessource(r)
+                                      setProfilEinreichenOpen(true)
+                                    }}
+                                    disabled={r.verfuegbarkeit === "Deaktiviert"}
+                                  >
+                                    <IconFileText className="mr-2 size-4" />
+                                    Profil einreichen
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    onClick={() => {
                                       setSheetMode("edit")
                                       setEditingRessource(r)
                                       setSheetOpen(true)
@@ -1516,6 +1729,13 @@ export default function PoolPage() {
         open={detailOpen}
         onOpenChange={setDetailOpen}
         ressource={detailRessource}
+      />
+
+      <ProfilEinreichenDialog
+        open={profilEinreichenOpen}
+        onOpenChange={setProfilEinreichenOpen}
+        ressource={profilEinreichenRessource}
+        onSuccess={fetchRessourcen}
       />
     </SidebarProvider>
   )

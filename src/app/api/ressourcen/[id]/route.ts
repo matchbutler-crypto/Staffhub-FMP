@@ -56,8 +56,9 @@ export async function GET(
   }
 
   const { ek_tagesrate, notizen, ...rest } = ressource
+  const canSeePrivate = isManager || ressource.agentur_id === profile.agentur_id
   return NextResponse.json({
-    ressource: { ...rest, ...(isManager ? { ek_tagesrate, notizen } : {}) },
+    ressource: { ...rest, ...(canSeePrivate ? { ek_tagesrate, notizen } : {}) },
   })
 }
 
