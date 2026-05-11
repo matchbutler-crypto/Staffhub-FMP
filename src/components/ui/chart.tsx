@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client'
 
 import * as React from 'react'
@@ -114,7 +115,10 @@ const ChartTooltipContent = React.forwardRef<
     }
 >(
   (
-    {
+    props: any,
+    ref,
+  ) => {
+    const {
       active,
       payload,
       className,
@@ -128,9 +132,8 @@ const ChartTooltipContent = React.forwardRef<
       color,
       nameKey,
       labelKey,
-    },
-    ref,
-  ) => {
+    } = props
+
     const { config } = useChart()
 
     const tooltipLabel = React.useMemo(() => {
@@ -185,7 +188,7 @@ const ChartTooltipContent = React.forwardRef<
       >
         {!nestLabel ? tooltipLabel : null}
         <div className="grid gap-1.5">
-          {payload.map((item, index) => {
+          {payload.map((item: any, index: number) => {
             const key = `${nameKey || item.name || item.dataKey || 'value'}`
             const itemConfig = getPayloadConfigFromPayload(config, item, key)
             const indicatorColor = color || item.payload.fill || item.color

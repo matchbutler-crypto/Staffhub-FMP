@@ -108,7 +108,8 @@ export async function PATCH(
   }
 
   // Automatischer Historien-Eintrag
-  const vakanzRolle = (link.vakanzen_data as { rolle: string } | null)?.rolle ?? 'unbekannte Vakanz'
+  const vakanzenArray = Array.isArray(link.vakanzen_data) ? link.vakanzen_data : [link.vakanzen_data]
+  const vakanzRolle = vakanzenArray[0]?.rolle ?? 'unbekannte Vakanz'
   const histText = newStatus === 'Interview geplant' && parsed.data.interview_datum
     ? `Interview geplant am ${new Date(parsed.data.interview_datum).toLocaleDateString('de-DE')} (Vakanz: "${vakanzRolle}")`
     : `Status auf "${newStatus}" gesetzt (Vakanz: "${vakanzRolle}")`

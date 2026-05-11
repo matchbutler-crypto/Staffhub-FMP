@@ -209,7 +209,7 @@ export function SkillUploadForm({ vacancies, onSuccess }: SkillUploadFormProps) 
       // Get current user's agency from session or auth token
       // This will be called from the API endpoint
       const formData = new FormData()
-      formData.append('vacancy_id', data.vacancyId)
+      if (data.vacancyId) formData.append('vacancy_id', data.vacancyId)
       formData.append('candidate_name', data.candidateName)
       formData.append('file', pdfFile)
 
