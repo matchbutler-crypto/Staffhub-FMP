@@ -10,9 +10,11 @@ import { calculateInitialScore } from '@/lib/calculateScore'
 // ── Request Schema ─────────────────────────────────────────────────────────────
 
 const createProfileSchema = z.object({
-  vacancy_id: z.string().uuid('Ungültige Vakanz-ID'),
-  agency_id: z.string().uuid('Ungültige Agentur-ID'),
+  vacancy_id: z.string().uuid('Ungültige Vakanz-ID').optional(),
+  agency_id: z.string().uuid('Ungültige Agentur-ID').optional(),
   candidate_name: z.string().min(1, 'Name ist erforderlich').max(200),
+  for_pool: z.string().optional(),
+  availability: z.string().optional(),
 })
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -90,10 +92,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Ungültige Formulardaten' }, { status: 400 })
   }
 
+  const forPool = formData.get('for_pool') === 'true'
+
   const bodyRaw = {
-    vacancy_id: formData.get('vacancy_id'),
-    agency_id: formData.get('agency_id'),
+    vacancy_id: forPool ? undefined : formData.get('vacancy_id'),
+    agency_id: forPool ? undefined : formData.get('agency_id'),
     candidate_name: formData.get('candidate_name'),
+    for_pool: formData.get('for_pool'),
+    availability: formData.get('availability'),
   }
 
   const parsed = createProfileSchema.safeParse(bodyRaw)
@@ -104,13 +110,16 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // Verify agency matches user's agency
-  if (parsed.data.agency_id !== profile.agentur_id) {
+  // Verify agency matches user's agency (only for non-pool profiles)
+  if (!forPool && parsed.data.agency_id !== profile.agentur_id) {
     return NextResponse.json(
       { error: 'Sie können Profile für diese Agentur nicht einreichen' },
       { status: 403 }
     )
   }
+
+  // For pool profiles, use user's agency
+  const targetAgencyId = forPool ? profile.agentur_id : parsed.data.agency_id
 
   // ── 4. Validate & Extract File ──────────────────────────────────────────────
 
@@ -145,18 +154,27 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // ── 5. Get Vacancy Details ──────────────────────────────────────────────────
+  // ── 5. Get Vacancy Details (skip for pool) ────────────────────────────────
 
-  const vacancy = await getVacancy(supabase, parsed.data.vacancy_id)
-  if (!vacancy) {
-    return NextResponse.json({ error: 'Vakanz nicht gefunden' }, { status: 404 })
-  }
-
-  if (vacancy.status !== 'Offen') {
-    return NextResponse.json(
-      { error: 'Diese Vakanz ist nicht mehr offen' },
-      { status: 409 }
-    )
+  let vacancy
+  if (!forPool) {
+    vacancy = await getVacancy(supabase, parsed.data.vacancy_id!)
+    if (!vacancy) {
+      return NextResponse.json({ error: 'Vakanz nicht gefunden' }, { status: 404 })
+    }
+    if (vacancy.status !== 'Offen') {
+      return NextResponse.json({ error: 'Diese Vakanz ist nicht mehr offen' }, { status: 409 })
+    }
+  } else {
+    // Dummy vacancy for pool profiles
+    vacancy = {
+      id: 'pool',
+      titel: 'Ressourcen Pool',
+      beschreibung: 'Allgemeiner Pool',
+      skills: [],
+      erfahrungslevel: 'Mid',
+      status: 'Offen',
+    }
   }
 
   // ── 6. Extract PDF Text ────────────────────────────────────────────────────
@@ -238,7 +256,7 @@ export async function POST(request: NextRequest) {
   // ── 10. Upload PDF to Storage ──────────────────────────────────────────────
 
   const profileId = uuidv4()
-  const cvStoragePath = `/agencies/${parsed.data.agency_id}/${profileId}/cv.pdf`
+  const cvStoragePath = `/agencies/${targetAgencyId}/${profileId}/cv.pdf`
 
   const { error: uploadError } = await supabase.storage
     .from('cv-uploads')
@@ -261,8 +279,8 @@ export async function POST(request: NextRequest) {
     .from('kandidaten_profile')
     .insert({
       id: profileId,
-      vakanz_id: parsed.data.vacancy_id,
-      agentur_id: parsed.data.agency_id,
+      vakanz_id: forPool ? null : parsed.data.vacancy_id,
+      agentur_id: targetAgencyId,
       kandidatenname: parsed.data.candidate_name,
       skills: normalizedSkills.map((s) => s.name),
       erfahrungslevel: 'Mid', // Placeholder - can be refined based on CV
