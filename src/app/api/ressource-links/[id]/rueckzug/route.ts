@@ -59,7 +59,8 @@ export async function PATCH(
   }
 
   // Ownership: Ressource muss zur Agentur des eingeloggten Users gehören
-  const ressourceAgenturId = (link.ressourcen as { agentur_id: string } | null)?.agentur_id
+  const ressourcenArray = Array.isArray(link.ressourcen) ? link.ressourcen : [link.ressourcen]
+  const ressourceAgenturId = ressourcenArray[0]?.agentur_id
   if (ressourceAgenturId !== profile.agentur_id) {
     return NextResponse.json({ error: 'Keine Berechtigung — Ressource gehört nicht zu Ihrer Agentur' }, { status: 403 })
   }
