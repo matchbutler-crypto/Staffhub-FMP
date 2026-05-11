@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { v4 as uuidv4 } from 'uuid'
 import { extractTextFromPDF, isValidPDF } from '@/lib/pdfExtraction'
 import { extractSkillsFromCV } from '@/lib/ollama'
-import { normalizeSkills } from '@/lib/skillNormalization'
+import { normalizeSkills, getMatchedSkills, getPendingSkills } from '@/lib/skillNormalization'
 import { calculateInitialScore } from '@/lib/calculateScore'
 
 // ── Request Schema ─────────────────────────────────────────────────────────────
@@ -206,34 +206,29 @@ export async function POST(request: NextRequest) {
 
   // ── 8. Normalize Skills ────────────────────────────────────────────────────
 
-  let normalizedResult
+  let normalizedSkills
   try {
-    normalizedResult = await normalizeSkills(extractedSkills, supabase)
+    normalizedSkills = await normalizeSkills(extractedSkills, supabase)
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Unbekannter Fehler'
     console.error('Skill normalization error:', { error: errorMsg })
     // Continue with un-normalized skills
-    normalizedResult = {
-      normalized: extractedSkills.map((skill, idx) => ({
-        id: `${idx}`,
-        name: skill,
-        category: 'Uncategorized',
-        matched: false,
-      })),
-      matched: [],
-      pending: extractedSkills.map((skill, idx) => ({
-        id: `${idx}`,
-        name: skill,
-        category: 'Uncategorized',
-        matched: false,
-      })),
-    }
+    normalizedSkills = extractedSkills.map((skill, idx) => ({
+      id: `${idx}`,
+      name: skill,
+      category: 'Uncategorized',
+      matched: false,
+      matchType: 'pending' as const,
+    }))
   }
+
+  const matchedSkills = getMatchedSkills(normalizedSkills)
+  const pendingSkills = getPendingSkills(normalizedSkills)
 
   // ── 9. Calculate Initial Score ─────────────────────────────────────────────
 
   const scoreResult = calculateInitialScore({
-    extractedSkills: normalizedResult.normalized.map((s) => s.name),
+    extractedSkills: normalizedSkills.map((s) => s.name),
     vacancySkills: vacancy.skills || [],
     extractedLevel: 'Mid', // Will be updated from detailed Ollama evaluation
     vacancyLevel: vacancy.erfahrungslevel || 'Junior',
@@ -269,7 +264,7 @@ export async function POST(request: NextRequest) {
       vakanz_id: parsed.data.vacancy_id,
       agentur_id: parsed.data.agency_id,
       kandidatenname: parsed.data.candidate_name,
-      skills: normalizedResult.normalized.map((s) => s.name),
+      skills: normalizedSkills.map((s) => s.name),
       erfahrungslevel: 'Mid', // Placeholder - can be refined based on CV
       profiltext: cvText.slice(0, 2000), // First 2000 chars as profile summary
       cv_pfad: cvStoragePath,
@@ -291,12 +286,14 @@ export async function POST(request: NextRequest) {
 
   // ── 12. Insert profile_skills records ──────────────────────────────────────
 
-  const profileSkillsRecords = normalizedResult.normalized.map((skill) => ({
-    profile_id: profileId,
-    skill_id: skill.id,
-    added_by: 'extraction',
-    verified: false,
-  }))
+  const profileSkillsRecords = normalizedSkills
+    .filter((skill) => skill.id) // Only insert skills with valid IDs
+    .map((skill) => ({
+      profile_id: profileId,
+      skill_id: skill.id,
+      added_by: 'extraction',
+      verified: false,
+    }))
 
   if (profileSkillsRecords.length > 0) {
     const { error: skillsError } = await supabase
@@ -315,13 +312,13 @@ export async function POST(request: NextRequest) {
     {
       profile: {
         ...newProfile,
-        extracted_skills: normalizedResult.normalized.map((s) => ({
+        extracted_skills: normalizedSkills.map((s) => ({
           name: s.name,
           category: s.category,
           matchType: s.matchType || 'unknown',
         })),
-        matched_skills: normalizedResult.matched.length,
-        pending_skills: normalizedResult.pending.length,
+        matched_skills: matchedSkills.length,
+        pending_skills: pendingSkills.length,
         ki_score: scoreResult.initialScore,
         confidence: scoreResult.confidence,
         cv_length: cvText.length,
