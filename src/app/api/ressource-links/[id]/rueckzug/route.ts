@@ -89,7 +89,8 @@ export async function PATCH(
   }
 
   // Historien-Eintrag (System)
-  const vakanzRolle = (link.vakanzen_data as { rolle: string } | null)?.rolle ?? 'unbekannte Vakanz'
+  const vakanzenArray = Array.isArray(link.vakanzen_data) ? link.vakanzen_data : [link.vakanzen_data]
+  const vakanzRolle = vakanzenArray[0]?.rolle ?? 'unbekannte Vakanz'
   const grundText = parsed.data.grund ? ` Grund: ${parsed.data.grund}` : ''
   await supabase.from('ressource_historie').insert({
     ressource_id: link.ressource_id,
