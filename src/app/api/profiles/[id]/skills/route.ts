@@ -377,13 +377,13 @@ export async function PATCH(
   }
 
   if (skillsToInsert.length > 0) {
+    // Use upsert to handle duplicates gracefully
     const { error: insertError } = await supabase
       .from('profile_skills')
-      .insert(skillsToInsert)
-      .onConflict((builder) => builder.columns(['profile_id', 'skill_id']))
+      .upsert(skillsToInsert, { onConflict: 'profile_id,skill_id' })
 
     if (insertError) {
-      console.error('Failed to insert skills:', { error: insertError.message })
+      console.error('Failed to upsert skills:', { error: insertError.message })
       // Don't fail completely - some skills may have been added
     }
   }
