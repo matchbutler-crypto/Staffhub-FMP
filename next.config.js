@@ -1,10 +1,8 @@
-const { execSync } = require('child_process')
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   generateBuildId: async () => {
-    return execSync('git rev-parse HEAD').toString().trim()
+    return process.env.VERCEL_GIT_COMMIT_SHA || `local-${Date.now()}`
   },
 }
 
