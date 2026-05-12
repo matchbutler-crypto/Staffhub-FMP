@@ -282,9 +282,12 @@ export async function POST(request: NextRequest) {
       vakanz_id: forPool ? null : parsed.data.vacancy_id,
       agentur_id: targetAgencyId,
       kandidatenname: parsed.data.candidate_name,
+      verfuegbarkeit_stunden: parsed.data.availability ? parseInt(parsed.data.availability, 10) : null,
+      verfuegbar_ab: null,
+      verkaufspreis: null,
       skills: normalizedSkills.map((s) => s.name),
-      erfahrungslevel: 'Mid', // Placeholder - can be refined based on CV
-      profiltext: cvText.slice(0, 2000), // First 2000 chars as profile summary
+      erfahrungslevel: 'Mid',
+      profiltext: cvText.slice(0, 2000),
       cv_pfad: cvStoragePath,
       status: 'Eingereicht',
       ki_score: scoreResult.initialScore,
