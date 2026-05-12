@@ -236,7 +236,7 @@ export async function POST(request: NextRequest) {
     console.error('POST /api/profile DB insert error:', { code: insertError.code, message: insertError.message })
     // Cleanup: remove uploaded file
     await supabase.storage.from('cv-uploads').remove([cvStoragePath])
-    return NextResponse.json({ error: 'Fehler beim Speichern des Profils' }, { status: 500 })
+    return NextResponse.json({ error: `DB_INSERT: [${insertError.code}] ${insertError.message}` }, { status: 500 })
   }
 
   return NextResponse.json({ profil: newProfil }, { status: 201 })
