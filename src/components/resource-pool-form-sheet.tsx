@@ -115,6 +115,7 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess }: Resourc
   const [extractedSkills, setExtractedSkills] = React.useState<string[]>([])
   const [profileId, setProfileId] = React.useState<string | null>(null)
   const [skillInput, setSkillInput] = React.useState('')
+  const [savedName, setSavedName] = React.useState('')
 
   const {
     register,
@@ -136,6 +137,7 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess }: Resourc
     setExtractedSkills([])
     setProfileId(null)
     setSkillInput('')
+    setSavedName('')
   }
 
   const handleAddSkill = () => {
@@ -178,7 +180,13 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess }: Resourc
 
       const result = await response.json()
       setProfileId(result.profile?.id)
-      setExtractedSkills(result.profile?.extracted_skills || [])
+      setSavedName(data.resourceName)
+      const rawSkills = result.profile?.extracted_skills ?? []
+      setExtractedSkills(
+        rawSkills.map((s: { name: string } | string) =>
+          typeof s === 'string' ? s : s.name
+        )
+      )
       toast.success('CV hochgeladen und Skills extrahiert!')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Fehler')
@@ -188,16 +196,36 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess }: Resourc
   }
 
   const handleSaveProfile = async () => {
-    if (!profileId) return
+    if (!savedName) return
     setIsLoading(true)
     try {
-      const response = await fetch(`/api/profiles/${profileId}/skills`, {
-        method: 'PATCH',
+      // Create ressource with extracted skills
+      const res = await fetch('/api/ressourcen', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ skills: extractedSkills }),
+        body: JSON.stringify({
+          name: savedName,
+          skills: extractedSkills,
+          erfahrungslevel: 'Mid',
+          verfuegbarkeit: 'Jetzt verfügbar',
+        }),
       })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error ?? 'Fehler beim Anlegen der Ressource')
+      }
+      const { ressource } = await res.json()
 
-      if (!response.ok) throw new Error('Fehler beim Speichern')
+      // Upload CV to the new ressource
+      if (pdfFile && ressource?.id) {
+        const form = new FormData()
+        form.append('cv', pdfFile)
+        await fetch(`/api/ressourcen/${ressource.id}/cv`, {
+          method: 'POST',
+          body: form,
+        })
+      }
+
       toast.success('Ressource erfolgreich angelegt!')
       onOpenChange(false)
       handleResetForm()
