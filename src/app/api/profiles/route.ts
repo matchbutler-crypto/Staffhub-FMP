@@ -266,9 +266,9 @@ export async function POST(request: NextRequest) {
     })
 
   if (uploadError) {
-    console.error('CV upload error:', { error: uploadError.message })
+    console.error('CV upload error:', { error: uploadError.message, path: cvStoragePath })
     return NextResponse.json(
-      { error: 'Fehler beim Hochladen des Lebenslaufs' },
+      { error: 'STEP_STORAGE: ' + uploadError.message },
       { status: 500 }
     )
   }
@@ -297,10 +297,9 @@ export async function POST(request: NextRequest) {
 
   if (insertError) {
     console.error('Profile insert error:', { code: insertError.code, message: insertError.message })
-    // Cleanup: remove uploaded file
     await supabase.storage.from('cv-uploads').remove([cvStoragePath])
     return NextResponse.json(
-      { error: 'Fehler beim Speichern des Profils' },
+      { error: 'STEP_INSERT: ' + insertError.message },
       { status: 500 }
     )
   }
