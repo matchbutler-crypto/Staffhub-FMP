@@ -21,7 +21,7 @@ interface OllamaGenerateResponse {
 }
 
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434'
-const OLLAMA_MODEL    = process.env.OLLAMA_MODEL    ?? 'orca-mini:latest'
+const OLLAMA_MODEL    = process.env.OLLAMA_MODEL    ?? 'phi:2.5'
 const TIMEOUT_MS      = 90_000
 
 function buildPrompt(vakanz: {
@@ -147,8 +147,8 @@ export async function extractSkillsFromCV(
   options?: ExtractSkillsFromCVOptions
 ): Promise<string[]> {
   const apiUrl = process.env.NEXT_PUBLIC_OLLAMA_API_URL || process.env.OLLAMA_API_URL
-  const model = process.env.OLLAMA_MODEL || 'orca-mini:latest'
-  const timeout = options?.timeout ?? 120000 // Default 120 seconds (orca-mini is slower)
+  const model = process.env.OLLAMA_MODEL || 'phi:2.5'
+  const timeout = options?.timeout ?? 45000 // Default 45 seconds (phi:2.5 is fast)
   const temperature = options?.temperature ?? 0.3 // Deterministic (low temperature)
 
   // Validate environment configuration
