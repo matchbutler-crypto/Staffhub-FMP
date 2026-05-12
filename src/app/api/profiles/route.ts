@@ -256,7 +256,7 @@ export async function POST(request: NextRequest) {
   // ── 10. Upload PDF to Storage ──────────────────────────────────────────────
 
   const profileId = uuidv4()
-  const cvStoragePath = `/agencies/${targetAgencyId}/${profileId}/cv.pdf`
+  const cvStoragePath = `agencies/${targetAgencyId}/${profileId}/cv.pdf`
 
   const { error: uploadError } = await supabase.storage
     .from('cv-uploads')
