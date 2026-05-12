@@ -182,6 +182,8 @@ export async function POST(request: NextRequest) {
   let cvText: string
   try {
     cvText = await extractTextFromPDF(cvBuffer)
+    // Sanitize: remove invalid Unicode escape sequences and control characters
+    cvText = cvText.replace(/\\u[0-9a-fA-F]{4}/g, ' ').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, ' ')
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Unbekannter Fehler'
     console.error('PDF extraction error:', { error: errorMsg })
