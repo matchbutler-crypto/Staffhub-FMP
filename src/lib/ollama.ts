@@ -148,7 +148,7 @@ export async function extractSkillsFromCV(
 ): Promise<string[]> {
   const apiUrl = process.env.NEXT_PUBLIC_OLLAMA_API_URL || process.env.OLLAMA_API_URL
   const model = process.env.OLLAMA_MODEL || 'orca-mini:latest'
-  const timeout = options?.timeout ?? 30000 // Default 30 seconds
+  const timeout = options?.timeout ?? 120000 // Default 120 seconds (orca-mini is slower)
   const temperature = options?.temperature ?? 0.3 // Deterministic (low temperature)
 
   // Validate environment configuration
