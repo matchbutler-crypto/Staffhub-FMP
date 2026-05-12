@@ -224,7 +224,7 @@ export async function POST(request: NextRequest) {
 
   // ── 8. Normalize Skills ────────────────────────────────────────────────────
 
-  let normalizedSkills
+  let normalizedSkills: Awaited<ReturnType<typeof normalizeSkills>> = []
   try {
     normalizedSkills = await normalizeSkills(extractedSkills, supabase)
   } catch (error) {
