@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { isAllowedRoute, isSafeRedirect } from '@/lib/rbac'
 
-const PUBLIC_ROUTES = ['/login']
+const PUBLIC_ROUTES = ['/login', '/api/ollama-health']
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
