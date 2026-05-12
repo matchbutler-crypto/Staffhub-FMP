@@ -23,6 +23,65 @@ import {
 } from '@/components/ui/sheet'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
+function ExtractionLoadingState({ step }: { step: 'analyzing' | 'extracting' }) {
+  return (
+    <div className="space-y-6">
+      <style>{`
+        @keyframes pulse-subtle {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.7; transform: scale(1.05); }
+        }
+        @keyframes progress-flow {
+          0% { left: -100%; }
+          100% { left: 100%; }
+        }
+      `}</style>
+
+      <div className="rounded-lg bg-gradient-to-br from-primary/5 to-primary/10 p-8">
+        <div className="flex flex-col items-center gap-4">
+          <div
+            className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/20"
+            style={{ animation: 'pulse-subtle 2s ease-in-out infinite' }}
+          >
+            <IconFile className="h-8 w-8 text-primary" />
+          </div>
+
+          <div className="text-center">
+            <p className="text-lg font-semibold text-foreground">
+              {step === 'analyzing' ? 'Analysiere Lebenslauf...' : 'Erkenne Skills...'}
+            </p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {step === 'analyzing'
+                ? 'Der Lebenslauf wird verarbeitet'
+                : 'Professionelle Skills werden extrahiert'}
+            </p>
+          </div>
+
+          <div className="w-full max-w-xs mt-4">
+            <div className="relative h-1 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className="absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-primary to-transparent"
+                style={{ animation: 'progress-flow 2s ease-in-out infinite' }}
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-1 mt-2">
+            {['analyzing', 'extracting'].map((s) => (
+              <div
+                key={s}
+                className={`h-1 flex-1 rounded-full transition-colors duration-300 ${
+                  step === s ? 'bg-primary' : 'bg-muted'
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 
 const resourcePoolSchema = z.object({
@@ -116,6 +175,7 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess }: Resourc
   const [profileId, setProfileId] = React.useState<string | null>(null)
   const [skillInput, setSkillInput] = React.useState('')
   const [savedName, setSavedName] = React.useState('')
+  const [extractionStep, setExtractionStep] = React.useState<'analyzing' | 'extracting' | null>(null)
 
   const {
     register,
@@ -138,6 +198,7 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess }: Resourc
     setProfileId(null)
     setSkillInput('')
     setSavedName('')
+    setExtractionStep(null)
   }
 
   const handleAddSkill = () => {
@@ -159,6 +220,7 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess }: Resourc
 
     setPdfError(undefined)
     setIsLoading(true)
+    setExtractionStep('analyzing')
 
     try {
       const formData = new FormData()
@@ -166,6 +228,9 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess }: Resourc
       formData.append('availability', data.availability.toString())
       formData.append('file', pdfFile)
       formData.append('for_pool', 'true')
+
+      // Switch to "extracting" step after a brief delay for visual feedback
+      setTimeout(() => setExtractionStep('extracting'), 1000)
 
       const response = await fetch('/api/profiles', {
         method: 'POST',
@@ -175,6 +240,7 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess }: Resourc
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         toast.error(errorData.error || 'Fehler beim Hochladen')
+        setExtractionStep(null)
         return
       }
 
@@ -187,9 +253,11 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess }: Resourc
           typeof s === 'string' ? s : s.name
         )
       )
+      setExtractionStep(null)
       toast.success('CV hochgeladen und Skills extrahiert!')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Fehler')
+      setExtractionStep(null)
     } finally {
       setIsLoading(false)
     }
@@ -248,7 +316,9 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess }: Resourc
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto px-6 py-4">
-          {!profileId ? (
+          {extractionStep ? (
+            <ExtractionLoadingState step={extractionStep} />
+          ) : !profileId ? (
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="resource-name">Name <span className="text-destructive">*</span></Label>
