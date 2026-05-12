@@ -21,7 +21,7 @@ interface OllamaGenerateResponse {
 }
 
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434'
-const OLLAMA_MODEL    = process.env.OLLAMA_MODEL    ?? 'llama3.2'
+const OLLAMA_MODEL    = process.env.OLLAMA_MODEL    ?? 'phi:3.5'
 const TIMEOUT_MS      = 90_000
 
 function buildPrompt(vakanz: {
@@ -147,7 +147,7 @@ export async function extractSkillsFromCV(
   options?: ExtractSkillsFromCVOptions
 ): Promise<string[]> {
   const apiUrl = process.env.NEXT_PUBLIC_OLLAMA_API_URL || process.env.OLLAMA_API_URL
-  const model = process.env.OLLAMA_MODEL || 'mistral:7b'
+  const model = process.env.OLLAMA_MODEL || 'phi:3.5'
   const timeout = options?.timeout ?? 30000 // Default 30 seconds
   const temperature = options?.temperature ?? 0.3 // Deterministic (low temperature)
 
