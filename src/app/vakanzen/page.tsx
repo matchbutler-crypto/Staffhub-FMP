@@ -609,15 +609,21 @@ function VakanzCard({
               {resources && resources.length > 0 && (
                 <div>
                   <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Pool-Ressourcen</h4>
-                  <GespielteRessourcenTable resources={resources} onWithdraw={(r) => handleWithdraw({
-                    id: r.link_id || r.id,
-                    kandidatenname: r.name,
-                    status: r.link_status || 'Gespielt',
-                    ki_score: r.ki_score ?? null,
-                    agentur_name: null,
-                    quelle: 'pool',
-                    ressource_id: r.id,
-                  })} />
+                  <GespielteRessourcenTable
+                    resources={resources}
+                    onWithdraw={(r) => {
+                      if (!r.link_id) { toast.error('Link-ID fehlt'); return }
+                      handleWithdraw({
+                        id: r.link_id,
+                        kandidatenname: r.name,
+                        status: r.link_status || 'Gespielt',
+                        ki_score: r.ki_score ?? null,
+                        agentur_name: null,
+                        quelle: 'pool',
+                        ressource_id: r.id,
+                      })
+                    }}
+                  />
                 </div>
               )}
 
