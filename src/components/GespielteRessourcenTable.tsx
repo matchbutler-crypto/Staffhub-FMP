@@ -1,10 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { type PoolRessource } from './ressource-einsetzen-dialog'
 import { Button } from '@/components/ui/button'
-import { Trash2, Sparkles, Loader2 } from 'lucide-react'
-import { toast } from 'sonner'
+import { Trash2, Loader2 } from 'lucide-react'
 
 interface GespielteRessourcenTableProps {
   resources: PoolRessource[]
@@ -15,6 +14,35 @@ interface GespielteRessourcenTableProps {
 export function GespielteRessourcenTable({ resources, vakanzId, onWithdraw }: GespielteRessourcenTableProps) {
   const [scores, setScores] = useState<Record<string, number>>({})
   const [calculating, setCalculating] = useState<Record<string, boolean>>({})
+  const calculatedIds = useRef<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (!vakanzId) return
+    for (const resource of resources) {
+      if (
+        resource.link_status === 'Gespielt' &&
+        (resource.ki_score === null || resource.ki_score === undefined) &&
+        !calculatedIds.current.has(resource.id)
+      ) {
+        calculatedIds.current.add(resource.id)
+        setCalculating((prev) => ({ ...prev, [resource.id]: true }))
+        fetch(`/api/ressourcen/${resource.id}/ki-match`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ vakanz_id: vakanzId }),
+        })
+          .then((res) => res.json())
+          .then((body) => {
+            if (body.score?.score !== undefined) {
+              setScores((prev) => ({ ...prev, [resource.id]: body.score.score }))
+            }
+          })
+          .catch(() => {})
+          .finally(() => setCalculating((prev) => ({ ...prev, [resource.id]: false })))
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vakanzId, resources])
 
   const formatDate = (isoDate: string | null | undefined) => {
     if (!isoDate) return '-'
@@ -34,26 +62,6 @@ export function GespielteRessourcenTable({ resources, vakanzId, onWithdraw }: Ge
       case 'In Prüfung': return 'bg-yellow-100 text-yellow-700 border-yellow-200'
       case 'Abgelehnt': return 'bg-red-100 text-red-700 border-red-200'
       default: return 'bg-gray-100 text-gray-700 border-gray-200'
-    }
-  }
-
-  async function handleCalculateScore(resource: PoolRessource) {
-    if (!vakanzId) return
-    setCalculating((prev) => ({ ...prev, [resource.id]: true }))
-    try {
-      const res = await fetch(`/api/ressourcen/${resource.id}/ki-match`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ vakanz_id: vakanzId }),
-      })
-      const body = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(body.error ?? 'Fehler')
-      setScores((prev) => ({ ...prev, [resource.id]: body.score?.score ?? 0 }))
-      toast.success(`Score für ${resource.name} berechnet`)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Score konnte nicht berechnet werden')
-    } finally {
-      setCalculating((prev) => ({ ...prev, [resource.id]: false }))
     }
   }
 
@@ -95,24 +103,14 @@ export function GespielteRessourcenTable({ resources, vakanzId, onWithdraw }: Ge
 
               {/* Match Score */}
               <div className="col-span-2">
-                {noScore && vakanzId && resource.link_status === 'Gespielt' ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 px-2 text-xs gap-1"
-                    disabled={isCalculating}
-                    onClick={() => handleCalculateScore(resource)}
-                  >
-                    {isCalculating ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <Sparkles className="h-3 w-3" />
-                    )}
-                    {isCalculating ? 'Berechne…' : 'Berechnen'}
-                  </Button>
+                {isCalculating ? (
+                  <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Berechne…
+                  </span>
                 ) : (
-                  <span className={`inline-flex items-center rounded-md border px-2.5 py-1.5 text-xs font-semibold ${getScoreColor(displayScore)}`}>
-                    {displayScore !== null && displayScore !== undefined ? `${Math.round(displayScore)}` : '-'}
+                  <span className={`inline-flex items-center rounded-md border px-2.5 py-1.5 text-xs font-semibold ${getScoreColor(noScore ? null : displayScore)}`}>
+                    {!noScore ? `${Math.round(displayScore as number)}` : '-'}
                   </span>
                 )}
               </div>
