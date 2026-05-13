@@ -3,6 +3,7 @@
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
 import { toast } from "sonner"
+import { useUser } from "@/context/user-context"
 import {
   IconArrowLeft,
   IconBrain,
@@ -12,12 +13,23 @@ import {
   IconMessage,
   IconRefresh,
   IconSend,
+  IconTrash,
 } from "@tabler/icons-react"
 
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { type KandidatenProfil, type ProfilStatus } from "@/components/profil-einreichen-sheet"
 import { Button } from "@/components/ui/button"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   Dialog,
   DialogContent,
@@ -121,6 +133,8 @@ function KommentarBubble({ k }: { k: Kommentar }) {
 export default function ProfilDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
+  const { user } = useUser()
+  const isManager = user?.rolle === 'Admin' || user?.rolle === 'Staffhub Manager'
 
   const [profil, setProfil] = React.useState<(KandidatenProfil & { agentur_name?: string }) | null>(null)
   const [loading, setLoading] = React.useState(true)
@@ -143,6 +157,8 @@ export default function ProfilDetailPage() {
     stunden_woche: "",
   })
   const [savingBeauftragung, setSavingBeauftragung] = React.useState(false)
+  const [deleteDialog, setDeleteDialog] = React.useState(false)
+  const [deleting, setDeleting] = React.useState(false)
 
   async function fetchProfil() {
     try {
@@ -318,6 +334,25 @@ export default function ProfilDetailPage() {
     }
   }
 
+  async function handleDelete() {
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/profile/${id}`, { method: "DELETE" })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        toast.error(body.error ?? "Fehler beim Löschen.")
+        return
+      }
+      toast.success("Profil gelöscht.")
+      router.back()
+    } catch {
+      toast.error("Verbindungsfehler.")
+    } finally {
+      setDeleting(false)
+      setDeleteDialog(false)
+    }
+  }
+
   async function handleCvDownload() {
     if (!profil?.cv_pfad) return
     setDownloadingCv(true)
@@ -390,6 +425,17 @@ export default function ProfilDetailPage() {
                         >
                           <IconDownload className="mr-1.5 size-4" />
                           Lebenslauf
+                        </Button>
+                      )}
+                      {isManager && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
+                          onClick={() => setDeleteDialog(true)}
+                        >
+                          <IconTrash className="mr-1.5 size-4" />
+                          Löschen
                         </Button>
                       )}
                     </div>
@@ -724,6 +770,28 @@ export default function ProfilDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Löschen-Dialog ─────────────────────────────────────────────────────── */}
+      <AlertDialog open={deleteDialog} onOpenChange={(open) => { if (!deleting) setDeleteDialog(open) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Profil löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <strong>{profil?.kandidatenname ?? "Dieses Profil"}</strong> wird dauerhaft gelöscht. Dieser Vorgang kann nicht rückgängig gemacht werden.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Wird gelöscht…" : "Löschen"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
     </SidebarProvider>
   )

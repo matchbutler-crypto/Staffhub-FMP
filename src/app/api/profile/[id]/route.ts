@@ -243,25 +243,36 @@ export async function DELETE(
   if (!profile?.aktiv) {
     return NextResponse.json({ error: 'Account deaktiviert' }, { status: 403 })
   }
-  if (profile.rolle !== 'Agentur') {
+
+  const isManager = profile.rolle === 'Admin' || profile.rolle === 'Staffhub Manager'
+  const isAgentur = profile.rolle === 'Agentur'
+
+  if (!isManager && !isAgentur) {
     return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
   }
 
   // Fetch profil to check ownership + status (RLS also enforces this)
   const { data: existing, error: fetchError } = await supabase
     .from('kandidaten_profile')
-    .select('id, status, cv_pfad')
+    .select('id, status, cv_pfad, agentur_id')
     .eq('id', id)
     .single()
 
   if (fetchError || !existing) {
     return NextResponse.json({ error: 'Profil nicht gefunden' }, { status: 404 })
   }
-  if (existing.status !== 'Eingereicht') {
-    return NextResponse.json(
-      { error: 'Zurückziehen nur bei Status „Eingereicht" möglich' },
-      { status: 403 }
-    )
+
+  // Agentur may only withdraw their own profiles in 'Eingereicht' status
+  if (isAgentur) {
+    if (existing.agentur_id !== profile.agentur_id) {
+      return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
+    }
+    if (existing.status !== 'Eingereicht') {
+      return NextResponse.json(
+        { error: 'Zurückziehen nur bei Status „Eingereicht" möglich' },
+        { status: 403 }
+      )
+    }
   }
 
   // Delete DB record first
