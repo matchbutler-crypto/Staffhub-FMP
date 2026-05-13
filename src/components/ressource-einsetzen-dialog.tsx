@@ -146,6 +146,14 @@ export function RessourceEinsetzenDialog({
       const body = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(body.error ?? "Fehler beim Einreichen")
       toast.success(`${selectedRessource.name} auf Vakanz gespielt`)
+
+      // Trigger OpenAI score calculation in background
+      fetch(`/api/ressourcen/${selectedRessource.id}/ki-match`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vakanz_id: vakanzId }),
+      }).catch(() => {})
+
       onOpenChange(false)
       onSuccess()
     } catch (err) {
@@ -180,6 +188,12 @@ export function RessourceEinsetzenDialog({
         toast.warning(`Im Pool angelegt, Einreichung fehlgeschlagen: ${spielenBody.error ?? "Fehler"}`)
       } else {
         toast.success(`${neuName.trim()} im Pool angelegt und auf Vakanz gespielt`)
+        // Trigger OpenAI score calculation in background
+        fetch(`/api/ressourcen/${ressourceId}/ki-match`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ vakanz_id: vakanzId }),
+        }).catch(() => {})
       }
       onOpenChange(false)
       onSuccess()
