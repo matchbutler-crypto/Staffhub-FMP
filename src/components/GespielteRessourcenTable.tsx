@@ -1,15 +1,21 @@
 'use client'
 
+import { useState } from 'react'
 import { type PoolRessource } from './ressource-einsetzen-dialog'
 import { Button } from '@/components/ui/button'
-import { Trash2 } from 'lucide-react'
+import { Trash2, Sparkles, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface GespielteRessourcenTableProps {
   resources: PoolRessource[]
+  vakanzId?: string
   onWithdraw?: (resource: PoolRessource) => void
 }
 
-export function GespielteRessourcenTable({ resources, onWithdraw }: GespielteRessourcenTableProps) {
+export function GespielteRessourcenTable({ resources, vakanzId, onWithdraw }: GespielteRessourcenTableProps) {
+  const [scores, setScores] = useState<Record<string, number>>({})
+  const [calculating, setCalculating] = useState<Record<string, boolean>>({})
+
   const formatDate = (isoDate: string | null | undefined) => {
     if (!isoDate) return '-'
     return new Date(isoDate).toLocaleDateString('de-DE')
@@ -24,14 +30,30 @@ export function GespielteRessourcenTable({ resources, onWithdraw }: GespielteRes
 
   const getStatusColor = (status: string | null | undefined) => {
     switch (status) {
-      case 'Gespielt':
-        return 'bg-blue-100 text-blue-700 border-blue-200'
-      case 'In Prüfung':
-        return 'bg-yellow-100 text-yellow-700 border-yellow-200'
-      case 'Abgelehnt':
-        return 'bg-red-100 text-red-700 border-red-200'
-      default:
-        return 'bg-gray-100 text-gray-700 border-gray-200'
+      case 'Gespielt': return 'bg-blue-100 text-blue-700 border-blue-200'
+      case 'In Prüfung': return 'bg-yellow-100 text-yellow-700 border-yellow-200'
+      case 'Abgelehnt': return 'bg-red-100 text-red-700 border-red-200'
+      default: return 'bg-gray-100 text-gray-700 border-gray-200'
+    }
+  }
+
+  async function handleCalculateScore(resource: PoolRessource) {
+    if (!vakanzId) return
+    setCalculating((prev) => ({ ...prev, [resource.id]: true }))
+    try {
+      const res = await fetch(`/api/ressourcen/${resource.id}/ki-match`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vakanz_id: vakanzId }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(body.error ?? 'Fehler')
+      setScores((prev) => ({ ...prev, [resource.id]: body.score?.score ?? 0 }))
+      toast.success(`Score für ${resource.name} berechnet`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Score konnte nicht berechnet werden')
+    } finally {
+      setCalculating((prev) => ({ ...prev, [resource.id]: false }))
     }
   }
 
@@ -48,54 +70,77 @@ export function GespielteRessourcenTable({ resources, onWithdraw }: GespielteRes
 
       {/* Data Rows */}
       <div className="divide-y divide-border">
-        {resources.map((resource) => (
-          <div
-            key={resource.id}
-            className="grid grid-cols-12 gap-4 px-5 py-4 items-center hover:bg-accent/50 transition-colors duration-200 group"
-          >
-            {/* Name + Level */}
-            <div className="col-span-3">
-              <div className="flex flex-col gap-1">
-                <p className="text-sm font-semibold text-foreground">{resource.name}</p>
-                <p className="text-xs text-muted-foreground">{resource.erfahrungslevel}</p>
+        {resources.map((resource) => {
+          const displayScore = scores[resource.id] !== undefined ? scores[resource.id] : resource.ki_score
+          const isCalculating = !!calculating[resource.id]
+          const noScore = displayScore === null || displayScore === undefined
+
+          return (
+            <div
+              key={resource.id}
+              className="grid grid-cols-12 gap-4 px-5 py-4 items-center hover:bg-accent/50 transition-colors duration-200 group"
+            >
+              {/* Name + Level */}
+              <div className="col-span-3">
+                <div className="flex flex-col gap-1">
+                  <p className="text-sm font-semibold text-foreground">{resource.name}</p>
+                  <p className="text-xs text-muted-foreground">{resource.erfahrungslevel}</p>
+                </div>
+              </div>
+
+              {/* Gespielt am */}
+              <div className="col-span-2">
+                <p className="text-sm text-foreground">{formatDate(resource.link_created_at)}</p>
+              </div>
+
+              {/* Match Score */}
+              <div className="col-span-2">
+                {noScore && vakanzId && resource.link_status === 'Gespielt' ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2 text-xs gap-1"
+                    disabled={isCalculating}
+                    onClick={() => handleCalculateScore(resource)}
+                  >
+                    {isCalculating ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-3 w-3" />
+                    )}
+                    {isCalculating ? 'Berechne…' : 'Berechnen'}
+                  </Button>
+                ) : (
+                  <span className={`inline-flex items-center rounded-md border px-2.5 py-1.5 text-xs font-semibold ${getScoreColor(displayScore)}`}>
+                    {displayScore !== null && displayScore !== undefined ? `${Math.round(displayScore)}` : '-'}
+                  </span>
+                )}
+              </div>
+
+              {/* Status */}
+              <div className="col-span-2">
+                <span className={`inline-flex items-center rounded-md border px-2.5 py-1.5 text-xs font-medium ${getStatusColor(resource.link_status)}`}>
+                  {resource.link_status || '-'}
+                </span>
+              </div>
+
+              {/* Action */}
+              <div className="col-span-3 flex justify-end">
+                {resource.link_id && resource.link_status === 'Gespielt' && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground hover:text-destructive hover:bg-destructive/5 opacity-0 group-hover:opacity-100 transition-all duration-200"
+                    onClick={() => onWithdraw?.(resource)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1.5" />
+                    <span className="hidden sm:inline text-xs">Zurückziehen</span>
+                  </Button>
+                )}
               </div>
             </div>
-
-            {/* Gespielt am */}
-            <div className="col-span-2">
-              <p className="text-sm text-foreground">{formatDate(resource.link_created_at)}</p>
-            </div>
-
-            {/* Match Score */}
-            <div className="col-span-2">
-              <span className={`inline-flex items-center rounded-md border px-2.5 py-1.5 text-xs font-semibold ${getScoreColor(resource.ki_score)}`}>
-                {resource.ki_score !== null && resource.ki_score !== undefined ? `${Math.round(resource.ki_score)}` : '-'}
-              </span>
-            </div>
-
-            {/* Status */}
-            <div className="col-span-2">
-              <span className={`inline-flex items-center rounded-md border px-2.5 py-1.5 text-xs font-medium ${getStatusColor(resource.link_status)}`}>
-                {resource.link_status || '-'}
-              </span>
-            </div>
-
-            {/* Action */}
-            <div className="col-span-3 flex justify-end">
-              {resource.link_id && resource.link_status === 'Gespielt' && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-muted-foreground hover:text-destructive hover:bg-destructive/5 opacity-0 group-hover:opacity-100 transition-all duration-200"
-                  onClick={() => onWithdraw?.(resource)}
-                >
-                  <Trash2 className="h-4 w-4 mr-1.5" />
-                  <span className="hidden sm:inline text-xs">Zurückziehen</span>
-                </Button>
-              )}
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

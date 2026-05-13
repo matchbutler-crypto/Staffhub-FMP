@@ -495,6 +495,7 @@ export default function VakanzDetailPage() {
                 ) : (
                   <GespielteRessourcenTable
                     resources={gespielt}
+                    vakanzId={id}
                     onWithdraw={(r) => { setRueckzugTarget(r); setRueckzugOpen(true) }}
                   />
                 )

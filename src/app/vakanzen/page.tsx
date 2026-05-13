@@ -611,6 +611,7 @@ function VakanzCard({
                   <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Pool-Ressourcen</h4>
                   <GespielteRessourcenTable
                     resources={resources}
+                    vakanzId={vakanz.id}
                     onWithdraw={(r) => {
                       if (!r.link_id) { toast.error('Link-ID fehlt'); return }
                       handleWithdraw({
