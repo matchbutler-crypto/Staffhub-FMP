@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
-import { bewerteProfilMitOllama } from '@/lib/ollama'
+import { bewerteProfilMitOpenAI } from '@/lib/openai'
 
 const postSchema = z.object({
   vakanz_id: z.string().uuid(),
@@ -108,10 +108,16 @@ export async function POST(
     return NextResponse.json({ error: 'Vakanz nicht gefunden' }, { status: 404 })
   }
 
-  // Ollama aufrufen
+  // OpenAI KI-Bewertung
   let result
   try {
-    result = await bewerteProfilMitOllama(
+    if (!process.env.OPENAI_API_KEY) {
+      return NextResponse.json(
+        { error: 'OpenAI API nicht konfiguriert' },
+        { status: 503 }
+      )
+    }
+    result = await bewerteProfilMitOpenAI(
       {
         titel: vakanz.titel || vakanz.rolle,
         beschreibung: vakanz.beschreibung ?? '',
@@ -126,11 +132,11 @@ export async function POST(
       }
     )
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Ollama-Fehler'
-    const isUnavailable = msg.includes('ECONNREFUSED') || msg.includes('fetch failed') || msg.includes('503')
+    const msg = err instanceof Error ? err.message : 'OpenAI-Fehler'
+    console.error('KI-Bewertung error:', msg)
     return NextResponse.json(
-      { error: isUnavailable ? 'Ollama nicht erreichbar' : msg },
-      { status: isUnavailable ? 503 : 500 }
+      { error: msg },
+      { status: 500 }
     )
   }
 

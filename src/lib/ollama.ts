@@ -148,7 +148,7 @@ export async function extractSkillsFromCV(
 ): Promise<string[]> {
   const apiUrl = process.env.NEXT_PUBLIC_OLLAMA_API_URL || process.env.OLLAMA_API_URL
   const model = process.env.OLLAMA_MODEL || 'phi:2.5'
-  const timeout = options?.timeout ?? 45000 // Default 45 seconds (phi:2.5 is fast)
+  const timeout = options?.timeout ?? 50000
   const temperature = options?.temperature ?? 0.3 // Deterministic (low temperature)
 
   // Validate environment configuration
@@ -167,10 +167,15 @@ export async function extractSkillsFromCV(
   try {
     const generateUrl = `${apiUrl}/api/generate`
 
-    const prompt = `Extract all professional skills and technologies from this CV. Return ONLY a comma-separated list of skills, nothing else. Do not include any explanations, introductions, or other text.
+    const MAX_CV_CHARS = 1500
+    const truncatedCV = cvText.length > MAX_CV_CHARS
+      ? cvText.slice(0, MAX_CV_CHARS)
+      : cvText
 
-CV Text:
-${cvText}
+    const prompt = `Extract professional skills and technologies from this CV. Return ONLY a comma-separated list of skills, nothing else.
+
+CV:
+${truncatedCV}
 
 Skills:`
 
@@ -186,7 +191,11 @@ Skills:`
           model,
           prompt,
           stream: false,
-          temperature,
+          keep_alive: '1h',
+          options: {
+            temperature,
+            num_predict: 200,
+          },
         }),
         signal: controller.signal,
       })

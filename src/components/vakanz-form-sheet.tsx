@@ -5,6 +5,7 @@ import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
+import { Sparkles, X, Loader2, CheckCircle2 } from 'lucide-react'
 
 import { BRANCHEN, ERFAHRUNGSLEVEL, ARBEITSMODELL, VAKANZ_STATUS } from '@/lib/constants'
 import { TagInput } from '@/components/tag-input'
@@ -28,6 +29,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
+import type { ParsedVakanz } from '@/lib/openai'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -91,9 +93,162 @@ interface VakanzFormSheetProps {
   onSuccess: () => void
 }
 
+// ── KI Panel ───────────────────────────────────────────────────────────────────
+
+type KiState = 'idle' | 'open' | 'loading' | 'done'
+
+function KiPanel({ onFill }: { onFill: (data: ParsedVakanz) => void }) {
+  const [state, setState] = React.useState<KiState>('idle')
+  const [text, setText] = React.useState('')
+  const [filledCount, setFilledCount] = React.useState(0)
+
+  async function handleParse() {
+    if (!text.trim()) return
+    setState('loading')
+    try {
+      const res = await fetch('/api/ai/parse-vacancy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Fehler')
+      const data: ParsedVakanz = json.vakanz
+      const filled = Object.values(data).filter((v) =>
+        v !== null && v !== undefined && !(Array.isArray(v) && v.length === 0)
+      ).length
+      setFilledCount(filled)
+      onFill(data)
+      setState('done')
+    } catch (err) {
+      toast.error(`KI-Fehler: ${err instanceof Error ? err.message : 'Unbekannt'}`)
+      setState('open')
+    }
+  }
+
+  if (state === 'idle') {
+    return (
+      <button
+        type="button"
+        onClick={() => setState('open')}
+        className="ki-trigger group flex items-center gap-2 rounded-md border border-amber-200/60 bg-amber-50/80 px-3 py-1.5 text-xs font-medium text-amber-700 transition-all hover:border-amber-300 hover:bg-amber-100/80 hover:shadow-sm"
+      >
+        <Sparkles className="h-3.5 w-3.5 transition-transform group-hover:scale-110" />
+        KI-Ausfüllen
+      </button>
+    )
+  }
+
+  return (
+    <div className="ki-panel relative overflow-hidden rounded-xl border border-zinc-200 bg-zinc-950 shadow-2xl">
+      {/* animated gradient border top */}
+      <div className="ki-border-glow absolute inset-x-0 top-0 h-px" />
+
+      <div className="px-4 pt-4 pb-3">
+        <div className="mb-2.5 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className={`relative flex h-6 w-6 items-center justify-center rounded-md bg-amber-500/15`}>
+              {state === 'loading' ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-400" />
+              ) : state === 'done' ? (
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+              )}
+            </div>
+            <span className="text-xs font-semibold tracking-wide text-zinc-200">
+              {state === 'loading' ? 'Analysiere…' : state === 'done' ? `${filledCount} Felder ausgefüllt` : 'KI-Ausfüllen'}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => { setState('idle'); setText('') }}
+            className="rounded p-0.5 text-zinc-500 transition-colors hover:text-zinc-300"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        {state !== 'done' && (
+          <>
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              disabled={state === 'loading'}
+              placeholder="Stellenbeschreibung, Ausschreibung oder Anforderungstext hier einfügen…"
+              className="ki-textarea w-full resize-none rounded-md border border-zinc-700/60 bg-zinc-900 px-3 py-2.5 font-mono text-xs leading-relaxed text-zinc-200 placeholder-zinc-600 outline-none transition-colors focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 disabled:opacity-40"
+              rows={5}
+            />
+            <div className="mt-2 flex items-center justify-between">
+              <span className="text-[10px] text-zinc-600">{text.length} Zeichen · GPT-4o mini</span>
+              <button
+                type="button"
+                onClick={handleParse}
+                disabled={state === 'loading' || text.trim().length < 20}
+                className="ki-submit flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all disabled:pointer-events-none disabled:opacity-30"
+              >
+                {state === 'loading' ? (
+                  <><Loader2 className="h-3 w-3 animate-spin" /> Analysiere…</>
+                ) : (
+                  <><Sparkles className="h-3 w-3" /> Formular ausfüllen</>
+                )}
+              </button>
+            </div>
+          </>
+        )}
+
+        {state === 'done' && (
+          <p className="text-xs text-zinc-400">
+            Felder wurden vorausgefüllt — bitte prüfen und bei Bedarf anpassen.{' '}
+            <button
+              type="button"
+              onClick={() => { setState('open'); setText('') }}
+              className="text-amber-400 underline-offset-2 hover:underline"
+            >
+              Neu versuchen
+            </button>
+          </p>
+        )}
+      </div>
+
+      <style>{`
+        .ki-border-glow {
+          background: linear-gradient(90deg, transparent 0%, #f59e0b 30%, #fbbf24 50%, #f59e0b 70%, transparent 100%);
+          background-size: 200% 100%;
+          animation: ki-sweep 2.5s linear infinite;
+          opacity: 0.7;
+        }
+        @keyframes ki-sweep {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+        .ki-submit {
+          background: linear-gradient(135deg, #f59e0b, #d97706);
+          color: #fff;
+          box-shadow: 0 0 12px rgba(245,158,11,0.35);
+        }
+        .ki-submit:hover:not(:disabled) {
+          box-shadow: 0 0 18px rgba(245,158,11,0.5);
+          transform: translateY(-1px);
+        }
+        @keyframes ki-field-flash {
+          0% { background-color: rgba(245,158,11,0.12); }
+          100% { background-color: transparent; }
+        }
+        .ki-filled {
+          animation: ki-field-flash 1.2s ease-out forwards;
+          border-radius: 6px;
+        }
+      `}</style>
+    </div>
+  )
+}
+
+// ── Main Component ─────────────────────────────────────────────────────────────
+
 export function VakanzFormSheet({ open, onOpenChange, mode, vakanz, showBudget, onSuccess }: VakanzFormSheetProps) {
   const [saving, setSaving] = React.useState(false)
-  const { register, control, handleSubmit, reset, watch, formState: { errors } } = useForm<VakanzFormData>({
+  const { register, control, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<VakanzFormData>({
     resolver: zodResolver(vakanzSchema),
     defaultValues: {
       branche: '', kunde: '', rolle: '', beschreibung: '', skills: [], skills_nice_have: [],
@@ -161,11 +316,33 @@ export function VakanzFormSheet({ open, onOpenChange, mode, vakanz, showBudget, 
 
   const watchedArbeitsmodell = watch('arbeitsmodell')
 
+  function handleKiFill(data: ParsedVakanz) {
+    if (data.rolle) setValue('rolle', data.rolle)
+    if (data.beschreibung) setValue('beschreibung', data.beschreibung)
+    if (data.skills?.length) setValue('skills', data.skills)
+    if (data.skills_nice_have?.length) setValue('skills_nice_have', data.skills_nice_have)
+    if (data.erfahrungslevel) setValue('erfahrungslevel', data.erfahrungslevel)
+    if (data.startdatum) setValue('startdatum', data.startdatum)
+    if (data.enddatum) setValue('enddatum', data.enddatum)
+    if (data.arbeitsmodell) setValue('arbeitsmodell', data.arbeitsmodell)
+    if (data.onsite_anteil !== null) setValue('onsite_anteil', data.onsite_anteil)
+    if (data.standort) setValue('standort', data.standort)
+    if (data.branche) setValue('branche', data.branche)
+    if (data.auslastung !== null) setValue('auslastung', data.auslastung)
+    if (data.fte_anzahl !== null) setValue('fte_anzahl', data.fte_anzahl)
+    if (data.teamgroesse !== null) setValue('teamgroesse', data.teamgroesse)
+    if (data.kunde) setValue('kunde', data.kunde)
+    if (data.ansprechpartner) setValue('ansprechpartner', data.ansprechpartner)
+  }
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="flex w-[500px] flex-col gap-0 overflow-hidden p-0 sm:w-[560px]">
         <SheetHeader className="border-b px-6 py-4">
-          <SheetTitle>{mode === 'create' ? 'Neue Vakanz erstellen' : 'Vakanz bearbeiten'}</SheetTitle>
+          <div className="flex items-center justify-between">
+            <SheetTitle>{mode === 'create' ? 'Neue Vakanz erstellen' : 'Vakanz bearbeiten'}</SheetTitle>
+            {mode === 'create' && <KiPanel onFill={handleKiFill} />}
+          </div>
           <SheetDescription>{mode === 'create' ? 'Füllen Sie alle Pflichtfelder aus.' : 'Bearbeiten Sie die Vakanz-Details.'}</SheetDescription>
         </SheetHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-1 flex-col overflow-hidden">

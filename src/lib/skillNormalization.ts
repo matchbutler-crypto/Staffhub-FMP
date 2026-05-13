@@ -307,6 +307,50 @@ export async function normalizeSkills(
 }
 
 /**
+ * Extract and normalize skills from raw CV text by keyword-matching against the skills DB.
+ * Replaces the Ollama extraction step - no LLM needed.
+ */
+export async function extractAndNormalizeFromText(
+  cvText: string,
+  dbClient: SupabaseClient
+): Promise<NormalizedSkill[]> {
+  const { data: allSkills, error } = await dbClient
+    .from('skills')
+    .select('id, name, category, synonyms')
+    .returns<SkillRecord[]>()
+
+  if (error || !allSkills) return []
+
+  const text = cvText.toLowerCase()
+  const matched = new Map<string, NormalizedSkill>()
+
+  for (const skill of allSkills) {
+    const terms = [skill.name, ...(skill.synonyms ?? [])]
+    for (const term of terms) {
+      const t = term.toLowerCase()
+      // Word-boundary check: term must not be surrounded by alphanumeric chars
+      const idx = text.indexOf(t)
+      if (idx === -1) continue
+      const before = idx > 0 ? text[idx - 1] : ' '
+      const after = idx + t.length < text.length ? text[idx + t.length] : ' '
+      if (/[a-z0-9]/.test(before) || /[a-z0-9]/.test(after)) continue
+      matched.set(skill.id, {
+        id: skill.id,
+        name: skill.name,
+        category: skill.category,
+        matched: true,
+        matchType: 'exact',
+        matchScore: 1,
+        source: 'database',
+      })
+      break
+    }
+  }
+
+  return Array.from(matched.values())
+}
+
+/**
  * Get all matched skills from a normalization result
  * Filters for skills that were successfully matched to database records
  *

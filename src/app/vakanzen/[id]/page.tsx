@@ -31,6 +31,8 @@ import {
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { KiBewertungDisplay } from "@/components/KiBewertungDisplay"
+import { GespielteRessourcenTable } from "@/components/GespielteRessourcenTable"
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -66,6 +68,13 @@ interface KandidatenProfil {
   kandidatenname: string
   status: ProfilStatus
   ki_score: number | null
+  ki_details?: {
+    empfehlung?: 'Empfohlen' | 'Bedingt geeignet' | 'Nicht geeignet'
+    begruendung?: string
+    skill_vorhanden?: string[]
+    skill_fehlend?: string[]
+    model?: string
+  }
   created_at: string
   agentur_name?: string
 }
@@ -104,14 +113,6 @@ function SkillChip({ label, muted }: { label: string; muted?: boolean }) {
       {label}
     </span>
   )
-}
-
-function ScoreBadge({ score }: { score: number | null }) {
-  if (score === null) return <span className="text-xs text-muted-foreground">–</span>
-  const color = score >= 70 ? "bg-green-100 text-green-700 border-green-200"
-    : score >= 40 ? "bg-yellow-100 text-yellow-700 border-yellow-200"
-    : "bg-red-100 text-red-700 border-red-200"
-  return <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${color}`}>{score}</span>
 }
 
 // ── VakanzDetailPage ──────────────────────────────────────────────────────────
@@ -492,41 +493,10 @@ export default function VakanzDetailPage() {
                     Noch keine Ressourcen eingereicht.{vakanzStatus === "Offen" ? ' Klicke auf "Einreichen".' : ""}
                   </div>
                 ) : (
-                  <div className="divide-y rounded-lg border">
-                    {gespielt.map((r) => (
-                      <div key={r.id} className="flex items-center justify-between px-4 py-3 gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm font-medium">{r.name}</span>
-                            <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${VERFUEGBARKEIT_COLORS[r.verfuegbarkeit] ?? "bg-gray-100 text-gray-600 border-gray-200"}`}>
-                              {r.verfuegbarkeit}
-                            </span>
-                            {r.link_status && (
-                              <span className="inline-flex items-center rounded-full border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                                {r.link_status}
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {r.skills.slice(0, 5).map((s) => (
-                              <span key={s} className="inline-flex items-center rounded border border-border bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">{s}</span>
-                            ))}
-                            {r.skills.length > 5 && <span className="text-[10px] text-muted-foreground">+{r.skills.length - 5}</span>}
-                          </div>
-                        </div>
-                        {r.link_id && r.link_status === "Gespielt" && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-muted-foreground hover:text-destructive shrink-0"
-                            onClick={() => { setRueckzugTarget(r); setRueckzugOpen(true) }}
-                          >
-                            Zurückziehen
-                          </Button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                  <GespielteRessourcenTable
+                    resources={gespielt}
+                    onWithdraw={(r) => { setRueckzugTarget(r); setRueckzugOpen(true) }}
+                  />
                 )
               )}
 
@@ -541,29 +511,42 @@ export default function VakanzDetailPage() {
                 ) : (
                   <div className="divide-y rounded-lg border">
                     {profile.map((p) => (
-                      <div key={p.id} className="flex items-center gap-4 px-4 py-3">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium">{p.kandidatenname}</p>
-                          {p.agentur_name && (
-                            <p className="text-xs text-muted-foreground">{p.agentur_name}</p>
-                          )}
+                      <div key={p.id} className="flex flex-col gap-3 px-4 py-3 border-b last:border-b-0">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium">{p.kandidatenname}</p>
+                            {p.agentur_name && (
+                              <p className="text-xs text-muted-foreground">{p.agentur_name}</p>
+                            )}
+                          </div>
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">{fmt(p.created_at)}</span>
                         </div>
-                        <ScoreBadge score={p.ki_score} />
-                        <Select
-                          value={p.status}
-                          onValueChange={(v) => handleStatusChange(p.id, v as ProfilStatus)}
-                          disabled={updatingStatus === p.id}
-                        >
-                          <SelectTrigger className="h-7 w-36 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {PROFIL_STATUSES.map((s) => (
-                              <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <span className="text-xs text-muted-foreground whitespace-nowrap">{fmt(p.created_at)}</span>
+                        <div className="flex items-start gap-3">
+                          <div className="flex-1">
+                            <KiBewertungDisplay
+                              score={p.ki_score}
+                              empfehlung={p.ki_details?.empfehlung}
+                              begruendung={p.ki_details?.begruendung}
+                              skillVorhanden={p.ki_details?.skill_vorhanden}
+                              skillFehlend={p.ki_details?.skill_fehlend}
+                              className="w-full"
+                            />
+                          </div>
+                          <Select
+                            value={p.status}
+                            onValueChange={(v) => handleStatusChange(p.id, v as ProfilStatus)}
+                            disabled={updatingStatus === p.id}
+                          >
+                            <SelectTrigger className="h-7 w-32 text-xs flex-shrink-0">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {PROFIL_STATUSES.map((s) => (
+                                <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
                     ))}
                   </div>

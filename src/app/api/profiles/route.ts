@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+
+export const maxDuration = 60
 import { createClient } from '@/lib/supabase/server'
 import { v4 as uuidv4 } from 'uuid'
 import { extractTextFromPDF, isValidPDF } from '@/lib/pdfExtraction'
-import { extractSkillsFromCV } from '@/lib/ollama'
-import { normalizeSkills, getMatchedSkills, getPendingSkills } from '@/lib/skillNormalization'
+import { normalizeSkills, extractAndNormalizeFromText, getMatchedSkills, getPendingSkills } from '@/lib/skillNormalization'
+import { extractSkillsFromCVBuffer, bewerteProfilMitOpenAI } from '@/lib/openai'
 import { calculateInitialScore } from '@/lib/calculateScore'
 
 // ── Request Schema ─────────────────────────────────────────────────────────────
@@ -198,62 +200,78 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // ── 7. Extract Skills from PDF using Ollama ────────────────────────────────
+  // ── 7. Extract Skills via OpenAI, then normalize against DB ─────────────────
 
-  let extractedSkills: string[] = []
+  let normalizedSkills: Awaited<ReturnType<typeof extractAndNormalizeFromText>> = []
   try {
-    extractedSkills = await extractSkillsFromCV(cvText)
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : 'Unbekannter Fehler'
-    console.error('Skill extraction timeout:', { error: errorMsg })
-
-    // Ollama timeout - return 408 with warning but allow continuation
-    if (errorMsg.includes('timeout')) {
-      return NextResponse.json(
-        {
-          error: 'Zeitüberschreitung bei Skill-Erkennung',
-          message: 'Ollama antwortet nicht rechtzeitig. Sie können Skills manuell eingeben.',
-          extracted_skills: [],
-        },
-        { status: 408 }
-      )
+    if (process.env.OPENAI_API_KEY) {
+      const rawSkills = await extractSkillsFromCVBuffer(cvBuffer)
+      normalizedSkills = await normalizeSkills(rawSkills, supabase)
+    } else {
+      normalizedSkills = await extractAndNormalizeFromText(cvText, supabase)
     }
-
-    // Other extraction error - continue with empty skills
-    console.warn('Skill extraction error (continuing):', { error: errorMsg })
-    extractedSkills = []
-  }
-
-  // ── 8. Normalize Skills ────────────────────────────────────────────────────
-
-  let normalizedSkills: Awaited<ReturnType<typeof normalizeSkills>> = []
-  try {
-    normalizedSkills = await normalizeSkills(extractedSkills, supabase)
   } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : 'Unbekannter Fehler'
-    console.error('Skill normalization error:', { error: errorMsg })
-    // Continue with un-normalized skills
-    normalizedSkills = extractedSkills.map((skill, idx) => ({
-      id: `${idx}`,
-      name: skill,
-      category: 'Uncategorized',
-      matched: false,
-      matchType: 'pending' as const,
-    }))
+    console.error('Skill extraction error:', error)
+    try {
+      normalizedSkills = await extractAndNormalizeFromText(cvText, supabase)
+    } catch {
+      normalizedSkills = []
+    }
   }
 
   const matchedSkills = getMatchedSkills(normalizedSkills)
   const pendingSkills = getPendingSkills(normalizedSkills)
 
-  // ── 9. Calculate Initial Score ─────────────────────────────────────────────
+  // ── 9. Calculate KI-based Score with OpenAI ───────────────────────────────
 
-  const scoreResult = calculateInitialScore({
-    extractedSkills: normalizedSkills.map((s) => s.name),
-    vacancySkills: vacancy.skills || [],
-    extractedLevel: 'Mid', // Will be updated from detailed Ollama evaluation
-    vacancyLevel: vacancy.erfahrungslevel || 'Junior',
-    cvLength: cvText.length,
-  })
+  let kiScore = 0
+  let kiDetails: Record<string, unknown> | null = null
+
+  if (!forPool && process.env.OPENAI_API_KEY) {
+    try {
+      const kiBewertung = await bewerteProfilMitOpenAI(
+        {
+          titel: vacancy.titel || 'Unbekannt',
+          beschreibung: vacancy.beschreibung ?? '',
+          skills: vacancy.skills ?? [],
+          erfahrungslevel: vacancy.erfahrungslevel || 'Mid',
+        },
+        {
+          kandidatenname: parsed.data.candidate_name,
+          skills: normalizedSkills.map((s) => s.name),
+          erfahrungslevel: 'Mid',
+          profiltext: cvText.slice(0, 2000),
+        }
+      )
+      kiScore = kiBewertung.score
+      kiDetails = {
+        empfehlung: kiBewertung.empfehlung,
+        begruendung: kiBewertung.begruendung,
+        skill_vorhanden: kiBewertung.skill_vorhanden,
+        skill_fehlend: kiBewertung.skill_fehlend,
+        model: kiBewertung.model,
+      }
+    } catch (error) {
+      console.error('KI-Scoring error:', error)
+      const scoreResult = calculateInitialScore({
+        extractedSkills: normalizedSkills.map((s) => s.name),
+        vacancySkills: vacancy.skills || [],
+        extractedLevel: 'Mid',
+        vacancyLevel: vacancy.erfahrungslevel || 'Junior',
+        cvLength: cvText.length,
+      })
+      kiScore = scoreResult.initialScore
+    }
+  } else {
+    const scoreResult = calculateInitialScore({
+      extractedSkills: normalizedSkills.map((s) => s.name),
+      vacancySkills: vacancy.skills || [],
+      extractedLevel: 'Mid',
+      vacancyLevel: vacancy.erfahrungslevel || 'Junior',
+      cvLength: cvText.length,
+    })
+    kiScore = scoreResult.initialScore
+  }
 
   // ── 10. Upload PDF to Storage ──────────────────────────────────────────────
 
@@ -277,6 +295,11 @@ export async function POST(request: NextRequest) {
 
   // ── 11. Create Kandidaten Profile Record ────────────────────────────────────
 
+  const skillsArray = normalizedSkills
+    .map((s) => s.name)
+    .filter(Boolean)
+    .slice(0, 30) // Max 30 skills per DB constraint
+
   const { data: newProfile, error: insertError } = await supabase
     .from('kandidaten_profile')
     .insert({
@@ -287,21 +310,21 @@ export async function POST(request: NextRequest) {
       verfuegbarkeit_stunden: parsed.data.availability ? parseInt(parsed.data.availability, 10) : null,
       verfuegbar_ab: null,
       verkaufspreis: null,
-      skills: normalizedSkills.map((s) => s.name),
+      skills: skillsArray,
       erfahrungslevel: 'Mid',
       profiltext: cvText.slice(0, 2000),
       cv_pfad: cvStoragePath,
       status: 'Eingereicht',
-      ki_score: scoreResult.initialScore,
+      ki_score: kiScore,
     })
     .select('*')
     .single()
 
   if (insertError) {
-    console.error('Profile insert error:', { code: insertError.code, message: insertError.message })
+    console.error('Profile insert error:', { code: insertError.code, message: insertError.message, skillsArray, normalizedSkillsCount: normalizedSkills.length })
     await supabase.storage.from('cv-uploads').remove([cvStoragePath])
     return NextResponse.json(
-      { error: 'STEP_INSERT: ' + insertError.message },
+      { error: insertError.message, code: insertError.code },
       { status: 500 }
     )
   }
@@ -341,8 +364,8 @@ export async function POST(request: NextRequest) {
         })),
         matched_skills: matchedSkills.length,
         pending_skills: pendingSkills.length,
-        ki_score: scoreResult.initialScore,
-        confidence: scoreResult.confidence,
+        ki_score: kiScore,
+        ki_details: kiDetails,
         cv_length: cvText.length,
       },
     },
