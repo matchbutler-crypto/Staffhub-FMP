@@ -40,6 +40,8 @@ export interface PoolRessource {
   bereits_gespielt?: boolean
   link_id?: string | null
   link_status?: string | null
+  link_created_at?: string | null
+  ki_score?: number | null
 }
 
 export const VERFUEGBARKEIT_COLORS: Record<string, string> = {

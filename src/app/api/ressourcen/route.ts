@@ -78,16 +78,32 @@ export async function GET(request: NextRequest) {
     }
   })
 
-  // Add bereits_gespielt + link_id when filtering for a specific vacancy
+  // Add bereits_gespielt + link_id + ki_score when filtering for a specific vacancy
   if (vakanzId) {
     const { data: links } = await supabase
       .from('ressource_vakanz_links')
-      .select('id, ressource_id, status')
+      .select('id, ressource_id, status, created_at')
       .eq('vakanz_id', vakanzId)
-    const linkMap = new Map((links ?? []).map((l: { id: string; ressource_id: string; status: string }) => [l.ressource_id, l]))
+
+    const { data: kiScores } = await supabase
+      .from('ressource_ki_scores')
+      .select('ressource_id, vakanz_id, score')
+      .eq('vakanz_id', vakanzId)
+
+    const linkMap = new Map((links ?? []).map((l: { id: string; ressource_id: string; status: string; created_at: string }) => [l.ressource_id, l]))
+    const kiScoreMap = new Map((kiScores ?? []).map((k: { ressource_id: string; vakanz_id: string; score: number }) => [k.ressource_id, k.score]))
+
     result = result.map((r) => {
       const link = linkMap.get(r.id)
-      return { ...r, bereits_gespielt: !!link, link_id: link?.id ?? null, link_status: link?.status ?? null }
+      const kiScore = kiScoreMap.get(r.id)
+      return {
+        ...r,
+        bereits_gespielt: !!link,
+        link_id: link?.id ?? null,
+        link_status: link?.status ?? null,
+        link_created_at: link?.created_at ?? null,
+        ki_score: kiScore ?? null
+      }
     })
   }
 
