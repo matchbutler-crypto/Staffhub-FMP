@@ -26,6 +26,8 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { ProfilEinreichenSheet } from "@/components/profil-einreichen-sheet"
 import { RessourceEinsetzenDialog } from "@/components/ressource-einsetzen-dialog"
+import { GespielteRessourcenTable } from "@/components/GespielteRessourcenTable"
+import type { PoolRessource } from "@/components/ressource-einsetzen-dialog"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -358,6 +360,7 @@ function VakanzCard({
 }: VakanzCardProps) {
   const [expanded, setExpanded] = React.useState(false)
   const [profiles, setProfiles] = React.useState<InlineProfile[] | null>(null)
+  const [resources, setResources] = React.useState<PoolRessource[] | null>(null)
   const [loadingProfiles, setLoadingProfiles] = React.useState(false)
   const [withdrawingId, setWithdrawingId] = React.useState<string | null>(null)
   const [liveCount, setLiveCount] = React.useState<number | null>(null)
@@ -366,20 +369,34 @@ function VakanzCard({
     if (!expanded && profiles === null) {
       setLoadingProfiles(true)
       try {
-        const [profileRes, linkRes] = await Promise.all([
+        const [profileRes, ressourcenRes] = await Promise.all([
           fetch(`/api/profile?vakanz_id=${vakanz.id}`),
-          fetch(`/api/ressource-links?vakanz_id=${vakanz.id}`),
+          fetch(`/api/ressourcen?vakanz_id=${vakanz.id}`),
         ])
         const profileData = profileRes.ok ? await profileRes.json() : []
-        const linkData = linkRes.ok ? await linkRes.json() : []
+        const ressourcenData = ressourcenRes.ok ? await ressourcenRes.json() : { ressourcen: [] }
+
+        const profileArray = Array.isArray(profileData) ? profileData : []
+        const ressourcenArray = (ressourcenData.ressourcen ?? []).filter((r: PoolRessource) => r.bereits_gespielt)
+
         const merged: InlineProfile[] = [
-          ...(Array.isArray(profileData) ? profileData.map((p: InlineProfile) => ({ ...p, quelle: 'profil' as const })) : []),
-          ...(Array.isArray(linkData) ? linkData.map((l: InlineProfile) => ({ ...l, quelle: 'pool' as const })) : []),
+          ...profileArray.map((p: InlineProfile) => ({ ...p, quelle: 'profil' as const })),
+          ...ressourcenArray.map((r: PoolRessource) => ({
+            id: r.link_id || r.id,
+            kandidatenname: r.name,
+            status: r.link_status || 'Gespielt',
+            ki_score: r.ki_score ?? null,
+            agentur_name: null,
+            quelle: 'pool' as const,
+            ressource_id: r.id,
+          })),
         ]
         setProfiles(merged)
+        setResources(ressourcenArray)
         setLiveCount(merged.length)
       } catch {
         setProfiles([])
+        setResources([])
       } finally {
         setLoadingProfiles(false)
       }
@@ -558,9 +575,9 @@ function VakanzCard({
 
       {/* ── Expanded candidate panel ─────────────────────────────────────────── */}
       {expanded && (
-        <div className="border-t border-border/60 bg-muted/30">
+        <div className="border-t border-border/60 bg-muted/30 p-4">
           {loadingProfiles ? (
-            <div className="flex flex-col gap-2 px-4 py-3">
+            <div className="flex flex-col gap-2">
               {Array.from({ length: 2 }).map((_, i) => (
                 <div key={i} className="flex items-center gap-3">
                   <Skeleton className="h-4 w-40" />
@@ -571,7 +588,7 @@ function VakanzCard({
               ))}
             </div>
           ) : !profiles || profiles.length === 0 ? (
-            <div className="flex items-center justify-between px-4 py-3">
+            <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground">Noch keine Profile eingereicht.</span>
               {(isManagerOrAdmin || (isAgentur && vakanz.status === "Offen")) && (
                 <Button
@@ -587,83 +604,73 @@ function VakanzCard({
               )}
             </div>
           ) : (
-            <div className="divide-y divide-border/40">
-              {profiles.map((p) => (
-                <div
-                  key={p.id}
-                  className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50 transition-colors"
-                >
-                  {/* Source badge */}
-                  {p.quelle === 'pool' ? (
-                    <span className="shrink-0 inline-flex items-center rounded border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-600">
-                      Pool
-                    </span>
-                  ) : (
-                    <span className="shrink-0 inline-flex items-center rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-600">
-                      CV
-                    </span>
-                  )}
-
-                  {/* Name */}
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
-                    {p.kandidatenname}
-                  </span>
-
-                  {/* Agentur (manager only) */}
-                  {isManagerOrAdmin && p.agentur_name && (
-                    <span className="hidden shrink-0 text-xs text-muted-foreground sm:block">
-                      {p.agentur_name}
-                    </span>
-                  )}
-
-                  {/* Status badge */}
-                  <span
-                    className={`shrink-0 inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${profilStatusColors[p.status as ProfilStatus] ?? "bg-gray-50 text-gray-500 border-gray-200"}`}
-                  >
-                    {p.status}
-                  </span>
-
-                  {/* KI Score */}
-                  <KiScoreBadge score={p.ki_score} />
-
-                  {/* Link */}
-                  {p.quelle === 'pool' && p.ressource_id ? (
-                    <Link
-                      href={isManagerOrAdmin ? `/ressourcen` : `/pool`}
-                      className="shrink-0 text-xs text-primary hover:underline underline-offset-4"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      Pool →
-                    </Link>
-                  ) : (
-                    <Link
-                      href={`/profile/${p.id}`}
-                      className="shrink-0 text-xs text-primary hover:underline underline-offset-4"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      Profil →
-                    </Link>
-                  )}
-
-                  {/* Withdraw — Agentur only, only when status allows */}
-                  {isAgentur && (
-                    (p.quelle === 'pool' && p.status === 'Gespielt') ||
-                    (p.quelle !== 'pool' && p.status === 'Eingereicht')
-                  ) && (
-                    <button
-                      disabled={withdrawingId === p.id}
-                      onClick={(e) => { e.stopPropagation(); handleWithdraw(p) }}
-                      className="shrink-0 text-xs text-red-500 hover:text-red-700 disabled:opacity-40 transition-colors"
-                    >
-                      {withdrawingId === p.id ? '…' : 'Zurückziehen'}
-                    </button>
-                  )}
+            <div className="flex flex-col gap-4">
+              {/* Resources Table */}
+              {resources && resources.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Pool-Ressourcen</h4>
+                  <GespielteRessourcenTable resources={resources} onWithdraw={(r) => handleWithdraw({
+                    id: r.link_id || r.id,
+                    kandidatenname: r.name,
+                    status: r.link_status || 'Gespielt',
+                    ki_score: r.ki_score ?? null,
+                    agentur_name: null,
+                    quelle: 'pool',
+                    ressource_id: r.id,
+                  })} />
                 </div>
-              ))}
+              )}
+
+              {/* CV Profiles */}
+              {profiles.filter(p => p.quelle === 'profil').length > 0 && (
+                <div>
+                  {resources && resources.length > 0 && <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">CV-Profile</h4>}
+                  <div className="divide-y divide-border/40 border border-border rounded-lg">
+                    {profiles.filter(p => p.quelle === 'profil').map((p) => (
+                      <div
+                        key={p.id}
+                        className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50 transition-colors"
+                      >
+                        <span className="shrink-0 inline-flex items-center rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-600">
+                          CV
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+                          {p.kandidatenname}
+                        </span>
+                        {isManagerOrAdmin && p.agentur_name && (
+                          <span className="hidden shrink-0 text-xs text-muted-foreground sm:block">
+                            {p.agentur_name}
+                          </span>
+                        )}
+                        <span className={`shrink-0 inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${profilStatusColors[p.status as ProfilStatus] ?? "bg-gray-50 text-gray-500 border-gray-200"}`}>
+                          {p.status}
+                        </span>
+                        <KiScoreBadge score={p.ki_score} />
+                        <Link
+                          href={`/profile/${p.id}`}
+                          className="shrink-0 text-xs text-primary hover:underline underline-offset-4"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          Profil →
+                        </Link>
+                        {isAgentur && p.status === 'Eingereicht' && (
+                          <button
+                            disabled={withdrawingId === p.id}
+                            onClick={(e) => { e.stopPropagation(); handleWithdraw(p) }}
+                            className="shrink-0 text-xs text-red-500 hover:text-red-700 disabled:opacity-40 transition-colors"
+                          >
+                            {withdrawingId === p.id ? '…' : 'Zurückziehen'}
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Footer actions */}
               {isAgentur && vakanz.status === "Offen" && (
-                <div className="flex items-center gap-2 px-4 py-2">
+                <div className="flex items-center gap-2 pt-2 border-t border-border/40">
                   <Button
                     size="sm"
                     variant="outline"
