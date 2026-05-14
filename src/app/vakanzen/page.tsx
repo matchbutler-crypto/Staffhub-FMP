@@ -945,6 +945,8 @@ export default function VakanzenPage() {
           onOpenChange={setRessourceEinsetzenOpen}
           vakanzId={ressourceEinsetzenVakanz.id}
           vakanzTitel={ressourceEinsetzenVakanz.rolle}
+          vakanzSkills={ressourceEinsetzenVakanz.skills}
+          vakanzErfahrungslevel={ressourceEinsetzenVakanz.erfahrungslevel}
           onSuccess={fetchVakanzen}
         />
       )}

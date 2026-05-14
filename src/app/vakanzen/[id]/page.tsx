@@ -567,6 +567,8 @@ export default function VakanzDetailPage() {
           onOpenChange={setEinreichenOpen}
           vakanzId={vakanz.id}
           vakanzTitel={vakanz.rolle}
+          vakanzSkills={vakanz.skills}
+          vakanzErfahrungslevel={vakanz.erfahrungslevel}
           onSuccess={() => { loadGespielt(); setEinreichenOpen(false) }}
         />
       )}
