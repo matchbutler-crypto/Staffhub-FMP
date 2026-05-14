@@ -37,7 +37,7 @@ const LEVEL_HIERARCHY: Record<string, number> = {
  * @param vacancySkills - Skills required by the vacancy
  * @returns Score 0-100
  */
-function calculateSkillMatchScore(
+export function calculateSkillMatchScore(
   extractedSkills: string[],
   vacancySkills: string[]
 ): number {
