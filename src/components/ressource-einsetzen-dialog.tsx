@@ -125,7 +125,7 @@ export function RessourceEinsetzenDialog({
   const [ressourcen, setRessourcen] = React.useState<PoolRessource[]>([])
   const [loadingPool, setLoadingPool] = React.useState(false)
   const [search, setSearch] = React.useState("")
-  const [selectedRessource, setSelectedRessource] = React.useState<PoolRessource | null>(null)
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [submitting, setSubmitting] = React.useState(false)
   const [neuName, setNeuName] = React.useState("")
   const [neuSkills, setNeuSkills] = React.useState<string[]>([])
@@ -135,7 +135,7 @@ export function RessourceEinsetzenDialog({
 
   React.useEffect(() => {
     if (!open) {
-      setTab("pool"); setSearch(""); setSelectedRessource(null)
+      setTab("pool"); setSearch(""); setSelectedIds(new Set())
       setNeuName(""); setNeuSkills([]); setNeuErfahrungslevel("")
       setNeuVerfuegbarkeit("Jetzt verfügbar"); setNeuError(null)
       return
@@ -284,11 +284,19 @@ export function RessourceEinsetzenDialog({
                   <tbody className="divide-y">
                     {filteredWithScore.map((r) => {
                       const isDisabled = !!r.bereits_gespielt
-                      const isSelected = selectedRessource?.id === r.id
+                      const isSelected = selectedIds.has(r.id)
                       return (
                         <tr
                           key={r.id}
-                          onClick={() => !isDisabled && setSelectedRessource(isSelected ? null : r)}
+                          onClick={() => {
+                            if (isDisabled) return
+                            setSelectedIds(prev => {
+                              const next = new Set(prev)
+                              if (next.has(r.id)) next.delete(r.id)
+                              else next.add(r.id)
+                              return next
+                            })
+                          }}
                           className={`transition-colors ${isDisabled ? "cursor-not-allowed opacity-50" : isSelected ? "bg-primary/5 cursor-pointer" : "hover:bg-muted/50 cursor-pointer"}`}
                         >
                           <td className="px-3 py-2.5">
