@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { calculateSkillMatchScore } from '@/lib/calculateScore'
 import { toast } from "sonner"
 import { IconCheck, IconSearch, IconX } from "@tabler/icons-react"
 
@@ -37,6 +38,7 @@ export interface PoolRessource {
   skills: string[]
   erfahrungslevel: string
   verfuegbarkeit: string
+  verfuegbar_ab?: string | null
   bereits_gespielt?: boolean
   link_id?: string | null
   link_status?: string | null
@@ -94,12 +96,16 @@ export function RessourceEinsetzenDialog({
   onOpenChange,
   vakanzId,
   vakanzTitel,
+  vakanzSkills,
+  vakanzErfahrungslevel,
   onSuccess,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   vakanzId: string
   vakanzTitel: string
+  vakanzSkills: string[]
+  vakanzErfahrungslevel: string
   onSuccess: () => void
 }) {
   const [tab, setTab] = React.useState("pool")
