@@ -166,29 +166,57 @@ export function RessourceEinsetzenDialog({
     })
 
   async function handleSpielen() {
-    if (!selectedRessource) return
+    if (selectedIds.size === 0) return
+    const selected = ressourcen.filter(r => selectedIds.has(r.id))
     setSubmitting(true)
     try {
-      const res = await fetch(`/api/ressourcen/${selectedRessource.id}/spielen`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ vakanz_id: vakanzId }),
-      })
-      const body = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(body.error ?? "Fehler beim Einreichen")
-      toast.success(`${selectedRessource.name} auf Vakanz gespielt`)
+      const results = await Promise.allSettled(
+        selected.map(async (r) => {
+          const res = await fetch(`/api/ressourcen/${r.id}/spielen`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ vakanz_id: vakanzId }),
+          })
+          const body = await res.json().catch(() => ({}))
+          if (!res.ok) throw new Error(body.error ?? "Fehler beim Einreichen")
+          return r
+        })
+      )
 
-      // Trigger OpenAI score calculation in background
-      fetch(`/api/ressourcen/${selectedRessource.id}/ki-match`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ vakanz_id: vakanzId }),
-      }).catch(() => {})
+      const succeeded = results
+        .filter((r): r is PromiseFulfilledResult<PoolRessource> => r.status === "fulfilled")
+        .map(r => r.value)
+
+      // KI-match im Hintergrund für jede erfolgreiche Einreichung
+      for (const r of succeeded) {
+        fetch(`/api/ressourcen/${r.id}/ki-match`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ vakanz_id: vakanzId }),
+        }).catch(() => {})
+      }
+
+      // Fehler-Toast pro fehlgeschlagener Ressource
+      results.forEach((result, i) => {
+        if (result.status === "rejected") {
+          const name = selected[i].name
+          const msg = result.reason instanceof Error ? result.reason.message : "Fehler beim Einreichen"
+          toast.error(`${name}: ${msg}`)
+        }
+      })
+
+      // Erfolgs-Toast
+      if (succeeded.length > 0) {
+        const total = selected.length
+        toast.success(
+          succeeded.length === total
+            ? `${total === 1 ? "1 Ressource" : `${total} Ressourcen`} eingereicht`
+            : `${succeeded.length} von ${total} Ressourcen eingereicht`
+        )
+      }
 
       onOpenChange(false)
       onSuccess()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Fehler beim Einreichen")
     } finally {
       setSubmitting(false)
     }
