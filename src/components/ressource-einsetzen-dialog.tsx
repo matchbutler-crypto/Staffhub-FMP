@@ -358,8 +358,14 @@ export function RessourceEinsetzenDialog({
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>Abbrechen</Button>
-              <Button onClick={handleSpielen} disabled={!selectedRessource || submitting}>
-                {submitting ? "Wird eingereicht…" : selectedRessource ? `${selectedRessource.name} einsetzen` : "Ressource auswählen"}
+              <Button onClick={handleSpielen} disabled={selectedIds.size === 0 || submitting}>
+                {submitting
+                  ? "Wird eingereicht…"
+                  : selectedIds.size === 0
+                    ? "Ressource auswählen"
+                    : selectedIds.size === 1
+                      ? "1 Ressource einsetzen"
+                      : `${selectedIds.size} Ressourcen einsetzen`}
               </Button>
             </DialogFooter>
           </TabsContent>
