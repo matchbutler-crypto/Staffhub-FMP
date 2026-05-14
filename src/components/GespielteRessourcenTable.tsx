@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { type PoolRessource } from './ressource-einsetzen-dialog'
 import { Button } from '@/components/ui/button'
-import { Trash2, Loader2 } from 'lucide-react'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Trash2, Loader2, Info } from 'lucide-react'
 
 interface GespielteRessourcenTableProps {
   resources: PoolRessource[]
@@ -71,7 +72,21 @@ export function GespielteRessourcenTable({ resources, vakanzId, onWithdraw }: Ge
       <div className="grid grid-cols-12 gap-4 px-5 py-3 bg-muted border-b border-border">
         <div className="col-span-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Name</div>
         <div className="col-span-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Gespielt am</div>
-        <div className="col-span-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Match Score</div>
+        <div className="col-span-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+          Match Score
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-3 w-3 cursor-help opacity-60 hover:opacity-100 transition-opacity" />
+              </TooltipTrigger>
+              <TooltipContent className="max-w-[280px] text-xs leading-relaxed">
+                <p className="font-semibold mb-1">Wie wird der Score berechnet?</p>
+                <p>GPT-4o-mini bewertet das Kandidaten-Profil gegen die Vakanz. Es werden Skills, Erfahrungslevel und Profiltext semantisch verglichen — nicht nur exakte Treffer.</p>
+                <p className="mt-1">Skala 0–100: <span className="text-emerald-600">≥ 70 = gut</span> · <span className="text-amber-600">40–69 = bedingt</span> · <span className="text-rose-600">&lt; 40 = schwach</span></p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
         <div className="col-span-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</div>
         <div className="col-span-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide text-right">Aktion</div>
       </div>

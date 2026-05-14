@@ -3,7 +3,7 @@
 import * as React from "react"
 import { calculateSkillMatchScore } from '@/lib/calculateScore'
 import { toast } from "sonner"
-import { IconCheck, IconSearch, IconX } from "@tabler/icons-react"
+import { IconCheck, IconSearch, IconX, IconLoader2 } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -126,6 +126,8 @@ export function RessourceEinsetzenDialog({
   const [loadingPool, setLoadingPool] = React.useState(false)
   const [search, setSearch] = React.useState("")
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
+  const [kiScores, setKiScores] = React.useState<Record<string, number>>({})
+  const [scoringIds, setScoringIds] = React.useState<Set<string>>(new Set())
   const [submitting, setSubmitting] = React.useState(false)
   const [neuName, setNeuName] = React.useState("")
   const [neuSkills, setNeuSkills] = React.useState<string[]>([])
@@ -136,6 +138,7 @@ export function RessourceEinsetzenDialog({
   React.useEffect(() => {
     if (!open) {
       setTab("pool"); setSearch(""); setSelectedIds(new Set())
+      setKiScores({}); setScoringIds(new Set())
       setNeuName(""); setNeuSkills([]); setNeuErfahrungslevel("")
       setNeuVerfuegbarkeit("Jetzt verfügbar"); setNeuError(null)
       return
@@ -143,7 +146,34 @@ export function RessourceEinsetzenDialog({
     setLoadingPool(true)
     fetch(`/api/ressourcen?vakanz_id=${vakanzId}`)
       .then((r) => r.json())
-      .then((d) => setRessourcen(d.ressourcen ?? []))
+      .then((d) => {
+        const list: PoolRessource[] = d.ressourcen ?? []
+        setRessourcen(list)
+        // Eager KI-Scoring für Ressourcen ohne gespeicherten Score
+        const unscored = list.filter(r => r.ki_score == null && !r.bereits_gespielt)
+        if (unscored.length > 0) {
+          setScoringIds(new Set(unscored.map(r => r.id)))
+          for (const r of unscored) {
+            fetch(`/api/ressourcen/${r.id}/ki-match`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ vakanz_id: vakanzId }),
+            })
+              .then(res => res.json())
+              .then(body => {
+                if (typeof body.score?.score === "number") {
+                  setKiScores(prev => ({ ...prev, [r.id]: body.score.score }))
+                }
+              })
+              .catch(() => {})
+              .finally(() => setScoringIds(prev => {
+                const next = new Set(prev)
+                next.delete(r.id)
+                return next
+              }))
+          }
+        }
+      })
       .catch(() => {})
       .finally(() => setLoadingPool(false))
   }, [open, vakanzId])
@@ -156,8 +186,9 @@ export function RessourceEinsetzenDialog({
     )
     .map((r) => ({
       ...r,
-      matchScore: r.ki_score ?? calculateSkillMatchScore(r.skills, vakanzSkills),
-      isKiScore: r.ki_score != null,
+      matchScore: kiScores[r.id] ?? r.ki_score ?? calculateSkillMatchScore(r.skills, vakanzSkills),
+      isKiScore: r.id in kiScores || r.ki_score != null,
+      isScoring: scoringIds.has(r.id),
     }))
     .sort((a, b) => {
       if (a.bereits_gespielt && !b.bereits_gespielt) return 1
@@ -186,15 +217,6 @@ export function RessourceEinsetzenDialog({
       const succeeded = results
         .filter((r): r is PromiseFulfilledResult<PoolRessource> => r.status === "fulfilled")
         .map(r => r.value)
-
-      // KI-match im Hintergrund für jede erfolgreiche Einreichung
-      for (const r of succeeded) {
-        fetch(`/api/ressourcen/${r.id}/ki-match`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ vakanz_id: vakanzId }),
-        }).catch(() => {})
-      }
 
       // Fehler-Toast pro fehlgeschlagener Ressource
       results.forEach((result, i) => {
@@ -351,9 +373,16 @@ export function RessourceEinsetzenDialog({
                               : "—"}
                           </td>
                           <td className="px-3 py-2.5 text-right">
-                            <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${scoreColor(r.matchScore)}`} title={r.isKiScore ? "KI-Score" : "Vorschau (Skill-Matching)"}>
-                              {r.isKiScore ? "" : "~"}{r.matchScore} %
-                            </span>
+                            {r.isScoring ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                                <IconLoader2 className="size-3 animate-spin" />
+                                KI…
+                              </span>
+                            ) : (
+                              <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${scoreColor(r.matchScore)}`} title={r.isKiScore ? "KI-Score" : "Vorschau (Skill-Matching)"}>
+                                {r.isKiScore ? "" : "~"}{r.matchScore} %
+                              </span>
+                            )}
                           </td>
                         </tr>
                       )
