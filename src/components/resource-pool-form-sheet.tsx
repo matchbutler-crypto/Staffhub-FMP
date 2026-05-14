@@ -13,6 +13,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Sheet,
   SheetClose,
   SheetContent,
@@ -87,6 +94,8 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024
 const resourcePoolSchema = z.object({
   resourceName: z.string().min(1, 'Name ist erforderlich').max(200),
   availability: z.number().min(1, 'Verfügbarkeit muss mindestens 1 sein').max(168, 'Max 168 Stunden/Woche'),
+  verfuegbar_ab: z.string().optional(),
+  ek_tagesrate: z.number({ invalid_type_error: 'Muss eine Zahl sein' }).positive().optional(),
 })
 
 type ResourcePoolFormData = z.infer<typeof resourcePoolSchema>
@@ -165,9 +174,11 @@ interface ResourcePoolFormSheetProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSuccess: () => void
+  isManagerOrAdmin?: boolean
+  agenturen?: { id: string; name: string }[]
 }
 
-export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess }: ResourcePoolFormSheetProps) {
+export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess, isManagerOrAdmin, agenturen = [] }: ResourcePoolFormSheetProps) {
   const [pdfFile, setPdfFile] = React.useState<File | null>(null)
   const [pdfError, setPdfError] = React.useState<string | undefined>()
   const [isLoading, setIsLoading] = React.useState(false)
@@ -175,6 +186,9 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess }: Resourc
   const [profileId, setProfileId] = React.useState<string | null>(null)
   const [skillInput, setSkillInput] = React.useState('')
   const [savedName, setSavedName] = React.useState('')
+  const [savedVerfuegbarAb, setSavedVerfuegbarAb] = React.useState<string | null>(null)
+  const [savedEkTagesrate, setSavedEkTagesrate] = React.useState<number | null>(null)
+  const [selectedAgenturId, setSelectedAgenturId] = React.useState('')
   const [extractionStep, setExtractionStep] = React.useState<'analyzing' | 'extracting' | null>(null)
 
   const {
@@ -198,6 +212,9 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess }: Resourc
     setProfileId(null)
     setSkillInput('')
     setSavedName('')
+    setSavedVerfuegbarAb(null)
+    setSavedEkTagesrate(null)
+    setSelectedAgenturId('')
     setExtractionStep(null)
   }
 
@@ -217,6 +234,10 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess }: Resourc
       setPdfError('Lebenslauf (PDF) ist erforderlich')
       return
     }
+    if (isManagerOrAdmin && !selectedAgenturId) {
+      toast.error('Bitte wählen Sie eine Agentur aus')
+      return
+    }
 
     setPdfError(undefined)
     setIsLoading(true)
@@ -228,6 +249,9 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess }: Resourc
       formData.append('availability', data.availability.toString())
       formData.append('file', pdfFile)
       formData.append('for_pool', 'true')
+      if (isManagerOrAdmin && selectedAgenturId) {
+        formData.append('agentur_id', selectedAgenturId)
+      }
 
       // Switch to "extracting" step after a brief delay for visual feedback
       setTimeout(() => setExtractionStep('extracting'), 1000)
@@ -247,6 +271,8 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess }: Resourc
       const result = await response.json()
       setProfileId(result.profile?.id)
       setSavedName(data.resourceName)
+      setSavedVerfuegbarAb(data.verfuegbar_ab ?? null)
+      setSavedEkTagesrate(data.ek_tagesrate ?? null)
       const rawSkills = result.profile?.extracted_skills ?? []
       setExtractedSkills(
         rawSkills.map((s: { name: string } | string) =>
@@ -265,6 +291,10 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess }: Resourc
 
   const handleSaveProfile = async () => {
     if (!savedName) return
+    if (extractedSkills.length === 0) {
+      toast.error('Mindestens ein Skill ist erforderlich – bitte manuell hinzufügen')
+      return
+    }
     setIsLoading(true)
     try {
       // Create ressource with extracted skills
@@ -275,7 +305,10 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess }: Resourc
           name: savedName,
           skills: extractedSkills,
           erfahrungslevel: 'Mid',
-          verfuegbarkeit: 'Jetzt verfügbar',
+          verfuegbarkeit: savedVerfuegbarAb ? 'Verfügbar ab' : 'Jetzt verfügbar',
+          verfuegbar_ab: savedVerfuegbarAb ?? null,
+          ek_tagesrate: savedEkTagesrate ?? null,
+          ...(isManagerOrAdmin && selectedAgenturId ? { agentur_id: selectedAgenturId } : {}),
         }),
       })
       if (!res.ok) {
@@ -320,6 +353,22 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess }: Resourc
             <ExtractionLoadingState step={extractionStep} />
           ) : !profileId ? (
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+              {isManagerOrAdmin && (
+                <div className="space-y-2">
+                  <Label htmlFor="agentur-select">Agentur <span className="text-destructive">*</span></Label>
+                  <Select value={selectedAgenturId} onValueChange={setSelectedAgenturId} disabled={isLoading}>
+                    <SelectTrigger id="agentur-select">
+                      <SelectValue placeholder="Agentur auswählen..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {agenturen.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label htmlFor="resource-name">Name <span className="text-destructive">*</span></Label>
                 <Input
@@ -331,18 +380,42 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess }: Resourc
                 {errors.resourceName && <p className="text-xs text-destructive">{errors.resourceName.message}</p>}
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="availability">Kapazität (Std/Woche) <span className="text-destructive">*</span></Label>
+                  <Input
+                    id="availability"
+                    type="number"
+                    min="1"
+                    max="168"
+                    placeholder="z.B. 40"
+                    {...register('availability', { valueAsNumber: true })}
+                    disabled={isLoading}
+                  />
+                  {errors.availability && <p className="text-xs text-destructive">{errors.availability.message}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="verfuegbar_ab">Verfügbar ab</Label>
+                  <Input
+                    id="verfuegbar_ab"
+                    type="date"
+                    {...register('verfuegbar_ab')}
+                    disabled={isLoading}
+                  />
+                </div>
+              </div>
+
               <div className="space-y-2">
-                <Label htmlFor="availability">Verfügbarkeit (Stunden/Woche) <span className="text-destructive">*</span></Label>
+                <Label htmlFor="ek_tagesrate">EK Tagesrate (€/Tag)</Label>
                 <Input
-                  id="availability"
+                  id="ek_tagesrate"
                   type="number"
                   min="1"
-                  max="168"
-                  placeholder="z.B. 40"
-                  {...register('availability', { valueAsNumber: true })}
+                  placeholder="z.B. 600"
+                  {...register('ek_tagesrate', { valueAsNumber: true })}
                   disabled={isLoading}
                 />
-                {errors.availability && <p className="text-xs text-destructive">{errors.availability.message}</p>}
+                {errors.ek_tagesrate && <p className="text-xs text-destructive">{errors.ek_tagesrate.message}</p>}
               </div>
 
               <div className="space-y-2">
@@ -368,6 +441,12 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess }: Resourc
             </form>
           ) : (
             <div className="space-y-6">
+              {extractedSkills.length === 0 && (
+                <div className="flex gap-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                  <IconAlertTriangle className="mt-0.5 size-4 shrink-0" />
+                  <p>Keine Skills erkannt. Bitte fügen Sie mindestens einen Skill manuell hinzu.</p>
+                </div>
+              )}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base">Extrahierte Skills</CardTitle>

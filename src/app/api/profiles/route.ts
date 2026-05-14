@@ -72,15 +72,14 @@ export async function POST(request: NextRequest) {
   if (!profile?.aktiv) {
     return NextResponse.json({ error: 'Account deaktiviert' }, { status: 403 })
   }
-  if (profile.rolle !== 'Agentur') {
+
+  const isManagerOrAdmin = profile.rolle === 'Admin' || profile.rolle === 'Staffhub Manager'
+
+  // Agencies always allowed; managers/admins only for pool uploads
+  // (vacancy-specific profiles still require Agentur)
+  if (profile.rolle !== 'Agentur' && !isManagerOrAdmin) {
     return NextResponse.json(
-      { error: 'Nur Agenturen können Profile einreichen' },
-      { status: 403 }
-    )
-  }
-  if (!profile.agentur_id) {
-    return NextResponse.json(
-      { error: 'Ihr Account ist keiner Agentur zugeordnet' },
+      { error: 'Keine Berechtigung' },
       { status: 403 }
     )
   }
@@ -95,6 +94,21 @@ export async function POST(request: NextRequest) {
   }
 
   const forPool = formData.get('for_pool') === 'true'
+
+  // Managers/admins can only use this endpoint for pool uploads
+  if (isManagerOrAdmin && !forPool) {
+    return NextResponse.json(
+      { error: 'Nur Agenturen können Profile zu Vakanzen einreichen' },
+      { status: 403 }
+    )
+  }
+
+  if (profile.rolle === 'Agentur' && !profile.agentur_id) {
+    return NextResponse.json(
+      { error: 'Ihr Account ist keiner Agentur zugeordnet' },
+      { status: 403 }
+    )
+  }
 
   const bodyRaw = {
     vacancy_id: forPool ? undefined : formData.get('vacancy_id'),
@@ -112,16 +126,19 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // Verify agency matches user's agency (only for non-pool profiles)
-  if (!forPool && parsed.data.agency_id !== profile.agentur_id) {
+  // Verify agency matches user's agency (only for non-pool Agentur profiles)
+  if (!forPool && profile.rolle === 'Agentur' && parsed.data.agency_id !== profile.agentur_id) {
     return NextResponse.json(
       { error: 'Sie können Profile für diese Agentur nicht einreichen' },
       { status: 403 }
     )
   }
 
-  // For pool profiles, use user's agency
-  const targetAgencyId = forPool ? profile.agentur_id : parsed.data.agency_id
+  // For pool: manager/admin pass agentur_id via form; Agentur uses their own
+  const managerAgenturId = forPool ? (formData.get('agentur_id') as string | null) : null
+  const targetAgencyId = forPool
+    ? (isManagerOrAdmin ? managerAgenturId : profile.agentur_id)
+    : parsed.data.agency_id
 
   // ── 4. Validate & Extract File ──────────────────────────────────────────────
 
@@ -181,23 +198,15 @@ export async function POST(request: NextRequest) {
 
   // ── 6. Extract PDF Text ────────────────────────────────────────────────────
 
-  let cvText: string
+  let cvText = ''
   try {
     cvText = await extractTextFromPDF(cvBuffer)
     // Sanitize: remove invalid Unicode escape sequences and control characters
     cvText = cvText.replace(/\\u[0-9a-fA-F]{4}/g, ' ').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, ' ')
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Unbekannter Fehler'
-    console.error('PDF extraction error:', { error: errorMsg })
-    // Return 400 but allow manual skill entry
-    return NextResponse.json(
-      {
-        error: 'PDF konnte nicht verarbeitet werden',
-        message: 'Sie können Skills manuell eingeben',
-        extracted_skills: [],
-      },
-      { status: 400 }
-    )
+    console.error('PDF extraction warning - continuing with empty text:', { error: errorMsg })
+    // Don't bail – OpenAI can still extract skills directly from the buffer
   }
 
   // ── 7. Extract Skills via OpenAI, then normalize against DB ─────────────────

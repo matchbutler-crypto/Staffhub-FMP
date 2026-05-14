@@ -15,7 +15,7 @@ async function requireAdmin(supabase: Awaited<ReturnType<typeof createClient>>) 
     .select('rolle, aktiv')
     .eq('id', user.id)
     .single()
-  if (!profile?.aktiv || profile.rolle !== 'Admin') return null
+  if (!profile?.aktiv || (profile.rolle !== 'Admin' && profile.rolle !== 'Staffhub Manager')) return null
   return user
 }
 

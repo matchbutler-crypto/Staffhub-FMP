@@ -1849,14 +1849,14 @@ export default function PoolPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showDeaktiviert])
 
-  // Agenturen für Admin-Dropdown laden
+  // Agenturen für Admin/Manager-Dropdown laden
   React.useEffect(() => {
-    if (!isAdmin) return
+    if (!isManager) return
     fetch("/api/admin/agenturen")
       .then((r) => r.json())
       .then((d) => setAgenturen(d.agenturen ?? []))
       .catch(() => {})
-  }, [isAdmin])
+  }, [isManager])
 
   // Load open vakanzen for Manager KI-Filter dropdown
   React.useEffect(() => {
@@ -2245,6 +2245,8 @@ export default function PoolPage() {
         open={poolFormSheetOpen}
         onOpenChange={setPoolFormSheetOpen}
         onSuccess={fetchRessourcen}
+        isManagerOrAdmin={isManager}
+        agenturen={agenturen}
       />
     </SidebarProvider>
   )
