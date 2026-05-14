@@ -125,21 +125,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Account deaktiviert' }, { status: 403 })
   }
   const isAdmin = profile.rolle === 'Admin'
+  const isManager = profile.rolle === 'Staffhub Manager'
 
-  if (!isAdmin && profile.rolle !== 'Agentur') {
+  if (!isAdmin && !isManager && profile.rolle !== 'Agentur') {
     return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
   }
-  if (!isAdmin && !profile.agentur_id) {
+  if (!isAdmin && !isManager && !profile.agentur_id) {
     return NextResponse.json({ error: 'Agentur-Zuordnung fehlt' }, { status: 403 })
   }
 
   const body = await request.json().catch(() => null)
 
-  const adminSchema = createRessourceSchema.and(
+  const withAgenturSchema = createRessourceSchema.and(
     z.object({ agentur_id: z.string().uuid('Agentur ist erforderlich') })
   )
-  const parsed = isAdmin
-    ? adminSchema.safeParse(body)
+  const parsed = (isAdmin || isManager)
+    ? withAgenturSchema.safeParse(body)
     : createRessourceSchema.safeParse(body)
 
   if (!parsed.success) {
@@ -149,7 +150,7 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const agenturId = isAdmin
+  const agenturId = (isAdmin || isManager)
     ? (parsed.data as typeof parsed.data & { agentur_id: string }).agentur_id
     : profile.agentur_id!
 
@@ -160,7 +161,7 @@ export async function POST(request: NextRequest) {
       skills: parsed.data.skills,
       erfahrungslevel: parsed.data.erfahrungslevel,
       verfuegbarkeit: parsed.data.verfuegbarkeit,
-      verfuegbar_ab: parsed.data.verfuegbar_ab ?? null,
+      verfuegbar_ab: parsed.data.verfuegbar_ab || null,
       ek_tagesrate: parsed.data.ek_tagesrate ?? null,
       notizen: parsed.data.notizen ?? null,
       agentur_id: agenturId,

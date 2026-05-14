@@ -341,7 +341,7 @@ export async function POST(request: NextRequest) {
   // ── 12. Insert profile_skills records ──────────────────────────────────────
 
   const profileSkillsRecords = normalizedSkills
-    .filter((skill) => skill.id) // Only insert skills with valid IDs
+    .filter((skill) => skill.matchType !== 'pending') // Exclude pending skills with non-UUID IDs
     .map((skill) => ({
       profile_id: profileId,
       skill_id: skill.id,
