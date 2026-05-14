@@ -366,7 +366,7 @@ export async function POST(request: NextRequest) {
     {
       profile: {
         ...newProfile,
-        extracted_skills: normalizedSkills.map((s) => ({
+        extracted_skills: normalizedSkills.slice(0, 30).map((s) => ({
           name: s.name,
           category: s.category,
           matchType: s.matchType || 'unknown',

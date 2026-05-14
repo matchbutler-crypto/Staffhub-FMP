@@ -303,7 +303,7 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess, isManager
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: savedName,
-          skills: extractedSkills,
+          skills: extractedSkills.slice(0, 30),
           erfahrungslevel: 'Mid',
           verfuegbarkeit: savedVerfuegbarAb ? 'Verfügbar ab' : 'Jetzt verfügbar',
           verfuegbar_ab: savedVerfuegbarAb ?? null,
