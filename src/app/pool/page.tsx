@@ -2039,7 +2039,8 @@ export default function PoolPage() {
                       <TableRow>
                         <TableHead>Name</TableHead>
                         {isAdmin && <TableHead>Agentur</TableHead>}
-                        <TableHead>Skills</TableHead>
+                        <TableHead>Rolle</TableHead>
+                        <TableHead>Verfügbar ab</TableHead>
                         <TableHead>Level</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>EK-Rate</TableHead>
@@ -2052,11 +2053,11 @@ export default function PoolPage() {
                     </TableHeader>
                     <TableBody>
                       {loading || kiScoresLoading ? (
-                        <TableSkeletonRows cols={(vakanzFilter !== "keine" ? 8 : 7) + (isAdmin ? 1 : 0)} />
+                        <TableSkeletonRows cols={(vakanzFilter !== "keine" ? 9 : 8) + (isAdmin ? 1 : 0)} />
                       ) : filtered.length === 0 ? (
                         <TableRow>
                           <TableCell
-                            colSpan={(vakanzFilter !== "keine" ? 8 : 7) + (isAdmin ? 1 : 0)}
+                            colSpan={(vakanzFilter !== "keine" ? 9 : 8) + (isAdmin ? 1 : 0)}
                             className="py-12 text-center text-muted-foreground"
                           >
                             {ressourcen.length === 0
@@ -2081,7 +2082,14 @@ export default function PoolPage() {
                               </TableCell>
                             )}
                             <TableCell>
-                              <SkillTags skills={r.skills} />
+                              <Badge variant="outline" className={erfahrungsColors[r.erfahrungslevel]}>
+                                {r.erfahrungslevel}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {r.verfuegbar_ab
+                                ? new Date(r.verfuegbar_ab).toLocaleDateString("de-DE")
+                                : "—"}
                             </TableCell>
                             <TableCell>
                               <Badge
