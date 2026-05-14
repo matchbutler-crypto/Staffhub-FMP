@@ -53,6 +53,19 @@ export const VERFUEGBARKEIT_COLORS: Record<string, string> = {
   "Deaktiviert": "bg-gray-100 text-gray-600 border-gray-200",
 }
 
+const ERFAHRUNGS_COLORS: Record<string, string> = {
+  Junior: "bg-sky-100 text-sky-700 border-sky-200",
+  Mid: "bg-violet-100 text-violet-700 border-violet-200",
+  Senior: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  Expert: "bg-rose-100 text-rose-700 border-rose-200",
+}
+
+function scoreColor(score: number): string {
+  if (score >= 70) return "bg-green-100 text-green-700 border-green-200"
+  if (score >= 40) return "bg-yellow-100 text-yellow-700 border-yellow-200"
+  return "bg-red-100 text-red-700 border-red-200"
+}
+
 // ── TagInput ───────────────────────────────────────────────────────────────────
 
 function TagInput({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
@@ -135,10 +148,21 @@ export function RessourceEinsetzenDialog({
       .finally(() => setLoadingPool(false))
   }, [open, vakanzId])
 
-  const filtered = ressourcen.filter(
-    (r) => r.name.toLowerCase().includes(search.toLowerCase()) ||
-      r.skills.some((s) => s.toLowerCase().includes(search.toLowerCase()))
-  )
+  const filteredWithScore = ressourcen
+    .filter(
+      (r) =>
+        r.name.toLowerCase().includes(search.toLowerCase()) ||
+        r.skills.some((s) => s.toLowerCase().includes(search.toLowerCase()))
+    )
+    .map((r) => ({
+      ...r,
+      matchScore: calculateSkillMatchScore(r.skills, vakanzSkills),
+    }))
+    .sort((a, b) => {
+      if (a.bereits_gespielt && !b.bereits_gespielt) return 1
+      if (!a.bereits_gespielt && b.bereits_gespielt) return -1
+      return b.matchScore - a.matchScore
+    })
 
   async function handleSpielen() {
     if (!selectedRessource) return
@@ -232,10 +256,10 @@ export function RessourceEinsetzenDialog({
               <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input className="pl-9" placeholder="Name oder Skill suchen…" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
-            <div className="flex-1 overflow-y-auto rounded-md border divide-y min-h-[200px] max-h-[280px]">
+            <div className="flex-1 overflow-y-auto rounded-md border min-h-[200px] max-h-[280px]">
               {loadingPool ? (
                 <div className="p-4 text-center text-sm text-muted-foreground">Lädt…</div>
-              ) : filtered.length === 0 ? (
+              ) : filteredWithScore.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 p-6 text-center text-sm text-muted-foreground">
                   {ressourcen.length === 0 ? (
                     <>
@@ -247,35 +271,52 @@ export function RessourceEinsetzenDialog({
                   ) : "Keine Ressourcen gefunden."}
                 </div>
               ) : (
-                filtered.map((r) => {
-                  const isDisabled = !!r.bereits_gespielt
-                  const isSelected = selectedRessource?.id === r.id
-                  return (
-                    <button
-                      key={r.id}
-                      disabled={isDisabled}
-                      onClick={() => setSelectedRessource(isSelected ? null : r)}
-                      className={`w-full px-4 py-3 text-left flex items-start gap-3 transition-colors ${isDisabled ? "cursor-not-allowed opacity-50" : isSelected ? "bg-primary/5" : "hover:bg-muted/50"}`}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-medium">{r.name}</span>
-                          <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${VERFUEGBARKEIT_COLORS[r.verfuegbarkeit] ?? "bg-gray-100 text-gray-600 border-gray-200"}`}>
-                            {r.verfuegbarkeit}
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {r.skills.slice(0, 4).map((s) => (
-                            <span key={s} className="inline-flex items-center rounded border border-border bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">{s}</span>
-                          ))}
-                          {r.skills.length > 4 && <span className="text-[10px] text-muted-foreground">+{r.skills.length - 4}</span>}
-                        </div>
-                      </div>
-                      {isDisabled && <span className="text-[10px] text-muted-foreground whitespace-nowrap mt-0.5">Bereits eingereicht</span>}
-                      {isSelected && !isDisabled && <IconCheck className="size-4 text-primary mt-0.5 shrink-0" />}
-                    </button>
-                  )
-                })
+                <table className="w-full text-sm">
+                  <thead className="border-b bg-muted/50">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium text-muted-foreground">Name</th>
+                      <th className="px-3 py-2 text-left font-medium text-muted-foreground">Rolle</th>
+                      <th className="px-3 py-2 text-left font-medium text-muted-foreground">Verfügbar ab</th>
+                      <th className="px-3 py-2 text-right font-medium text-muted-foreground">Match</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {filteredWithScore.map((r) => {
+                      const isDisabled = !!r.bereits_gespielt
+                      const isSelected = selectedRessource?.id === r.id
+                      return (
+                        <tr
+                          key={r.id}
+                          onClick={() => !isDisabled && setSelectedRessource(isSelected ? null : r)}
+                          className={`transition-colors ${isDisabled ? "cursor-not-allowed opacity-50" : isSelected ? "bg-primary/5 cursor-pointer" : "hover:bg-muted/50 cursor-pointer"}`}
+                        >
+                          <td className="px-3 py-2.5">
+                            <div className="flex items-center gap-2">
+                              {isSelected && !isDisabled && <IconCheck className="size-3.5 text-primary shrink-0" />}
+                              <span className="font-medium truncate max-w-[140px]">{r.name}</span>
+                              {isDisabled && <span className="text-[10px] text-muted-foreground whitespace-nowrap">Bereits eingereicht</span>}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${ERFAHRUNGS_COLORS[r.erfahrungslevel] ?? "bg-gray-100 text-gray-600 border-gray-200"}`}>
+                              {r.erfahrungslevel}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 text-muted-foreground">
+                            {r.verfuegbar_ab
+                              ? new Date(r.verfuegbar_ab).toLocaleDateString("de-DE")
+                              : "—"}
+                          </td>
+                          <td className="px-3 py-2.5 text-right">
+                            <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${scoreColor(r.matchScore)}`}>
+                              {r.matchScore} %
+                            </span>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
               )}
             </div>
             <DialogFooter>
