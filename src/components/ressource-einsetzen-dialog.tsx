@@ -156,7 +156,8 @@ export function RessourceEinsetzenDialog({
     )
     .map((r) => ({
       ...r,
-      matchScore: calculateSkillMatchScore(r.skills, vakanzSkills),
+      matchScore: r.ki_score ?? calculateSkillMatchScore(r.skills, vakanzSkills),
+      isKiScore: r.ki_score != null,
     }))
     .sort((a, b) => {
       if (a.bereits_gespielt && !b.bereits_gespielt) return 1
@@ -308,8 +309,8 @@ export function RessourceEinsetzenDialog({
                               : "—"}
                           </td>
                           <td className="px-3 py-2.5 text-right">
-                            <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${scoreColor(r.matchScore)}`}>
-                              {r.matchScore} %
+                            <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${scoreColor(r.matchScore)}`} title={r.isKiScore ? "KI-Score" : "Vorschau (Skill-Matching)"}>
+                              {r.isKiScore ? "" : "~"}{r.matchScore} %
                             </span>
                           </td>
                         </tr>
