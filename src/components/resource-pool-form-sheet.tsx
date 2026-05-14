@@ -93,6 +93,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024
 
 const resourcePoolSchema = z.object({
   resourceName: z.string().min(1, 'Name ist erforderlich').max(200),
+  rolle: z.string().max(200).optional(),
   availability: z.number().min(1, 'Verfügbarkeit muss mindestens 1 sein').max(168, 'Max 168 Stunden/Woche'),
   verfuegbar_ab: z.string().optional(),
   ek_tagesrate: z.number({ invalid_type_error: 'Muss eine Zahl sein' }).positive().optional(),
@@ -186,6 +187,7 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess, isManager
   const [profileId, setProfileId] = React.useState<string | null>(null)
   const [skillInput, setSkillInput] = React.useState('')
   const [savedName, setSavedName] = React.useState('')
+  const [savedRolle, setSavedRolle] = React.useState<string | null>(null)
   const [savedVerfuegbarAb, setSavedVerfuegbarAb] = React.useState<string | null>(null)
   const [savedEkTagesrate, setSavedEkTagesrate] = React.useState<number | null>(null)
   const [selectedAgenturId, setSelectedAgenturId] = React.useState('')
@@ -200,6 +202,7 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess, isManager
     resolver: zodResolver(resourcePoolSchema),
     defaultValues: {
       resourceName: '',
+      rolle: '',
       availability: 40,
     },
   })
@@ -212,6 +215,7 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess, isManager
     setProfileId(null)
     setSkillInput('')
     setSavedName('')
+    setSavedRolle(null)
     setSavedVerfuegbarAb(null)
     setSavedEkTagesrate(null)
     setSelectedAgenturId('')
@@ -271,6 +275,7 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess, isManager
       const result = await response.json()
       setProfileId(result.profile?.id)
       setSavedName(data.resourceName)
+      setSavedRolle(data.rolle || null)
       setSavedVerfuegbarAb(data.verfuegbar_ab ?? null)
       setSavedEkTagesrate(data.ek_tagesrate ?? null)
       const rawSkills = result.profile?.extracted_skills ?? []
@@ -303,6 +308,7 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess, isManager
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: savedName,
+          rolle: savedRolle ?? null,
           skills: extractedSkills.slice(0, 30),
           erfahrungslevel: 'Mid',
           verfuegbarkeit: savedVerfuegbarAb ? 'Verfügbar ab' : 'Jetzt verfügbar',
@@ -378,6 +384,16 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess, isManager
                   disabled={isLoading}
                 />
                 {errors.resourceName && <p className="text-xs text-destructive">{errors.resourceName.message}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="rolle">Rolle / Jobtitel</Label>
+                <Input
+                  id="rolle"
+                  placeholder="z.B. Frontend Developer, Data Engineer"
+                  {...register('rolle')}
+                  disabled={isLoading}
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">

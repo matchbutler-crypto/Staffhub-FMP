@@ -97,6 +97,7 @@ interface Ressource {
   id: string
   agentur_id: string
   name: string
+  rolle?: string | null
   skills: string[]
   erfahrungslevel: Erfahrungslevel
   verfuegbarkeit: RessourceVerfuegbarkeit
@@ -114,6 +115,7 @@ interface Ressource {
 const ressourceSchema = z
   .object({
     name: z.string().min(1, "Name ist erforderlich").max(200),
+    rolle: z.string().max(200).optional(),
     skills: z.array(z.string()).min(1, "Mindestens ein Skill erforderlich"),
     erfahrungslevel: z.enum(ERFAHRUNGSLEVEL, {
       required_error: "Erfahrungslevel ist erforderlich",
@@ -214,6 +216,7 @@ function RessourceFormSheet({
     resolver: zodResolver(ressourceSchema),
     defaultValues: {
       name: "",
+      rolle: "",
       skills: [],
       erfahrungslevel: undefined,
       verfuegbarkeit: undefined,
@@ -230,6 +233,7 @@ function RessourceFormSheet({
       if (mode === "edit" && ressource) {
         reset({
           name: ressource.name,
+          rolle: ressource.rolle ?? "",
           skills: ressource.skills,
           erfahrungslevel: ressource.erfahrungslevel,
           verfuegbarkeit: ressource.verfuegbarkeit,
@@ -241,6 +245,7 @@ function RessourceFormSheet({
       } else {
         reset({
           name: "",
+          rolle: "",
           skills: [],
           erfahrungslevel: undefined,
           verfuegbarkeit: undefined,
@@ -268,6 +273,7 @@ function RessourceFormSheet({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: data.name,
+          rolle: data.rolle || null,
           skills: data.skills,
           erfahrungslevel: data.erfahrungslevel,
           verfuegbarkeit: data.verfuegbarkeit,
@@ -385,6 +391,16 @@ function RessourceFormSheet({
                 {errors.name && (
                   <p className="text-xs text-destructive">{errors.name.message}</p>
                 )}
+              </div>
+
+              {/* Rolle */}
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="r-rolle">Rolle / Jobtitel</Label>
+                <Input
+                  id="r-rolle"
+                  placeholder="z.B. Frontend Developer, Data Engineer"
+                  {...register("rolle")}
+                />
               </div>
 
               {/* Skills */}
@@ -2081,10 +2097,8 @@ export default function PoolPage() {
                                 {r.agenturen?.name ?? "—"}
                               </TableCell>
                             )}
-                            <TableCell>
-                              <Badge variant="outline" className={erfahrungsColors[r.erfahrungslevel]}>
-                                {r.erfahrungslevel}
-                              </Badge>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {r.rolle || "—"}
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
                               {r.verfuegbar_ab

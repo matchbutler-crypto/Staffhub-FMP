@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 
 const createRessourceSchema = z.object({
   name: z.string().min(1, 'Name ist erforderlich').max(200),
+  rolle: z.string().max(200).nullable().optional(),
   skills: z.array(z.string()).min(1, 'Mindestens ein Skill erforderlich').max(30),
   erfahrungslevel: z.enum(['Junior', 'Mid', 'Senior', 'Expert']),
   verfuegbarkeit: z.enum(['Jetzt verfügbar', 'Verfügbar ab', 'Nicht verfügbar', 'Deaktiviert']),
@@ -47,7 +48,7 @@ export async function GET(request: NextRequest) {
   let query = supabase
     .from('ressourcen')
     .select(`
-      id, agentur_id, name, skills, erfahrungslevel,
+      id, agentur_id, name, rolle, skills, erfahrungslevel,
       verfuegbarkeit, verfuegbar_ab, cv_pfad,
       ek_tagesrate, notizen, created_at, updated_at,
       agenturen(name)
@@ -158,6 +159,7 @@ export async function POST(request: NextRequest) {
     .from('ressourcen')
     .insert({
       name: parsed.data.name,
+      rolle: parsed.data.rolle ?? null,
       skills: parsed.data.skills,
       erfahrungslevel: parsed.data.erfahrungslevel,
       verfuegbarkeit: parsed.data.verfuegbarkeit,

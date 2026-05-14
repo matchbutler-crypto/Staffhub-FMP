@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 
 const updateRessourceSchema = z.object({
   name: z.string().min(1, 'Name ist erforderlich').max(200),
+  rolle: z.string().max(200).nullable().optional(),
   skills: z.array(z.string()).min(1, 'Mindestens ein Skill erforderlich').max(30),
   erfahrungslevel: z.enum(['Junior', 'Mid', 'Senior', 'Expert']),
   verfuegbarkeit: z.enum(['Jetzt verfügbar', 'Verfügbar ab', 'Nicht verfügbar', 'Deaktiviert']),
@@ -97,6 +98,7 @@ export async function PUT(
     .from('ressourcen')
     .update({
       name: parsed.data.name,
+      rolle: parsed.data.rolle ?? null,
       skills: parsed.data.skills,
       erfahrungslevel: parsed.data.erfahrungslevel,
       verfuegbarkeit: parsed.data.verfuegbarkeit,

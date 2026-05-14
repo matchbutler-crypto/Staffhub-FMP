@@ -35,6 +35,7 @@ import {
 export interface PoolRessource {
   id: string
   name: string
+  rolle?: string | null
   skills: string[]
   erfahrungslevel: string
   verfuegbarkeit: string
@@ -130,6 +131,7 @@ export function RessourceEinsetzenDialog({
   const [scoringIds, setScoringIds] = React.useState<Set<string>>(new Set())
   const [submitting, setSubmitting] = React.useState(false)
   const [neuName, setNeuName] = React.useState("")
+  const [neuRolle, setNeuRolle] = React.useState("")
   const [neuSkills, setNeuSkills] = React.useState<string[]>([])
   const [neuErfahrungslevel, setNeuErfahrungslevel] = React.useState("")
   const [neuVerfuegbarkeit, setNeuVerfuegbarkeit] = React.useState("Jetzt verfügbar")
@@ -139,7 +141,7 @@ export function RessourceEinsetzenDialog({
     if (!open) {
       setTab("pool"); setSearch(""); setSelectedIds(new Set())
       setKiScores({}); setScoringIds(new Set())
-      setNeuName(""); setNeuSkills([]); setNeuErfahrungslevel("")
+      setNeuName(""); setNeuRolle(""); setNeuSkills([]); setNeuErfahrungslevel("")
       setNeuVerfuegbarkeit("Jetzt verfügbar"); setNeuError(null)
       return
     }
@@ -254,7 +256,7 @@ export function RessourceEinsetzenDialog({
       const createRes = await fetch("/api/ressourcen", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: neuName.trim(), skills: neuSkills, erfahrungslevel: neuErfahrungslevel, verfuegbarkeit: neuVerfuegbarkeit }),
+        body: JSON.stringify({ name: neuName.trim(), rolle: neuRolle.trim() || null, skills: neuSkills, erfahrungslevel: neuErfahrungslevel, verfuegbarkeit: neuVerfuegbarkeit }),
       })
       const createBody = await createRes.json().catch(() => ({}))
       if (!createRes.ok) throw new Error(createBody.error ?? "Fehler beim Anlegen")
@@ -363,9 +365,12 @@ export function RessourceEinsetzenDialog({
                             </div>
                           </td>
                           <td className="px-3 py-2.5">
-                            <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${ERFAHRUNGS_COLORS[r.erfahrungslevel] ?? "bg-gray-100 text-gray-600 border-gray-200"}`}>
-                              {r.erfahrungslevel}
-                            </span>
+                            <div className="flex flex-col gap-0.5">
+                              {r.rolle && <span className="text-xs text-foreground truncate max-w-[90px]">{r.rolle}</span>}
+                              <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium w-fit ${ERFAHRUNGS_COLORS[r.erfahrungslevel] ?? "bg-gray-100 text-gray-600 border-gray-200"}`}>
+                                {r.erfahrungslevel}
+                              </span>
+                            </div>
                           </td>
                           <td className="px-3 py-2.5 text-muted-foreground">
                             {r.verfuegbar_ab
@@ -410,6 +415,10 @@ export function RessourceEinsetzenDialog({
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="re-name">Name <span className="text-destructive">*</span></Label>
               <Input id="re-name" placeholder="z.B. Max Mustermann" value={neuName} onChange={(e) => setNeuName(e.target.value)} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="re-rolle">Rolle / Jobtitel</Label>
+              <Input id="re-rolle" placeholder="z.B. Frontend Developer" value={neuRolle} onChange={(e) => setNeuRolle(e.target.value)} />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>Skills <span className="text-destructive">*</span></Label>
