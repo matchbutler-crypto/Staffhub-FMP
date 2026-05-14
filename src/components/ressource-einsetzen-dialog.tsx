@@ -329,8 +329,14 @@ export function RessourceEinsetzenDialog({
                         >
                           <td className="px-3 py-2.5">
                             <div className="flex items-center gap-2">
-                              {isSelected && !isDisabled && <IconCheck className="size-3.5 text-primary shrink-0" />}
-                              <span className="font-medium truncate max-w-[140px]">{r.name}</span>
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                readOnly
+                                disabled={isDisabled}
+                                className="size-4 shrink-0 rounded border-border accent-primary"
+                              />
+                              <span className="font-medium truncate max-w-[120px]">{r.name}</span>
                               {isDisabled && <span className="text-[10px] text-muted-foreground whitespace-nowrap">Bereits eingereicht</span>}
                             </div>
                           </td>
