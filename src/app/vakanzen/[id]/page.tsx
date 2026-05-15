@@ -148,6 +148,7 @@ export default function VakanzDetailPage() {
   // Edit sheet + publish
   const [editSheetOpen, setEditSheetOpen] = React.useState(false)
   const [localPublished, setLocalPublished] = React.useState<boolean | undefined>(undefined)
+  const [updatingLinkId, setUpdatingLinkId] = React.useState<string | null>(null)
 
   // ── Load Vakanz ──────────────────────────────────────────────────────────────
 
@@ -168,7 +169,6 @@ export default function VakanzDetailPage() {
   // ── Load Einreichungen ───────────────────────────────────────────────────────
 
   function loadGespielt() {
-    if (!isAgentur) return
     setLoadingGespielt(true)
     fetch(`/api/ressourcen?vakanz_id=${id}`)
       .then((r) => r.json())
@@ -192,7 +192,7 @@ export default function VakanzDetailPage() {
 
   React.useEffect(() => {
     if (!user) return
-    if (isAgentur) loadGespielt()
+    loadGespielt()
     if (isManager) loadProfile()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, id])
@@ -220,6 +220,31 @@ export default function VakanzDetailPage() {
       toast.error("Verbindungsfehler.")
     } finally {
       setRueckzugBusy(false)
+    }
+  }
+
+  async function handleLinkStatusChange(resource: PoolRessource, newStatus: string, interviewDatum?: string | null) {
+    if (!resource.link_id) return
+    setUpdatingLinkId(resource.link_id)
+    try {
+      const res = await fetch(`/api/ressource-links/${resource.link_id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus, interview_datum: interviewDatum ?? null }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        toast.error(body.error ?? 'Fehler beim Statuswechsel')
+        return
+      }
+      setGespielt((prev) => prev.map((r) =>
+        r.id === resource.id ? { ...r, link_status: newStatus } : r
+      ))
+      toast.success(`Status auf „${newStatus}" gesetzt`)
+    } catch {
+      toast.error('Verbindungsfehler')
+    } finally {
+      setUpdatingLinkId(null)
     }
   }
 
@@ -473,8 +498,8 @@ export default function VakanzDetailPage() {
                   {isAgentur && gespielt.length > 0 && (
                     <span className="ml-2 text-xs font-normal text-muted-foreground">({gespielt.length})</span>
                   )}
-                  {isManager && profile.length > 0 && (
-                    <span className="ml-2 text-xs font-normal text-muted-foreground">({profile.length})</span>
+                  {isManager && (gespielt.length + profile.length) > 0 && (
+                    <span className="ml-2 text-xs font-normal text-muted-foreground">({gespielt.length + profile.length})</span>
                   )}
                 </h2>
                 {isAgentur && vakanzStatus === "Offen" && (
@@ -501,57 +526,78 @@ export default function VakanzDetailPage() {
                 )
               )}
 
+              {/* Manager: Pool-Ressourcen */}
+              {isManager && (
+                loadingGespielt ? (
+                  <div className="space-y-2">{[1,2].map((i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
+                ) : gespielt.length > 0 ? (
+                  <div className="space-y-2">
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pool-Ressourcen</h3>
+                    <GespielteRessourcenTable
+                      resources={gespielt}
+                      vakanzId={id}
+                      isManager
+                      onWithdraw={(r) => { setRueckzugTarget(r); setRueckzugOpen(true) }}
+                      onStatusChange={handleLinkStatusChange}
+                    />
+                  </div>
+                ) : null
+              )}
+
               {/* Manager: Kandidaten-Profile */}
               {isManager && (
                 loadingProfile ? (
                   <div className="space-y-2">{[1,2,3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
-                ) : profile.length === 0 ? (
+                ) : profile.length > 0 ? (
+                  <div className="space-y-2">
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">CV-Profile</h3>
+                    <div className="divide-y rounded-lg border">
+                      {profile.map((p) => (
+                        <div key={p.id} className="flex flex-col gap-3 px-4 py-3 border-b last:border-b-0">
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium">{p.kandidatenname}</p>
+                              {p.agentur_name && (
+                                <p className="text-xs text-muted-foreground">{p.agentur_name}</p>
+                              )}
+                            </div>
+                            <span className="text-xs text-muted-foreground whitespace-nowrap">{fmt(p.created_at)}</span>
+                          </div>
+                          <div className="flex items-start gap-3">
+                            <div className="flex-1">
+                              <KiBewertungDisplay
+                                score={p.ki_score}
+                                empfehlung={p.ki_details?.empfehlung}
+                                begruendung={p.ki_details?.begruendung}
+                                skillVorhanden={p.ki_details?.skill_vorhanden}
+                                skillFehlend={p.ki_details?.skill_fehlend}
+                                className="w-full"
+                              />
+                            </div>
+                            <Select
+                              value={p.status}
+                              onValueChange={(v) => handleStatusChange(p.id, v as ProfilStatus)}
+                              disabled={updatingStatus === p.id}
+                            >
+                              <SelectTrigger className="h-7 w-32 text-xs flex-shrink-0">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {PROFIL_STATUSES.map((s) => (
+                                  <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : gespielt.length === 0 ? (
                   <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-                    Noch keine Profile eingereicht.
+                    Noch keine Einreichungen vorhanden.
                   </div>
-                ) : (
-                  <div className="divide-y rounded-lg border">
-                    {profile.map((p) => (
-                      <div key={p.id} className="flex flex-col gap-3 px-4 py-3 border-b last:border-b-0">
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium">{p.kandidatenname}</p>
-                            {p.agentur_name && (
-                              <p className="text-xs text-muted-foreground">{p.agentur_name}</p>
-                            )}
-                          </div>
-                          <span className="text-xs text-muted-foreground whitespace-nowrap">{fmt(p.created_at)}</span>
-                        </div>
-                        <div className="flex items-start gap-3">
-                          <div className="flex-1">
-                            <KiBewertungDisplay
-                              score={p.ki_score}
-                              empfehlung={p.ki_details?.empfehlung}
-                              begruendung={p.ki_details?.begruendung}
-                              skillVorhanden={p.ki_details?.skill_vorhanden}
-                              skillFehlend={p.ki_details?.skill_fehlend}
-                              className="w-full"
-                            />
-                          </div>
-                          <Select
-                            value={p.status}
-                            onValueChange={(v) => handleStatusChange(p.id, v as ProfilStatus)}
-                            disabled={updatingStatus === p.id}
-                          >
-                            <SelectTrigger className="h-7 w-32 text-xs flex-shrink-0">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {PROFIL_STATUSES.map((s) => (
-                                <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )
+                ) : null
               )}
 
             </div>

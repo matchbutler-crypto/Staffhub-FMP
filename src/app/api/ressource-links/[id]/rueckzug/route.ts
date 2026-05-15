@@ -31,10 +31,14 @@ export async function PATCH(
   if (!profile?.aktiv) {
     return NextResponse.json({ error: 'Account deaktiviert' }, { status: 403 })
   }
-  if (profile.rolle !== 'Agentur') {
-    return NextResponse.json({ error: 'Nur Agenturen dürfen Einreichungen zurückziehen' }, { status: 403 })
+
+  const isManager = profile.rolle === 'Admin' || profile.rolle === 'Staffhub Manager'
+  const isAgentur = profile.rolle === 'Agentur'
+
+  if (!isManager && !isAgentur) {
+    return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
   }
-  if (!profile.agentur_id) {
+  if (isAgentur && !profile.agentur_id) {
     return NextResponse.json({ error: 'Keine Agentur-Zuordnung' }, { status: 403 })
   }
 
@@ -47,7 +51,7 @@ export async function PATCH(
     )
   }
 
-  // Link + verknüpfte Ressource laden (Ownership-Check)
+  // Link + verknüpfte Ressource laden
   const { data: link } = await supabase
     .from('ressource_vakanz_links')
     .select('id, ressource_id, status, ressourcen(agentur_id), vakanzen_data(rolle)')
@@ -58,11 +62,13 @@ export async function PATCH(
     return NextResponse.json({ error: 'Verknüpfung nicht gefunden' }, { status: 404 })
   }
 
-  // Ownership: Ressource muss zur Agentur des eingeloggten Users gehören
-  const ressourcenArray = Array.isArray(link.ressourcen) ? link.ressourcen : [link.ressourcen]
-  const ressourceAgenturId = ressourcenArray[0]?.agentur_id
-  if (ressourceAgenturId !== profile.agentur_id) {
-    return NextResponse.json({ error: 'Keine Berechtigung — Ressource gehört nicht zu Ihrer Agentur' }, { status: 403 })
+  // Ownership-Check nur für Agenturen
+  if (isAgentur) {
+    const ressourcenArray = Array.isArray(link.ressourcen) ? link.ressourcen : [link.ressourcen]
+    const ressourceAgenturId = ressourcenArray[0]?.agentur_id
+    if (ressourceAgenturId !== profile.agentur_id) {
+      return NextResponse.json({ error: 'Keine Berechtigung — Ressource gehört nicht zu Ihrer Agentur' }, { status: 403 })
+    }
   }
 
   // Status-Check: Rückzug nur aus erlaubten Status

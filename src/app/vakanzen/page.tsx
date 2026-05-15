@@ -700,13 +700,13 @@ function VakanzCard({
                         >
                           Profil →
                         </Link>
-                        {isAgentur && p.status === 'Eingereicht' && (
+                        {(isAgentur && p.status === 'Eingereicht' || isManagerOrAdmin) && (
                           <button
                             disabled={withdrawingId === p.id}
                             onClick={(e) => { e.stopPropagation(); handleWithdraw(p) }}
                             className="shrink-0 text-xs text-red-500 hover:text-red-700 disabled:opacity-40 transition-colors"
                           >
-                            {withdrawingId === p.id ? '…' : 'Zurückziehen'}
+                            {withdrawingId === p.id ? '…' : 'Entfernen'}
                           </button>
                         )}
                       </div>
