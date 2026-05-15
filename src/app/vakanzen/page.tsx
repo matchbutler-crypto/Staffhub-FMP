@@ -438,43 +438,39 @@ function VakanzCard({
         className="flex cursor-pointer items-start gap-3 px-4 py-4 select-none"
         onClick={() => onNavigate(vakanz.id)}
       >
-        {/* Main content — detail-style layout */}
+        {/* Main content — 1:1 detail-style layout */}
         <div className="flex flex-1 flex-col gap-2.5 min-w-0">
-          {/* Row 1: Title */}
-          <span className="font-semibold text-sm text-foreground leading-snug">
-            {vakanz.rolle}
-          </span>
-
-          {/* Row 2: Status + Level + Arbeitsmodell + Branche badges */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusColors[vakanz.status]}`}>
-              {vakanz.status}
-            </span>
-            <span className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium ${erfahrungsColors[vakanz.erfahrungslevel]}`}>
-              {vakanz.erfahrungslevel}
-            </span>
-            <span className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium ${arbeitsmodellColors[vakanz.arbeitsmodell]}`}>
-              {vakanz.arbeitsmodell}{vakanz.onsite_anteil != null ? ` · ${vakanz.onsite_anteil}% Onsite` : ""}
-            </span>
-            {vakanz.branche && (
-              <span className="inline-flex shrink-0 items-center rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-xs text-muted-foreground">
-                {vakanz.branche}
+          {/* Row 1: Title + Badges (same line, like detail view) */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="font-semibold text-sm text-foreground leading-tight">{vakanz.rolle}</span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className={`inline-flex shrink-0 items-center rounded border px-1.5 py-0.5 text-xs font-medium ${statusColors[vakanz.status]}`}>
+                {vakanz.status}
               </span>
-            )}
+              <span className={`inline-flex shrink-0 items-center rounded border px-1.5 py-0.5 text-xs font-medium ${erfahrungsColors[vakanz.erfahrungslevel]}`}>
+                {vakanz.erfahrungslevel}
+              </span>
+              <span className={`inline-flex shrink-0 items-center rounded border px-1.5 py-0.5 text-xs font-medium ${arbeitsmodellColors[vakanz.arbeitsmodell]}`}>
+                {vakanz.arbeitsmodell}{vakanz.onsite_anteil != null ? ` · ${vakanz.onsite_anteil}% Onsite` : ""}
+              </span>
+              {vakanz.branche && (
+                <span className="inline-flex shrink-0 items-center rounded border border-border/60 bg-muted/40 px-1.5 py-0.5 text-xs text-muted-foreground">
+                  {vakanz.branche}
+                </span>
+              )}
+            </div>
           </div>
 
-          {/* Row 3: Meta-Grid */}
-          <div className="flex w-full justify-between gap-y-1.5">
+          {/* Row 2: Meta-Grid (CSS grid, like detail view) */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-6 gap-y-1">
             <div>
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Start</p>
               <p className="text-xs font-medium">{new Date(vakanz.startdatum).toLocaleDateString("de-DE")}</p>
             </div>
-            {vakanz.enddatum && (
-              <div>
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Ende</p>
-                <p className="text-xs font-medium">{new Date(vakanz.enddatum).toLocaleDateString("de-DE")}</p>
-              </div>
-            )}
+            <div>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Ende</p>
+              <p className="text-xs font-medium">{vakanz.enddatum ? new Date(vakanz.enddatum).toLocaleDateString("de-DE") : "–"}</p>
+            </div>
             <div>
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">FTE</p>
               <p className="text-xs font-medium">{vakanz.fte_anzahl}</p>
@@ -509,7 +505,7 @@ function VakanzCard({
             )}
           </div>
 
-          {/* Row 4: Skills */}
+          {/* Row 3: Skills */}
           <SkillTags skills={vakanz.skills} />
         </div>
 
@@ -754,17 +750,18 @@ function VakanzCardSkeleton() {
     <div className="rounded-xl border bg-card px-4 py-4 shadow-xs border-l-4 border-l-border">
       <div className="flex items-start gap-3">
         <div className="flex flex-1 flex-col gap-2.5">
-          <Skeleton className="h-4 w-64" />
-          <div className="flex items-center gap-1.5">
-            <Skeleton className="h-5 w-16 rounded-full" />
-            <Skeleton className="h-5 w-16 rounded-full" />
-            <Skeleton className="h-5 w-20 rounded-full" />
-            <Skeleton className="h-5 w-20 rounded-full" />
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <Skeleton className="h-4 w-52" />
+            <div className="flex gap-1.5">
+              <Skeleton className="h-5 w-14 rounded" />
+              <Skeleton className="h-5 w-14 rounded" />
+              <Skeleton className="h-5 w-18 rounded" />
+            </div>
           </div>
-          <div className="flex gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-6 gap-y-1">
             <Skeleton className="h-8 w-12" />
             <Skeleton className="h-8 w-12" />
-            <Skeleton className="h-8 w-14" />
+            <Skeleton className="h-8 w-12" />
             <Skeleton className="h-8 w-16" />
           </div>
           <div className="flex gap-1.5">
