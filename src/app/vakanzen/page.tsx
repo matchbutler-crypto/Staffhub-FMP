@@ -464,7 +464,7 @@ function VakanzCard({
           </div>
 
           {/* Row 3: Meta-Grid */}
-          <div className="flex flex-wrap gap-x-6 gap-y-1.5">
+          <div className="flex w-full justify-between gap-y-1.5">
             <div>
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Start</p>
               <p className="text-xs font-medium">{new Date(vakanz.startdatum).toLocaleDateString("de-DE")}</p>
