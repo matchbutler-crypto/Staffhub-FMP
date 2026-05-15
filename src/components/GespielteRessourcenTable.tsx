@@ -19,7 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Trash2, Loader2, Info, Download } from 'lucide-react'
+import { Trash2, Loader2, Info, Download, MessageSquare } from 'lucide-react'
 import { toast } from 'sonner'
 
 const LINK_STATUSES = ['Gespielt', 'Interview geplant', 'Zugesagt', 'Abgesagt', 'Abgelehnt'] as const
@@ -245,35 +245,53 @@ export function GespielteRessourcenTable({
                           Speichert…
                         </span>
                       ) : (
-                        <Select value={currentStatus} onValueChange={(v) => handleStatusSelect(resource, v)}>
-                          <SelectTrigger className="h-7 w-full text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {LINK_STATUSES.map((s) => (
-                              <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <div className="flex flex-col gap-1">
+                          <Select value={currentStatus} onValueChange={(v) => handleStatusSelect(resource, v)}>
+                            <SelectTrigger className="h-7 w-full text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {LINK_STATUSES.map((s) => (
+                                <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {hasFeedback && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground cursor-help transition-colors">
+                                  <MessageSquare className="h-3 w-3 shrink-0" />
+                                  <span className="truncate">{resource.link_feedback}</span>
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[280px] text-xs">
+                                <p className="font-semibold mb-1">Feedback</p>
+                                <p className="whitespace-pre-wrap leading-relaxed">{resource.link_feedback}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                        </div>
                       )
                     ) : (
-                      hasFeedback ? (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className={`inline-flex items-center rounded-md border px-2.5 py-1.5 text-xs font-medium cursor-help ${getStatusColor(currentStatus)}`}>
-                              {currentStatus}
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-[260px] text-xs">
-                            <p className="font-semibold mb-1">Feedback</p>
-                            <p className="whitespace-pre-wrap">{resource.link_feedback}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      ) : (
+                      <div className="flex flex-col gap-1">
                         <span className={`inline-flex items-center rounded-md border px-2.5 py-1.5 text-xs font-medium ${getStatusColor(currentStatus)}`}>
                           {currentStatus}
                         </span>
-                      )
+                        {hasFeedback && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground cursor-help transition-colors">
+                                <MessageSquare className="h-3 w-3 shrink-0" />
+                                <span className="truncate">{resource.link_feedback}</span>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-[280px] text-xs">
+                              <p className="font-semibold mb-1">Feedback</p>
+                              <p className="whitespace-pre-wrap leading-relaxed">{resource.link_feedback}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                      </div>
                     )}
                   </div>
 
