@@ -8,10 +8,7 @@ import {
   IconBuilding,
   IconCalendarCheck,
   IconClock,
-  IconCurrencyEuro,
   IconStack2,
-  IconUserCheck,
-  IconUsers,
 } from "@tabler/icons-react"
 import {
   Send,
@@ -46,16 +43,6 @@ import {
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 type ProfilStatus = "Eingereicht" | "In Prüfung" | "Präsentiert" | "Interview" | "Beauftragt" | "Abgelehnt" | "Archiviert"
-
-interface Aktivitaet {
-  id: string
-  kandidatenname: string
-  vakanz_titel: string
-  agentur_name: string
-  status: ProfilStatus
-  ki_score: number | null
-  created_at: string
-}
 
 interface AgenturPerf {
   name: string
@@ -100,8 +87,11 @@ interface ManagerData {
 
 interface AgenturData {
   rolle: 'Agentur'
-  kpis: { aktive_vakanzen: number; eingereichte_profile: number; pool_groesse: number; monats_marge: null }
-  aktivitaet: Aktivitaet[]
+  pool_stats: { total: number; by_link_status: Record<string, number> }
+  aktive_vakanzen: number
+  neueste_vakanzen: { id: string; rolle: string; created_at: string }[]
+  bald_verfuegbar: { id: string; name: string; rolle: string | null; verfuegbar_ab: string }[]
+  ressourcen_pipeline: RessourcePipelineRow[]
 }
 
 type DashboardData = ManagerData | AgenturData
@@ -518,65 +508,204 @@ function ManagerDashboard({ data }: { data: ManagerData }) {
 // ── Agentur Dashboard ─────────────────────────────────────────────────────────
 
 function AgenturDashboard({ data }: { data: AgenturData }) {
-  const { kpis, aktivitaet } = data
-  const kpiCards = [
-    { title: "Offene Vakanzen", value: String(kpis.aktive_vakanzen), desc: "Aktuell ausgeschrieben", icon: IconBriefcase },
-    { title: "Eingereichte Profile", value: String(kpis.eingereichte_profile), desc: "Ihre Einreichungen gesamt", icon: IconUsers },
-    { title: "Pool-Ressourcen", value: String(kpis.pool_groesse ?? 0), desc: "Aktive Ressourcen im Pool", icon: IconStack2 },
-  ]
+  const { pool_stats, aktive_vakanzen, neueste_vakanzen, bald_verfuegbar, ressourcen_pipeline } = data
+  const [statusFilter, setStatusFilter] = React.useState<string>("alle")
+
+  const filteredPipeline = statusFilter === "alle"
+    ? ressourcen_pipeline
+    : ressourcen_pipeline.filter(r => r.status === statusFilter)
+
+  const activeLinkStatuses = LINK_STATUSES.filter(s => ressourcen_pipeline.some(r => r.status === s))
 
   return (
     <div className="flex flex-col gap-6 py-4 md:gap-8 md:py-6">
+
+      {/* ── Row 1: 3 KPI Tiles ── */}
       <div className="grid grid-cols-1 gap-4 px-4 lg:px-6 @xl/main:grid-cols-3">
-        {kpiCards.map((card) => (
-          <Card key={card.title} className="@container/card">
-            <CardHeader>
-              <CardDescription>{card.title}</CardDescription>
-              <div className="flex items-end justify-between gap-2">
-                <CardTitle className="text-2xl font-semibold tabular-nums">{card.value}</CardTitle>
-                <card.icon className="mb-1 size-5 text-muted-foreground" />
+
+        {/* Tile 1: Mein Pool */}
+        <Link href="/pool" className="block group">
+          <Card className="h-full transition-shadow hover:shadow-md hover:border-primary/20">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardDescription className="text-xs font-medium uppercase tracking-wide">Mein Pool</CardDescription>
+                <IconStack2 className="size-4 text-muted-foreground group-hover:text-primary transition-colors" />
               </div>
+              <CardTitle className="text-4xl font-bold tabular-nums">{pool_stats.total}</CardTitle>
             </CardHeader>
-            <div className="px-6 pb-4"><p className="text-sm text-muted-foreground">{card.desc}</p></div>
+            <CardContent className="pt-0">
+              {Object.keys(pool_stats.by_link_status).length === 0 ? (
+                <p className="text-xs text-muted-foreground">Noch keine Ressourcen eingereicht</p>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {LINK_STATUSES.filter(s => pool_stats.by_link_status[s]).map((s) => {
+                    const cfg = getLinkStatusConfig(s)
+                    const count = pool_stats.by_link_status[s] ?? 0
+                    return (
+                      <div key={s} className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${cfg.dot}`} />
+                          <span className="text-xs text-muted-foreground truncate">{s}</span>
+                        </div>
+                        <span className="text-xs font-semibold tabular-nums text-foreground shrink-0">{count}</span>
+                      </div>
+                    )
+                  })}
+                  <p className="text-[11px] text-muted-foreground mt-1 group-hover:text-primary transition-colors">Pool anzeigen →</p>
+                </div>
+              )}
+            </CardContent>
           </Card>
-        ))}
+        </Link>
+
+        {/* Tile 2: Offene Vakanzen */}
+        <Link href="/vakanzen" className="block group">
+          <Card className="h-full transition-shadow hover:shadow-md hover:border-primary/20">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardDescription className="text-xs font-medium uppercase tracking-wide">Offene Vakanzen</CardDescription>
+                <IconBriefcase className="size-4 text-muted-foreground group-hover:text-primary transition-colors" />
+              </div>
+              <CardTitle className="text-4xl font-bold tabular-nums">{aktive_vakanzen}</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {neueste_vakanzen.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Keine offenen Vakanzen</p>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {neueste_vakanzen.map((v) => (
+                    <div key={v.id} className="flex items-center justify-between gap-2">
+                      <span className="text-xs text-foreground truncate font-medium">{v.rolle}</span>
+                      <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums">
+                        {new Date(v.created_at).toLocaleDateString("de-DE", { day: "2-digit", month: "short" })}
+                      </span>
+                    </div>
+                  ))}
+                  <p className="text-[11px] text-muted-foreground mt-1 group-hover:text-primary transition-colors">Alle anzeigen →</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </Link>
+
+        {/* Tile 3: Bald verfügbar */}
+        <Link href="/pool" className="block group">
+          <Card className="h-full transition-shadow hover:shadow-md hover:border-primary/20">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardDescription className="text-xs font-medium uppercase tracking-wide">Bald verfügbar</CardDescription>
+                <IconCalendarCheck className="size-4 text-muted-foreground group-hover:text-primary transition-colors" />
+              </div>
+              <CardTitle className="text-4xl font-bold tabular-nums">{bald_verfuegbar.length}</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {bald_verfuegbar.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Keine Ressourcen in den nächsten 30 Tagen</p>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {bald_verfuegbar.slice(0, 3).map((r) => {
+                    const days = Math.ceil((new Date(r.verfuegbar_ab).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+                    return (
+                      <div key={r.id} className="flex items-center justify-between gap-2">
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-xs font-medium text-foreground truncate">{r.name}</span>
+                          {r.rolle && <span className="text-[11px] text-muted-foreground truncate">{r.rolle}</span>}
+                        </div>
+                        <span className={`text-[11px] shrink-0 font-semibold tabular-nums ${days <= 7 ? "text-orange-600" : "text-emerald-600"}`}>
+                          {days === 0 ? "Heute" : `in ${days}d`}
+                        </span>
+                      </div>
+                    )
+                  })}
+                  {bald_verfuegbar.length > 3 && (
+                    <p className="text-[11px] text-muted-foreground">+{bald_verfuegbar.length - 3} weitere</p>
+                  )}
+                  <p className="text-[11px] text-muted-foreground mt-1 group-hover:text-primary transition-colors">Pool anzeigen →</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
+      {/* ── Row 2: Ressourcen-Pipeline ── */}
       <div className="px-4 lg:px-6">
         <Card>
           <CardHeader>
-            <CardTitle>Letzte Aktivitäten</CardTitle>
-            <CardDescription>Zuletzt aktualisierte eigene Profile</CardDescription>
+            <div className="flex flex-col gap-3 @md/main:flex-row @md/main:items-center @md/main:justify-between">
+              <div>
+                <CardTitle className="text-base">Meine Ressourcen-Pipeline</CardTitle>
+                <CardDescription>Alle eingereichten Pool-Ressourcen</CardDescription>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  onClick={() => setStatusFilter("alle")}
+                  className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                    statusFilter === "alle"
+                      ? "border-foreground bg-foreground text-background"
+                      : "border-border bg-muted/50 text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Alle {ressourcen_pipeline.length > 0 && <span className="ml-1 tabular-nums">{ressourcen_pipeline.length}</span>}
+                </button>
+                {activeLinkStatuses.map((s) => {
+                  const cfg = getLinkStatusConfig(s)
+                  const count = ressourcen_pipeline.filter(r => r.status === s).length
+                  const isActive = statusFilter === s
+                  return (
+                    <button
+                      key={s}
+                      onClick={() => setStatusFilter(statusFilter === s ? "alle" : s)}
+                      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                        isActive ? cfg.color + " shadow-sm" : "border-border bg-muted/50 text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${cfg.dot}`} />
+                      {cfg.label}
+                      <span className="tabular-nums ml-0.5">{count}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
-              <TableHeader className="bg-muted">
+              <TableHeader className="bg-muted/50">
                 <TableRow>
-                  <TableHead>Kandidat</TableHead>
-                  <TableHead>Vakanz</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Rolle</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>KI-Score</TableHead>
-                  <TableHead>Datum</TableHead>
+                  <TableHead>Statusupdate</TableHead>
+                  <TableHead className="text-right">EK-Rate</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {aktivitaet.length === 0 ? (
-                  <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Noch keine Profile eingereicht.</TableCell></TableRow>
+                {filteredPipeline.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                      {ressourcen_pipeline.length === 0 ? "Noch keine Ressourcen eingereicht." : "Keine Einträge für diesen Filter."}
+                    </TableCell>
+                  </TableRow>
                 ) : (
-                  aktivitaet.map((row) => (
-                    <TableRow key={row.id}>
+                  filteredPipeline.map((row) => (
+                    <TableRow key={row.id} className="hover:bg-muted/30">
                       <TableCell className="font-medium">
-                        <Link href={`/profile/${row.id}`} className="hover:underline">{row.kandidatenname}</Link>
+                        <Link href="/pool" className="hover:underline">{row.ressource_name}</Link>
                       </TableCell>
-                      <TableCell className="text-muted-foreground max-w-[160px] truncate">{row.vakanz_titel}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {row.ressource_rolle ?? <span className="text-muted-foreground/50">–</span>}
+                      </TableCell>
                       <TableCell>
-                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusColors[row.status] ?? "bg-gray-100 text-gray-600"}`}>
-                          {row.status}
-                        </span>
+                        <LinkStatusBadge status={row.status} />
                       </TableCell>
-                      <TableCell><ScoreBadge score={row.ki_score} /></TableCell>
                       <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                        {new Date(row.created_at).toLocaleDateString("de-DE")}
+                        {new Date(row.updated_at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                      </TableCell>
+                      <TableCell className="text-right text-sm tabular-nums">
+                        {row.ressource_ek_tagesrate != null
+                          ? <span className="font-medium">{row.ressource_ek_tagesrate.toLocaleString("de-DE")} €</span>
+                          : <span className="text-muted-foreground">–</span>}
                       </TableCell>
                     </TableRow>
                   ))

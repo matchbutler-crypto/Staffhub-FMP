@@ -25,37 +25,70 @@ export async function GET() {
     const agenturId = profile.agentur_id
     if (!agenturId) return NextResponse.json({ error: 'Agentur-Zuordnung fehlt' }, { status: 403 })
 
-    const [vakanzenRes, profileRes, poolRes, aktivitaetRes] = await Promise.allSettled([
-      supabase.from('vakanzen').select('id', { count: 'exact', head: true }).eq('status', 'Offen'),
-      supabase.from('kandidaten_profile').select('id', { count: 'exact', head: true }).eq('agentur_id', agenturId),
+    const agenturToday = new Date().toISOString().split('T')[0]
+    const agenturIn30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+
+    const [
+      poolRes,
+      vakanzenRes,
+      poolLinkStatusRes,
+      baldVerfuegbarRes,
+      ressourcenPipelineRes,
+      neuesteVakanzenRes,
+    ] = await Promise.allSettled([
+      // Pool total (eigene aktive Ressourcen)
       supabase.from('ressourcen').select('id', { count: 'exact', head: true }).eq('agentur_id', agenturId).neq('verfuegbarkeit', 'Deaktiviert'),
-      supabase
-        .from('kandidaten_profile')
-        .select('id, kandidatenname, status, ki_score, created_at, vakanzen!inner(titel)')
-        .eq('agentur_id', agenturId)
-        .order('updated_at', { ascending: false })
-        .limit(10),
+      // Offene Vakanzen count
+      supabase.from('vakanzen').select('id', { count: 'exact', head: true }).eq('status', 'Offen'),
+      // Link-Status Verteilung (RLS filtert auf eigene Ressourcen)
+      supabase.from('ressource_vakanz_links').select('status'),
+      // Bald verfügbar (eigene Ressourcen)
+      supabase.from('ressourcen').select('id, name, rolle, verfuegbar_ab').eq('agentur_id', agenturId).eq('verfuegbarkeit', 'Verfügbar ab').not('verfuegbar_ab', 'is', null).lte('verfuegbar_ab', agenturIn30Days).gte('verfuegbar_ab', agenturToday).order('verfuegbar_ab', { ascending: true }).limit(8),
+      // Ressourcen-Pipeline (RLS filtert auf eigene Links)
+      supabase.from('ressource_vakanz_links').select('id, status, updated_at, ressourcen(id, name, rolle, ek_tagesrate)').order('updated_at', { ascending: false }).limit(200),
+      // 3 neueste offene Vakanzen
+      supabase.from('vakanzen').select('id, rolle, created_at').eq('status', 'Offen').order('created_at', { ascending: false }).limit(3),
     ])
 
-    const vakanzenCount = vakanzenRes.status === 'fulfilled' && !vakanzenRes.value.error ? (vakanzenRes.value.count ?? 0) : 0
-    const profileCount = profileRes.status === 'fulfilled' && !profileRes.value.error ? (profileRes.value.count ?? 0) : 0
     const poolCount = poolRes.status === 'fulfilled' && !poolRes.value.error ? (poolRes.value.count ?? 0) : 0
-    const aktivitaetData = aktivitaetRes.status === 'fulfilled' && !aktivitaetRes.value.error ? (aktivitaetRes.value.data ?? []) : []
+    const vakanzenCount = vakanzenRes.status === 'fulfilled' && !vakanzenRes.value.error ? (vakanzenRes.value.count ?? 0) : 0
 
-    const aktivitaet = aktivitaetData.map((p) => {
-      const { vakanzen, ...rest } = p as typeof p & { vakanzen: { titel: string } | null }
-      return { ...rest, vakanz_titel: vakanzen?.titel ?? '–', agentur_name: '' }
+    const poolLinkRaw = poolLinkStatusRes.status === 'fulfilled' && !poolLinkStatusRes.value.error ? (poolLinkStatusRes.value.data ?? []) : []
+    const agenturByLinkStatus: Record<string, number> = {}
+    for (const l of poolLinkRaw as { status: string }[]) {
+      agenturByLinkStatus[l.status] = (agenturByLinkStatus[l.status] ?? 0) + 1
+    }
+
+    const agenturBaldVerfuegbar = baldVerfuegbarRes.status === 'fulfilled' && !baldVerfuegbarRes.value.error
+      ? (baldVerfuegbarRes.value.data ?? []).map(r => ({ id: r.id, name: r.name, rolle: r.rolle ?? null, verfuegbar_ab: r.verfuegbar_ab as string }))
+      : []
+
+    const agenturPipelineRaw = ressourcenPipelineRes.status === 'fulfilled' && !ressourcenPipelineRes.value.error
+      ? (ressourcenPipelineRes.value.data ?? [])
+      : []
+    const agenturPipeline = (agenturPipelineRaw as unknown as {
+      id: string; status: string; updated_at: string
+      ressourcen: { id: string; name: string; rolle: string | null; ek_tagesrate: number | null } | { id: string; name: string; rolle: string | null; ek_tagesrate: number | null }[] | null
+    }[]).map(l => {
+      const res = Array.isArray(l.ressourcen) ? l.ressourcen[0] ?? null : l.ressourcen
+      return {
+        id: l.id, status: l.status, updated_at: l.updated_at,
+        ressource_id: res?.id ?? '', ressource_name: res?.name ?? '–',
+        ressource_rolle: res?.rolle ?? null, ressource_ek_tagesrate: res?.ek_tagesrate ?? null,
+      }
     })
+
+    const neuesteVakanzen = neuesteVakanzenRes.status === 'fulfilled' && !neuesteVakanzenRes.value.error
+      ? (neuesteVakanzenRes.value.data ?? []).map(v => ({ id: v.id, rolle: v.rolle, created_at: v.created_at }))
+      : []
 
     return NextResponse.json({
       rolle: 'Agentur',
-      kpis: {
-        aktive_vakanzen: vakanzenCount,
-        eingereichte_profile: profileCount,
-        pool_groesse: poolCount,
-        monats_marge: null,
-      },
-      aktivitaet,
+      pool_stats: { total: poolCount, by_link_status: agenturByLinkStatus },
+      aktive_vakanzen: vakanzenCount,
+      neueste_vakanzen: neuesteVakanzen,
+      bald_verfuegbar: agenturBaldVerfuegbar,
+      ressourcen_pipeline: agenturPipeline,
     })
   }
 
