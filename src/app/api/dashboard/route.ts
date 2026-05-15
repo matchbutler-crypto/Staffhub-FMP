@@ -66,42 +66,46 @@ export async function GET() {
   const [
     vakanzenRes,
     beauftragungRes,
-    aktivitaetRes,
     pipelineRes,
     agenturPerfRes,
     vakanzOhneProfileRes,
     baldAuslaufendRes,
+    // New queries
+    neuesteVakanzenRes,
+    poolTotalRes,
+    poolLinkStatusRes,
+    baldVerfuegbarRes,
+    ressourcenPipelineRes,
   ] = await Promise.allSettled([
     supabase.from('vakanzen').select('id', { count: 'exact', head: true }).eq('status', 'Offen'),
     supabase.from('beauftragungen').select('margenaufschlag, stunden_woche').eq('aktiv', true),
-    supabase
-      .from('kandidaten_profile')
-      .select('id, kandidatenname, status, ki_score, created_at, vakanzen!inner(titel), agenturen!inner(name)')
-      .order('updated_at', { ascending: false })
-      .limit(10),
-    // Pipeline: alle Profile nach Status
     supabase.from('kandidaten_profile').select('status'),
-    // Agentur-Performance: alle Profile mit Agentur + KI-Score
     supabase.from('kandidaten_profile').select('agentur_id, ki_score, agenturen!inner(name)').not('agentur_id', 'is', null),
-    // Vakanzen ohne Profile: offene Vakanzen mit 0 Einreichungen
     supabase.from('vakanzen').select('id, rolle, created_at, kandidaten_profile(id)').eq('status', 'Offen').order('created_at', { ascending: true }),
-    // Bald auslaufende Vakanzen (enddatum ≤ 30 Tage)
     supabase.from('vakanzen').select('id, rolle, enddatum').eq('status', 'Offen').not('enddatum', 'is', null).lte('enddatum', in30Days).gte('enddatum', today).order('enddatum', { ascending: true }).limit(5),
+    // 3 newest open vakanzen for Tile 1
+    supabase.from('vakanzen').select('id, rolle, created_at').eq('status', 'Offen').order('created_at', { ascending: false }).limit(3),
+    // Pool total count (non-deactivated)
+    supabase.from('ressourcen').select('id', { count: 'exact', head: true }).neq('verfuegbarkeit', 'Deaktiviert'),
+    // All link statuses for distribution
+    supabase.from('ressource_vakanz_links').select('status'),
+    // Resources becoming available in next 30 days (Tile 3)
+    supabase.from('ressourcen').select('id, name, rolle, verfuegbar_ab').eq('verfuegbarkeit', 'Verfügbar ab').not('verfuegbar_ab', 'is', null).lte('verfuegbar_ab', in30Days).gte('verfuegbar_ab', today).order('verfuegbar_ab', { ascending: true }).limit(8),
+    // Full resource pipeline (replaces aktivitaet for manager)
+    supabase.from('ressource_vakanz_links').select(`
+      id, status, updated_at,
+      ressourcen(id, name, rolle, ek_tagesrate)
+    `).order('updated_at', { ascending: false }).limit(200),
   ])
 
   const vakanzenCount = vakanzenRes.status === 'fulfilled' && !vakanzenRes.value.error ? (vakanzenRes.value.count ?? 0) : 0
   const beauftragungen = beauftragungRes.status === 'fulfilled' && !beauftragungRes.value.error ? (beauftragungRes.value.data ?? []) : []
-  const aktivitaetData = aktivitaetRes.status === 'fulfilled' && !aktivitaetRes.value.error ? (aktivitaetRes.value.data ?? []) : []
-
   const monatsMarge = beauftragungen.reduce((sum, b) => sum + Number(b.margenaufschlag) * b.stunden_woche * 4, 0)
 
-  // Pipeline
+  // Pipeline (kandidaten_profile — kept for existing chart)
   const pipelineRaw = pipelineRes.status === 'fulfilled' && !pipelineRes.value.error ? (pipelineRes.value.data ?? []) : []
   const pipeline: Record<string, number> = {}
-  for (const p of pipelineRaw) {
-    pipeline[p.status] = (pipeline[p.status] ?? 0) + 1
-  }
-  const inPruefung = pipeline['In Prüfung'] ?? 0
+  for (const p of pipelineRaw) pipeline[p.status] = (pipeline[p.status] ?? 0) + 1
 
   // Agentur-Performance
   const agenturRaw = agenturPerfRes.status === 'fulfilled' && !agenturPerfRes.value.error ? (agenturPerfRes.value.data ?? []) : []
@@ -134,26 +138,63 @@ export async function GET() {
   // Bald auslaufende Vakanzen
   const baldAuslaufend = baldAuslaufendRes.status === 'fulfilled' && !baldAuslaufendRes.value.error ? (baldAuslaufendRes.value.data ?? []) : []
 
-  const aktivitaet = aktivitaetData.map((p) => {
-    const { vakanzen, agenturen, ...rest } = p as typeof p & {
-      vakanzen: { titel: string } | null
-      agenturen: { name: string } | null
+  // Neueste Vakanzen (Tile 1)
+  const neuesteVakanzen = neuesteVakanzenRes.status === 'fulfilled' && !neuesteVakanzenRes.value.error
+    ? (neuesteVakanzenRes.value.data ?? []).map(v => ({ id: v.id, rolle: v.rolle, created_at: v.created_at }))
+    : []
+
+  // Pool total (Tile 2)
+  const poolTotal = poolTotalRes.status === 'fulfilled' && !poolTotalRes.value.error ? (poolTotalRes.value.count ?? 0) : 0
+
+  // Pool link status distribution (Tile 2)
+  const poolLinkRaw = poolLinkStatusRes.status === 'fulfilled' && !poolLinkStatusRes.value.error ? (poolLinkStatusRes.value.data ?? []) : []
+  const byLinkStatus: Record<string, number> = {}
+  for (const l of poolLinkRaw as { status: string }[]) {
+    byLinkStatus[l.status] = (byLinkStatus[l.status] ?? 0) + 1
+  }
+
+  // Bald verfügbar (Tile 3)
+  const baldVerfuegbar = baldVerfuegbarRes.status === 'fulfilled' && !baldVerfuegbarRes.value.error
+    ? (baldVerfuegbarRes.value.data ?? []).map(r => ({ id: r.id, name: r.name, rolle: r.rolle ?? null, verfuegbar_ab: r.verfuegbar_ab as string }))
+    : []
+
+  // Ressourcen-Pipeline (replaces aktivitaet for manager)
+  const pipelineRawLinks = ressourcenPipelineRes.status === 'fulfilled' && !ressourcenPipelineRes.value.error
+    ? (ressourcenPipelineRes.value.data ?? [])
+    : []
+  const ressourcenPipeline = (pipelineRawLinks as unknown as {
+    id: string
+    status: string
+    updated_at: string
+    ressourcen: { id: string; name: string; rolle: string | null; ek_tagesrate: number | null } | { id: string; name: string; rolle: string | null; ek_tagesrate: number | null }[] | null
+  }[]).map(l => {
+    const res = Array.isArray(l.ressourcen) ? l.ressourcen[0] ?? null : l.ressourcen
+    return {
+      id: l.id,
+      status: l.status,
+      updated_at: l.updated_at,
+      ressource_id: res?.id ?? '',
+      ressource_name: res?.name ?? '–',
+      ressource_rolle: res?.rolle ?? null,
+      ressource_ek_tagesrate: res?.ek_tagesrate ?? null,
     }
-    return { ...rest, vakanz_titel: vakanzen?.titel ?? '–', agentur_name: agenturen?.name ?? '–' }
   })
 
   return NextResponse.json({
     rolle: 'Manager',
     kpis: {
       aktive_vakanzen: vakanzenCount,
-      in_pruefung: inPruefung,
+      in_pruefung: pipeline['In Prüfung'] ?? 0,
       aktive_beauftragungen: beauftragungen.length,
       monats_marge: Math.round(monatsMarge),
     },
+    neueste_vakanzen: neuesteVakanzen,
+    pool_stats: { total: poolTotal, by_link_status: byLinkStatus },
+    bald_verfuegbar: baldVerfuegbar,
     pipeline,
     agentur_performance: agenturPerformance,
     vakanzen_ohne_profile: vakanzenOhneProfile,
     bald_auslaufend: baldAuslaufend,
-    aktivitaet,
+    ressourcen_pipeline: ressourcenPipeline,
   })
 }
