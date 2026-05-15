@@ -505,6 +505,19 @@ function VakanzCard({
             </TooltipProvider>
           )}
 
+          {/* Ressource einsetzen button for Agentur */}
+          {isAgentur && vakanz.status === "Offen" && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs px-2.5 shrink-0"
+              onClick={() => onRessourceEinsetzen(vakanz)}
+            >
+              <IconPlus className="size-3 mr-1" />
+              Ressource einsetzen
+            </Button>
+          )}
+
           {/* Profile count pill */}
           <button
             onClick={handleToggle}
@@ -551,19 +564,6 @@ function VakanzCard({
               ) : isAgentur ? (
                 <>
                   <DropdownMenuItem onClick={() => onNavigate(vakanz.id)}>Details anzeigen</DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    disabled={vakanz.status !== "Offen"}
-                    onClick={() => onRessourceEinsetzen(vakanz)}
-                  >
-                    Ressource einsetzen
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    disabled={vakanz.status !== "Offen"}
-                    onClick={() => onProfilEinreichen(vakanz)}
-                  >
-                    Profil einreichen
-                  </DropdownMenuItem>
                 </>
               ) : (
                 <DropdownMenuItem onClick={() => onNavigate(vakanz.id)}>Details anzeigen</DropdownMenuItem>
@@ -686,14 +686,6 @@ function VakanzCard({
                   >
                     <IconPlus className="size-3 mr-1" />
                     Ressource einsetzen
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 text-xs"
-                    onClick={() => onProfilEinreichen(vakanz)}
-                  >
-                    Profil einreichen
                   </Button>
                 </div>
               )}
