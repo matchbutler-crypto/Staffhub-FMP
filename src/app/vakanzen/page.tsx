@@ -485,12 +485,6 @@ function VakanzCard({
                 <p className="text-xs font-medium">{vakanz.standort}</p>
               </div>
             )}
-            {isManagerOrAdmin && vakanz.ansprechpartner && (
-              <div>
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Kontakt</p>
-                <p className="text-xs font-medium">{vakanz.ansprechpartner}</p>
-              </div>
-            )}
             {vakanz.kunde && (
               <div>
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Kunde</p>
