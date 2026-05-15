@@ -182,7 +182,7 @@ export function RessourceEinsetzenDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="sm:max-w-[720px] max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>Ressource einsetzen</DialogTitle>
           <DialogDescription>
@@ -195,7 +195,7 @@ export function RessourceEinsetzenDialog({
             <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input className="pl-9" placeholder="Name oder Skill suchen…" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
-          <div className="flex-1 overflow-y-auto rounded-md border min-h-[200px] max-h-[320px]">
+          <div className="flex-1 overflow-y-auto rounded-md border min-h-[200px] max-h-[min(420px,calc(90vh-220px))]">
             {loadingPool ? (
               <div className="p-4 text-center text-sm text-muted-foreground">Lädt…</div>
             ) : filteredWithScore.length === 0 ? (
@@ -239,12 +239,12 @@ export function RessourceEinsetzenDialog({
                               disabled={isDisabled}
                               className="size-4 shrink-0 rounded border-border accent-primary"
                             />
-                            <span className="font-medium truncate max-w-[120px]">{r.name}</span>
-                            {isDisabled && <span className="text-[10px] text-muted-foreground whitespace-nowrap">Bereits eingereicht</span>}
+                            <span className="font-medium">{r.name}</span>
+                            {isDisabled && <span className="shrink-0 inline-flex items-center rounded border border-border bg-muted/60 px-1.5 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">Bereits eingereicht</span>}
                           </div>
                         </td>
                         <td className="px-3 py-2.5">
-                          <span className="text-xs text-foreground truncate max-w-[90px]">{r.rolle || r.erfahrungslevel}</span>
+                          <span className="text-xs text-foreground">{r.rolle || r.erfahrungslevel}</span>
                         </td>
                         <td className="px-3 py-2.5 text-muted-foreground">
                           {r.verfuegbar_ab

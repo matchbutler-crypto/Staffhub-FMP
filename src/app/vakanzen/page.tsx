@@ -190,13 +190,13 @@ function SkillTags({ skills }: { skills: string[] }) {
       {shown.map((s) => (
         <span
           key={s}
-          className="inline-flex items-center rounded border border-border bg-muted/60 px-1.5 py-0.5 text-xs text-muted-foreground"
+          className="inline-flex items-center rounded border border-border/70 bg-muted/40 px-1.5 py-0.5 text-xs text-muted-foreground font-mono tracking-tight"
         >
           {s}
         </span>
       ))}
       {rest > 0 && (
-        <span className="inline-flex items-center rounded border border-border bg-muted/60 px-1.5 py-0.5 text-xs text-muted-foreground">
+        <span className="inline-flex items-center rounded border border-border/70 bg-muted/40 px-1.5 py-0.5 text-xs text-muted-foreground font-mono">
           +{rest}
         </span>
       )}
@@ -438,29 +438,34 @@ function VakanzCard({
         className="flex cursor-pointer items-start gap-3 px-4 py-3.5 select-none"
         onClick={() => onNavigate(vakanz.id)}
       >
-        {/* Main content — single row */}
-        <div className="flex flex-1 flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
-          <span className="font-semibold text-sm text-foreground leading-tight truncate max-w-[260px] shrink-0">
+        {/* Main content — two rows */}
+        <div className="flex flex-1 flex-col gap-1.5 min-w-0">
+          {/* Row 1: Title */}
+          <span className="font-semibold text-sm text-foreground leading-snug">
             {vakanz.rolle}
           </span>
-          <span
-            className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusColors[vakanz.status]}`}
-          >
-            {vakanz.status}
-          </span>
-          <span className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium ${erfahrungsColors[vakanz.erfahrungslevel]}`}>
-            {vakanz.erfahrungslevel}
-          </span>
-          <span className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium ${arbeitsmodellColors[vakanz.arbeitsmodell]}`}>
-            {vakanz.arbeitsmodell}
-          </span>
-          <SkillTags skills={vakanz.skills} />
-          <span className="text-xs text-muted-foreground shrink-0">Start: {vakanz.startdatum}</span>
-          {vakanz.standort && <span className="text-xs text-muted-foreground shrink-0">· {vakanz.standort}</span>}
-          {vakanz.kunde && <span className="text-xs text-muted-foreground shrink-0">· {vakanz.kunde}</span>}
-          {isManagerOrAdmin && vakanz.budget_intern != null && (
-            <span className="text-xs font-medium text-foreground shrink-0">· {vakanz.budget_intern.toLocaleString("de-DE")} €/Tag</span>
-          )}
+          {/* Row 2: Badges + Skills + Metadata */}
+          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+            <span
+              className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusColors[vakanz.status]}`}
+            >
+              {vakanz.status}
+            </span>
+            <span className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium ${erfahrungsColors[vakanz.erfahrungslevel]}`}>
+              {vakanz.erfahrungslevel}
+            </span>
+            <span className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium ${arbeitsmodellColors[vakanz.arbeitsmodell]}`}>
+              {vakanz.arbeitsmodell}
+            </span>
+            <SkillTags skills={vakanz.skills} />
+            <span className="text-muted-foreground/40 text-xs shrink-0 select-none">·</span>
+            <span className="text-xs text-muted-foreground shrink-0">Start: {vakanz.startdatum}</span>
+            {vakanz.standort && <span className="text-xs text-muted-foreground shrink-0">· {vakanz.standort}</span>}
+            {vakanz.kunde && <span className="text-xs text-muted-foreground shrink-0">· {vakanz.kunde}</span>}
+            {isManagerOrAdmin && vakanz.budget_intern != null && (
+              <span className="text-xs font-medium text-foreground shrink-0">· {vakanz.budget_intern.toLocaleString("de-DE")} €/Tag</span>
+            )}
+          </div>
         </div>
 
         {/* Right side: profile count + slack indicator + dropdown */}
@@ -704,18 +709,14 @@ function VakanzCardSkeleton() {
     <div className="rounded-xl border bg-card px-4 py-3.5 shadow-xs border-l-4 border-l-border">
       <div className="flex items-start gap-3">
         <div className="flex flex-1 flex-col gap-2">
-          <div className="flex items-center gap-2">
-            <Skeleton className="h-4 w-56" />
-            <Skeleton className="h-5 w-20 rounded-full" />
-          </div>
-          <div className="flex gap-1.5">
+          <Skeleton className="h-4 w-64" />
+          <div className="flex items-center gap-1.5">
+            <Skeleton className="h-5 w-16 rounded-full" />
             <Skeleton className="h-5 w-16 rounded-full" />
             <Skeleton className="h-5 w-20 rounded-full" />
-            <Skeleton className="h-5 w-24 rounded-full" />
-          </div>
-          <div className="flex gap-3">
-            <Skeleton className="h-3 w-28" />
-            <Skeleton className="h-3 w-20" />
+            <Skeleton className="h-5 w-14 rounded" />
+            <Skeleton className="h-5 w-18 rounded" />
+            <Skeleton className="h-3 w-28 ml-2" />
           </div>
         </div>
         <Skeleton className="h-7 w-16 rounded-full" />
