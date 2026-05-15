@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import type React from 'react'
 import { type PoolRessource } from './ressource-einsetzen-dialog'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -19,7 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Trash2, Loader2, Info, Download, MessageSquare } from 'lucide-react'
+import { Trash2, Loader2, Info, Download, MessageSquare, Send, CalendarClock, CheckCircle2, XCircle, Ban, Undo2, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 
 const LINK_STATUSES = ['Gespielt', 'Interview geplant', 'Zugesagt', 'Abgesagt', 'Abgelehnt'] as const
@@ -157,17 +158,22 @@ export function GespielteRessourcenTable({
     return 'bg-rose-100 text-rose-700 border-rose-200'
   }
 
-  const getStatusColor = (status: string | null | undefined) => {
-    switch (status) {
-      case 'Gespielt': return 'bg-blue-100 text-blue-700 border-blue-200'
-      case 'Interview geplant': return 'bg-purple-100 text-purple-700 border-purple-200'
-      case 'Zugesagt': return 'bg-green-100 text-green-700 border-green-200'
-      case 'Abgesagt': return 'bg-orange-100 text-orange-700 border-orange-200'
-      case 'Abgelehnt': return 'bg-red-100 text-red-700 border-red-200'
-      case 'Zurückgezogen': return 'bg-gray-100 text-gray-500 border-gray-200'
-      default: return 'bg-gray-100 text-gray-700 border-gray-200'
-    }
+  const STATUS_CONFIG: Record<string, {
+    color: string
+    dot: string
+    icon: React.ReactNode
+    selectTrigger: string
+  }> = {
+    'Gespielt':          { color: 'bg-blue-50 text-blue-700 border-blue-200',    dot: 'bg-blue-400',   icon: <Send className="h-3 w-3" />,          selectTrigger: 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100' },
+    'Interview geplant': { color: 'bg-violet-50 text-violet-700 border-violet-200', dot: 'bg-violet-400', icon: <CalendarClock className="h-3 w-3" />,  selectTrigger: 'border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100' },
+    'Zugesagt':          { color: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-400', icon: <CheckCircle2 className="h-3 w-3" />, selectTrigger: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
+    'Abgesagt':          { color: 'bg-orange-50 text-orange-700 border-orange-200', dot: 'bg-orange-400', icon: <XCircle className="h-3 w-3" />,       selectTrigger: 'border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100' },
+    'Abgelehnt':         { color: 'bg-red-50 text-red-700 border-red-200',      dot: 'bg-red-400',    icon: <Ban className="h-3 w-3" />,            selectTrigger: 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100' },
+    'Zurückgezogen':     { color: 'bg-gray-100 text-gray-500 border-gray-200',  dot: 'bg-gray-400',   icon: <Undo2 className="h-3 w-3" />,          selectTrigger: 'border-gray-200 bg-gray-100 text-gray-500 hover:bg-gray-200' },
   }
+
+  const getStatusConfig = (status: string | null | undefined) =>
+    STATUS_CONFIG[status ?? ''] ?? { color: 'bg-gray-100 text-gray-600 border-gray-200', dot: 'bg-gray-300', icon: null, selectTrigger: '' }
 
   const isRetractable = (status: string | null | undefined) =>
     status !== 'Zurückgezogen' && status !== 'Zugesagt'
@@ -245,15 +251,27 @@ export function GespielteRessourcenTable({
                           Speichert…
                         </span>
                       ) : (
-                        <div className="flex flex-col gap-1">
+                        <div className="flex flex-col gap-1.5">
                           <Select value={currentStatus} onValueChange={(v) => handleStatusSelect(resource, v)}>
-                            <SelectTrigger className="h-7 w-full text-xs">
-                              <SelectValue />
+                            <SelectTrigger className={`h-7 w-full border text-xs font-medium transition-colors [&>svg]:hidden ${getStatusConfig(currentStatus).selectTrigger}`}>
+                              <span className="flex items-center gap-1.5 min-w-0">
+                                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${getStatusConfig(currentStatus).dot}`} />
+                                <span className="truncate">{currentStatus}</span>
+                                <ChevronDown className="ml-auto h-3 w-3 shrink-0 opacity-60" />
+                              </span>
                             </SelectTrigger>
                             <SelectContent>
-                              {LINK_STATUSES.map((s) => (
-                                <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
-                              ))}
+                              {LINK_STATUSES.map((s) => {
+                                const cfg = getStatusConfig(s)
+                                return (
+                                  <SelectItem key={s} value={s} className="text-xs">
+                                    <span className="flex items-center gap-2">
+                                      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${cfg.dot}`} />
+                                      {s}
+                                    </span>
+                                  </SelectItem>
+                                )
+                              })}
                             </SelectContent>
                           </Select>
                           {hasFeedback && (
@@ -261,7 +279,7 @@ export function GespielteRessourcenTable({
                               <TooltipTrigger asChild>
                                 <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground cursor-help transition-colors">
                                   <MessageSquare className="h-3 w-3 shrink-0" />
-                                  <span className="truncate">{resource.link_feedback}</span>
+                                  <span className="truncate max-w-[140px]">{resource.link_feedback}</span>
                                 </span>
                               </TooltipTrigger>
                               <TooltipContent className="max-w-[280px] text-xs">
@@ -273,8 +291,9 @@ export function GespielteRessourcenTable({
                         </div>
                       )
                     ) : (
-                      <div className="flex flex-col gap-1">
-                        <span className={`inline-flex items-center rounded-md border px-2.5 py-1.5 text-xs font-medium ${getStatusColor(currentStatus)}`}>
+                      <div className="flex flex-col gap-1.5">
+                        <span className={`inline-flex w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${getStatusConfig(currentStatus).color}`}>
+                          {getStatusConfig(currentStatus).icon}
                           {currentStatus}
                         </span>
                         {hasFeedback && (
@@ -282,7 +301,7 @@ export function GespielteRessourcenTable({
                             <TooltipTrigger asChild>
                               <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground cursor-help transition-colors">
                                 <MessageSquare className="h-3 w-3 shrink-0" />
-                                <span className="truncate">{resource.link_feedback}</span>
+                                <span className="truncate max-w-[140px]">{resource.link_feedback}</span>
                               </span>
                             </TooltipTrigger>
                             <TooltipContent className="max-w-[280px] text-xs">
