@@ -1,9 +1,11 @@
 import OpenAI from 'openai'
 import { BRANCHEN, ERFAHRUNGSLEVEL, ARBEITSMODELL } from '@/lib/constants'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+let _openai: OpenAI | null = null
+function getOpenAI(): OpenAI {
+  if (!_openai) _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  return _openai
+}
 
 export interface ParsedVakanz {
   rolle: string | null
@@ -54,7 +56,7 @@ Regeln:
 export async function extractSkillsFromCVBuffer(cvBuffer: ArrayBuffer): Promise<string[]> {
   const base64 = Buffer.from(cvBuffer).toString('base64')
 
-  const response = await openai.responses.create({
+  const response = await getOpenAI().responses.create({
     model: 'gpt-4o-mini',
     input: [
       {
@@ -86,7 +88,7 @@ export async function extractSkillsFromCVBuffer(cvBuffer: ArrayBuffer): Promise<
 }
 
 export async function parseVakanzFromText(text: string): Promise<ParsedVakanz> {
-  const completion = await openai.chat.completions.create({
+  const completion = await getOpenAI().chat.completions.create({
     model: 'gpt-4o-mini',
     response_format: { type: 'json_object' },
     temperature: 0.1,
@@ -196,7 +198,7 @@ export async function bewerteProfilMitOpenAI(
     .replace('{kandidat_skills}', profil.skills.join(', ') || 'Keine Skills angegeben')
     .replace('{kandidat_profil}', profil.profiltext.slice(0, 1000))
 
-  const completion = await openai.chat.completions.create({
+  const completion = await getOpenAI().chat.completions.create({
     model: 'gpt-4o-mini',
     response_format: { type: 'json_object' },
     temperature: 0.3,
