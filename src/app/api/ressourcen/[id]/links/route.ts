@@ -33,7 +33,7 @@ export async function GET(
     .from('ressource_vakanz_links')
     .select(`
       id, ressource_id, vakanz_id, status, interview_datum, created_by, created_at, updated_at,
-      vakanzen_data(id, rolle, status)
+      vakanzen_data(id, rolle, status, erfahrungslevel, arbeitsmodell, standort, branche, startdatum, enddatum)
     `)
     .eq('ressource_id', id)
     .order('created_at', { ascending: false })

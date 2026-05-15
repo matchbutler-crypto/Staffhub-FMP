@@ -7,6 +7,7 @@ import { z } from "zod"
 import { toast } from "sonner"
 import {
   IconBrain,
+  IconChevronDown,
   IconClock,
   IconDownload,
   IconDotsVertical,
@@ -105,6 +106,7 @@ interface Ressource {
   cv_pfad?: string | null
   ek_tagesrate?: number | null
   notizen?: string | null
+  link_count?: number
   created_at: string
   updated_at: string
   agenturen?: { name: string } | null
@@ -709,7 +711,17 @@ interface VakanzLink {
   status: LinkStatus
   interview_datum: string | null
   created_at: string
-  vakanzen_data: { id: string; rolle: string; status: string } | null
+  vakanzen_data: {
+    id: string
+    rolle: string
+    status: string
+    erfahrungslevel?: string | null
+    arbeitsmodell?: string | null
+    standort?: string | null
+    branche?: string | null
+    startdatum?: string | null
+    enddatum?: string | null
+  } | null
 }
 
 interface HistorieEintrag {
@@ -1840,6 +1852,31 @@ export default function PoolPage() {
   const [profilEinreichenOpen, setProfilEinreichenOpen] = React.useState(false)
   const [profilEinreichenRessource, setProfilEinreichenRessource] = React.useState<Ressource | null>(null)
 
+  const [expandedIds, setExpandedIds] = React.useState<Set<string>>(new Set())
+  const [linksCache, setLinksCache] = React.useState<Record<string, VakanzLink[]>>({})
+  const [loadingLinkIds, setLoadingLinkIds] = React.useState<Set<string>>(new Set())
+
+  async function handleToggleExpand(id: string, e: React.MouseEvent) {
+    e.stopPropagation()
+    setExpandedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) { next.delete(id); return next }
+      next.add(id)
+      return next
+    })
+    if (linksCache[id]) return
+    setLoadingLinkIds((prev) => new Set(prev).add(id))
+    try {
+      const res = await fetch(`/api/ressourcen/${id}/links`)
+      const data = await res.json()
+      setLinksCache((prev) => ({ ...prev, [id]: data.links ?? [] }))
+    } catch {
+      setLinksCache((prev) => ({ ...prev, [id]: [] }))
+    } finally {
+      setLoadingLinkIds((prev) => { const next = new Set(prev); next.delete(id); return next })
+    }
+  }
+
   async function fetchRessourcen() {
     setLoading(true)
     setError(null)
@@ -2063,17 +2100,18 @@ export default function PoolPage() {
                         {vakanzFilter !== "keine" && (
                           <TableHead>KI-Score</TableHead>
                         )}
+                        <TableHead>Gespielt</TableHead>
                         <TableHead>CV</TableHead>
                         <TableHead className="w-10" />
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {loading || kiScoresLoading ? (
-                        <TableSkeletonRows cols={(vakanzFilter !== "keine" ? 9 : 8) + (isAdmin ? 1 : 0)} />
+                        <TableSkeletonRows cols={(vakanzFilter !== "keine" ? 10 : 9) + (isAdmin ? 1 : 0)} />
                       ) : filtered.length === 0 ? (
                         <TableRow>
                           <TableCell
-                            colSpan={(vakanzFilter !== "keine" ? 9 : 8) + (isAdmin ? 1 : 0)}
+                            colSpan={(vakanzFilter !== "keine" ? 10 : 9) + (isAdmin ? 1 : 0)}
                             className="py-12 text-center text-muted-foreground"
                           >
                             {ressourcen.length === 0
@@ -2082,9 +2120,15 @@ export default function PoolPage() {
                           </TableCell>
                         </TableRow>
                       ) : (
-                        filtered.map((r) => (
+                        filtered.map((r) => {
+                          const linkCount = r.link_count ?? 0
+                          const isExpanded = expandedIds.has(r.id)
+                          const isLoadingLinks = loadingLinkIds.has(r.id)
+                          const cachedLinks = linksCache[r.id]
+                          const totalCols = (vakanzFilter !== "keine" ? 10 : 9) + (isAdmin ? 1 : 0)
+                          return (
+                          <React.Fragment key={r.id}>
                           <TableRow
-                            key={r.id}
                             className="cursor-pointer"
                             onClick={() => {
                               setDetailRessource(r)
@@ -2148,6 +2192,21 @@ export default function PoolPage() {
                                 )}
                               </TableCell>
                             )}
+                            <TableCell onClick={(e) => { if (linkCount > 0) handleToggleExpand(r.id, e); else e.stopPropagation() }}>
+                              {linkCount > 0 ? (
+                                <button className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                                  isExpanded
+                                    ? "border-primary/30 bg-primary/5 text-primary"
+                                    : "border-border bg-muted/50 text-muted-foreground hover:border-primary/20 hover:text-foreground"
+                                }`}>
+                                  <IconLink className="size-3.5" />
+                                  {linkCount}
+                                  <IconChevronDown className={`size-3.5 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} />
+                                </button>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">—</span>
+                              )}
+                            </TableCell>
                             <TableCell>
                               {r.cv_pfad ? (
                                 <Button
@@ -2222,7 +2281,61 @@ export default function PoolPage() {
                               </DropdownMenu>
                             </TableCell>
                           </TableRow>
-                        ))
+                          {isExpanded && (
+                            <TableRow className="bg-muted/30 hover:bg-muted/30">
+                              <TableCell colSpan={totalCols} className="px-6 py-0">
+                                {isLoadingLinks ? (
+                                  <div className="py-3 text-xs text-muted-foreground">Lädt…</div>
+                                ) : !cachedLinks || cachedLinks.length === 0 ? (
+                                  <div className="py-3 text-xs text-muted-foreground">Keine Einreichungen gefunden.</div>
+                                ) : (
+                                  <div className="py-2">
+                                    <table className="w-full text-xs">
+                                      <thead>
+                                        <tr className="text-muted-foreground">
+                                          <th className="py-1.5 pr-4 text-left font-medium">Vakanz</th>
+                                          <th className="py-1.5 pr-4 text-left font-medium">Status</th>
+                                          <th className="py-1.5 pr-4 text-left font-medium">Level</th>
+                                          <th className="py-1.5 pr-4 text-left font-medium">Standort/Remote</th>
+                                          <th className="py-1.5 pr-4 text-left font-medium">Sektor</th>
+                                          <th className="py-1.5 pr-4 text-left font-medium">Start</th>
+                                          <th className="py-1.5 text-left font-medium">Ende</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-border/50">
+                                        {cachedLinks.map((l) => {
+                                          const vd = l.vakanzen_data
+                                          const standortLabel = [vd?.arbeitsmodell, vd?.standort].filter(Boolean).join(" · ") || "—"
+                                          return (
+                                            <tr key={l.id}>
+                                              <td className="py-1.5 pr-4 font-medium text-foreground">{vd?.rolle ?? "—"}</td>
+                                              <td className="py-1.5 pr-4">
+                                                <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${linkStatusColors[l.status]}`}>
+                                                  {l.status}
+                                                </span>
+                                              </td>
+                                              <td className="py-1.5 pr-4 text-muted-foreground">{vd?.erfahrungslevel ?? "—"}</td>
+                                              <td className="py-1.5 pr-4 text-muted-foreground">{standortLabel}</td>
+                                              <td className="py-1.5 pr-4 text-muted-foreground">{vd?.branche ?? "—"}</td>
+                                              <td className="py-1.5 pr-4 text-muted-foreground">
+                                                {vd?.startdatum ? new Date(vd.startdatum).toLocaleDateString("de-DE") : "—"}
+                                              </td>
+                                              <td className="py-1.5 text-muted-foreground">
+                                                {vd?.enddatum ? new Date(vd.enddatum).toLocaleDateString("de-DE") : "—"}
+                                              </td>
+                                            </tr>
+                                          )
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          )}
+                          </React.Fragment>
+                          )
+                        })
                       )}
                     </TableBody>
                   </Table>
