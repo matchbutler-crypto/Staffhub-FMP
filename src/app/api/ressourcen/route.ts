@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
   if (vakanzId) {
     const { data: links } = await supabase
       .from('ressource_vakanz_links')
-      .select('id, ressource_id, status, created_at')
+      .select('id, ressource_id, status, created_at, feedback')
       .eq('vakanz_id', vakanzId)
 
     const { data: kiScores } = await supabase
@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
       .select('ressource_id, vakanz_id, score')
       .eq('vakanz_id', vakanzId)
 
-    const linkMap = new Map((links ?? []).map((l: { id: string; ressource_id: string; status: string; created_at: string }) => [l.ressource_id, l]))
+    const linkMap = new Map((links ?? []).map((l: { id: string; ressource_id: string; status: string; created_at: string; feedback?: string | null }) => [l.ressource_id, l]))
     const kiScoreMap = new Map((kiScores ?? []).map((k: { ressource_id: string; vakanz_id: string; score: number }) => [k.ressource_id, k.score]))
 
     result = result.map((r) => {
@@ -103,6 +103,7 @@ export async function GET(request: NextRequest) {
         link_id: link?.id ?? null,
         link_status: link?.status ?? null,
         link_created_at: link?.created_at ?? null,
+        link_feedback: link?.feedback ?? null,
         ki_score: kiScore ?? null
       }
     })

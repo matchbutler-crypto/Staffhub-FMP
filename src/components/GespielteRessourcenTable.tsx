@@ -11,16 +11,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Trash2, Loader2, Info, Download } from 'lucide-react'
 import { toast } from 'sonner'
 
-const VALID_TRANSITIONS: Record<string, string[]> = {
-  'Gespielt':          ['Interview geplant', 'Abgesagt', 'Abgelehnt'],
-  'Interview geplant': ['Zugesagt', 'Abgesagt', 'Abgelehnt'],
-  'Zugesagt':          [],
-  'Abgesagt':          [],
-  'Abgelehnt':         [],
-  'Zurückgezogen':     [],
+const LINK_STATUSES = ['Gespielt', 'Interview geplant', 'Zugesagt', 'Abgesagt', 'Abgelehnt'] as const
+const FEEDBACK_STATUSES = ['Abgesagt', 'Abgelehnt'] as const
+
+interface StatusChangeOptions {
+  interviewDatum?: string | null
+  feedback?: string | null
 }
 
 interface GespielteRessourcenTableProps {
@@ -28,7 +35,7 @@ interface GespielteRessourcenTableProps {
   vakanzId?: string
   isManager?: boolean
   onWithdraw?: (resource: PoolRessource) => void
-  onStatusChange?: (resource: PoolRessource, newStatus: string, interviewDatum?: string | null) => Promise<void>
+  onStatusChange?: (resource: PoolRessource, newStatus: string, options?: StatusChangeOptions) => Promise<void>
 }
 
 export function GespielteRessourcenTable({
@@ -42,8 +49,16 @@ export function GespielteRessourcenTable({
   const [calculating, setCalculating] = useState<Record<string, boolean>>({})
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
+
+  // Interview-Datum inline
   const [pendingInterviewId, setPendingInterviewId] = useState<string | null>(null)
-  const [interviewDatum, setInterviewDatum] = useState<string>('')
+  const [interviewDatum, setInterviewDatum] = useState('')
+
+  // Feedback modal
+  const [feedbackModal, setFeedbackModal] = useState<{ resource: PoolRessource; targetStatus: string } | null>(null)
+  const [feedbackText, setFeedbackText] = useState('')
+  const [savingFeedback, setSavingFeedback] = useState(false)
+
   const calculatedIds = useRef<Set<string>>(new Set())
 
   useEffect(() => {
@@ -75,50 +90,58 @@ export function GespielteRessourcenTable({
   }, [vakanzId, resources])
 
   async function handleCvDownload(resource: PoolRessource) {
-    if (!resource.cv_pfad) {
-      toast.error('Kein Lebenslauf vorhanden')
-      return
-    }
+    if (!resource.cv_pfad) { toast.error('Kein Lebenslauf vorhanden'); return }
     setDownloadingId(resource.id)
     try {
       const res = await fetch(`/api/ressourcen/${resource.id}/cv`)
       const body = await res.json()
-      if (!res.ok) {
-        toast.error(body.error ?? 'Fehler beim Laden des CVs')
-        return
-      }
+      if (!res.ok) { toast.error(body.error ?? 'Fehler beim Laden des CVs'); return }
       window.open(body.url, '_blank')
-    } catch {
-      toast.error('Verbindungsfehler')
-    } finally {
-      setDownloadingId(null)
-    }
+    } catch { toast.error('Verbindungsfehler') }
+    finally { setDownloadingId(null) }
   }
 
-  async function handleStatusSelect(resource: PoolRessource, newStatus: string) {
+  function handleStatusSelect(resource: PoolRessource, newStatus: string) {
     if (newStatus === 'Interview geplant') {
       setPendingInterviewId(resource.id)
       setInterviewDatum('')
       return
     }
+    if ((FEEDBACK_STATUSES as readonly string[]).includes(newStatus)) {
+      setFeedbackModal({ resource, targetStatus: newStatus })
+      setFeedbackText('')
+      return
+    }
+    submitStatusChange(resource, newStatus, {})
+  }
+
+  async function submitStatusChange(resource: PoolRessource, newStatus: string, options: StatusChangeOptions) {
     if (!onStatusChange) return
     setUpdatingStatus(resource.id)
     try {
-      await onStatusChange(resource, newStatus, null)
+      await onStatusChange(resource, newStatus, options)
     } finally {
       setUpdatingStatus(null)
     }
   }
 
   async function handleInterviewConfirm(resource: PoolRessource) {
-    if (!onStatusChange) return
-    setUpdatingStatus(resource.id)
     setPendingInterviewId(null)
+    await submitStatusChange(resource, 'Interview geplant', { interviewDatum: interviewDatum || null })
+    setInterviewDatum('')
+  }
+
+  async function handleFeedbackSave() {
+    if (!feedbackModal) return
+    setSavingFeedback(true)
     try {
-      await onStatusChange(resource, 'Interview geplant', interviewDatum || null)
+      await submitStatusChange(feedbackModal.resource, feedbackModal.targetStatus, {
+        feedback: feedbackText.trim() || null,
+      })
+      setFeedbackModal(null)
+      setFeedbackText('')
     } finally {
-      setUpdatingStatus(null)
-      setInterviewDatum('')
+      setSavingFeedback(false)
     }
   }
 
@@ -146,162 +169,210 @@ export function GespielteRessourcenTable({
     }
   }
 
+  const isRetractable = (status: string | null | undefined) =>
+    status !== 'Zurückgezogen' && status !== 'Zugesagt'
+
   return (
-    <div className="w-full border border-border rounded-lg overflow-hidden bg-background">
-      {/* Header Row */}
-      <div className="grid grid-cols-12 gap-4 px-5 py-3 bg-muted border-b border-border">
-        <div className="col-span-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Name</div>
-        <div className="col-span-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Gespielt am</div>
-        <div className="col-span-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-          Match
-          <TooltipProvider>
+    <TooltipProvider>
+      <div className="w-full border border-border rounded-lg overflow-hidden bg-background">
+        {/* Header */}
+        <div className="grid grid-cols-12 gap-4 px-5 py-3 bg-muted border-b border-border">
+          <div className="col-span-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Name</div>
+          <div className="col-span-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Gespielt am</div>
+          <div className="col-span-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+            Match
             <Tooltip>
               <TooltipTrigger asChild>
                 <Info className="h-3 w-3 cursor-help opacity-60 hover:opacity-100 transition-opacity" />
               </TooltipTrigger>
               <TooltipContent className="max-w-[280px] text-xs leading-relaxed">
                 <p className="font-semibold mb-1">Wie wird der Score berechnet?</p>
-                <p>GPT-4o-mini bewertet das Kandidaten-Profil gegen die Vakanz. Es werden Skills, Erfahrungslevel und Profiltext semantisch verglichen — nicht nur exakte Treffer.</p>
-                <p className="mt-1">Skala 0–100: <span className="text-emerald-600">≥ 70 = gut</span> · <span className="text-amber-600">40–69 = bedingt</span> · <span className="text-rose-600">&lt; 40 = schwach</span></p>
+                <p>GPT-4o-mini bewertet das Profil gegen die Vakanz — Skills, Level und Profiltext semantisch verglichen.</p>
+                <p className="mt-1">0–100: <span className="text-emerald-600">≥ 70 gut</span> · <span className="text-amber-600">40–69 bedingt</span> · <span className="text-rose-600">&lt; 40 schwach</span></p>
               </TooltipContent>
             </Tooltip>
-          </TooltipProvider>
+          </div>
+          <div className="col-span-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</div>
+          {/* Fixed-width action header to prevent layout shift */}
+          <div className="col-span-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide text-right">Aktion</div>
         </div>
-        <div className="col-span-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</div>
-        <div className="col-span-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide text-right">Aktion</div>
-      </div>
 
-      {/* Data Rows */}
-      <div className="divide-y divide-border">
-        {resources.map((resource) => {
-          const displayScore = scores[resource.id] !== undefined ? scores[resource.id] : resource.ki_score
-          const isCalculating = !!calculating[resource.id]
-          const noScore = displayScore === null || displayScore === undefined
-          const currentStatus = resource.link_status ?? 'Gespielt'
-          const validNext = VALID_TRANSITIONS[currentStatus] ?? []
-          const isTerminal = validNext.length === 0
-          const isUpdating = updatingStatus === resource.id
-          const isPendingInterview = pendingInterviewId === resource.id
+        {/* Rows */}
+        <div className="divide-y divide-border">
+          {resources.map((resource) => {
+            const displayScore = scores[resource.id] !== undefined ? scores[resource.id] : resource.ki_score
+            const isCalculating = !!calculating[resource.id]
+            const noScore = displayScore === null || displayScore === undefined
+            const currentStatus = resource.link_status ?? 'Gespielt'
+            const isUpdating = updatingStatus === resource.id
+            const isPendingInterview = pendingInterviewId === resource.id
+            const hasFeedback = !!resource.link_feedback
 
-          return (
-            <div key={resource.id} className="group">
-              <div className="grid grid-cols-12 gap-4 px-5 py-4 items-center hover:bg-accent/50 transition-colors duration-200">
-                {/* Name + Level */}
-                <div className="col-span-3">
-                  <div className="flex flex-col gap-1">
+            return (
+              <div key={resource.id}>
+                <div className="grid grid-cols-12 gap-4 px-5 py-4 items-center hover:bg-accent/50 transition-colors group">
+                  {/* Name */}
+                  <div className="col-span-3">
                     <p className="text-sm font-semibold text-foreground">{resource.name}</p>
                     <p className="text-xs text-muted-foreground">{resource.erfahrungslevel}</p>
                   </div>
+
+                  {/* Gespielt am */}
+                  <div className="col-span-2">
+                    <p className="text-sm text-foreground">{formatDate(resource.link_created_at)}</p>
+                  </div>
+
+                  {/* Score */}
+                  <div className="col-span-2">
+                    {isCalculating ? (
+                      <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Berechne…
+                      </span>
+                    ) : (
+                      <span className={`inline-flex items-center rounded-md border px-2.5 py-1.5 text-xs font-semibold ${getScoreColor(noScore ? null : displayScore)}`}>
+                        {!noScore ? `${Math.round(displayScore as number)}` : '-'}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Status */}
+                  <div className="col-span-3">
+                    {isManager && currentStatus !== 'Zurückgezogen' ? (
+                      isUpdating ? (
+                        <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Speichert…
+                        </span>
+                      ) : (
+                        <Select value={currentStatus} onValueChange={(v) => handleStatusSelect(resource, v)}>
+                          <SelectTrigger className="h-7 w-full text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {LINK_STATUSES.map((s) => (
+                              <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )
+                    ) : (
+                      hasFeedback ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className={`inline-flex items-center rounded-md border px-2.5 py-1.5 text-xs font-medium cursor-help ${getStatusColor(currentStatus)}`}>
+                              {currentStatus}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-[260px] text-xs">
+                            <p className="font-semibold mb-1">Feedback</p>
+                            <p className="whitespace-pre-wrap">{resource.link_feedback}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        <span className={`inline-flex items-center rounded-md border px-2.5 py-1.5 text-xs font-medium ${getStatusColor(currentStatus)}`}>
+                          {currentStatus}
+                        </span>
+                      )
+                    )}
+                  </div>
+
+                  {/* Actions — fixed layout, no shift */}
+                  <div className="col-span-2 flex justify-end items-center">
+                    <div className="flex items-center gap-1">
+                      {/* CV Download — always rendered, hidden when no cv_pfad */}
+                      <div className="w-7">
+                        {isManager && resource.cv_pfad && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                            onClick={() => handleCvDownload(resource)}
+                            disabled={downloadingId === resource.id}
+                            title="CV herunterladen"
+                          >
+                            {downloadingId === resource.id
+                              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              : <Download className="h-3.5 w-3.5" />
+                            }
+                          </Button>
+                        )}
+                      </div>
+                      {/* Withdraw — fixed slot, opacity-0 until hover */}
+                      <div className="w-7">
+                        {resource.link_id && isRetractable(currentStatus) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/5 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => onWithdraw?.(resource)}
+                            title="Zurückziehen"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Gespielt am */}
-                <div className="col-span-2">
-                  <p className="text-sm text-foreground">{formatDate(resource.link_created_at)}</p>
-                </div>
-
-                {/* Match Score */}
-                <div className="col-span-2">
-                  {isCalculating ? (
-                    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      Berechne…
-                    </span>
-                  ) : (
-                    <span className={`inline-flex items-center rounded-md border px-2.5 py-1.5 text-xs font-semibold ${getScoreColor(noScore ? null : displayScore)}`}>
-                      {!noScore ? `${Math.round(displayScore as number)}` : '-'}
-                    </span>
-                  )}
-                </div>
-
-                {/* Status */}
-                <div className="col-span-3">
-                  {isManager && !isTerminal ? (
-                    <Select
-                      value={currentStatus}
-                      onValueChange={(v) => handleStatusSelect(resource, v)}
-                      disabled={isUpdating}
-                    >
-                      <SelectTrigger className="h-7 w-full text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={currentStatus} className="text-xs">{currentStatus}</SelectItem>
-                        {validNext.map((s) => (
-                          <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <span className={`inline-flex items-center rounded-md border px-2.5 py-1.5 text-xs font-medium ${getStatusColor(currentStatus)}`}>
-                      {currentStatus}
-                    </span>
-                  )}
-                </div>
-
-                {/* Actions */}
-                <div className="col-span-2 flex justify-end items-center gap-1.5">
-                  {isManager && resource.cv_pfad && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-                      onClick={() => handleCvDownload(resource)}
-                      disabled={downloadingId === resource.id}
-                      title="CV herunterladen"
-                    >
-                      {downloadingId === resource.id
-                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        : <Download className="h-3.5 w-3.5" />
-                      }
+                {/* Interview-Datum inline */}
+                {isPendingInterview && (
+                  <div className="px-5 pb-3 pt-1 flex flex-wrap items-center gap-2 bg-purple-50/50 border-t border-purple-100">
+                    <span className="text-xs text-muted-foreground">Interview-Datum:</span>
+                    <input
+                      type="date"
+                      value={interviewDatum}
+                      onChange={(e) => setInterviewDatum(e.target.value)}
+                      className="h-7 rounded border border-border bg-background px-2 text-xs"
+                      autoFocus
+                    />
+                    <Button size="sm" className="h-7 text-xs" disabled={!interviewDatum} onClick={() => handleInterviewConfirm(resource)}>
+                      Bestätigen
                     </Button>
-                  )}
-                  {resource.link_id && !isTerminal && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/5 opacity-0 group-hover:opacity-100 transition-all duration-200"
-                      onClick={() => onWithdraw?.(resource)}
-                      title="Zurückziehen"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
+                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setPendingInterviewId(null); setInterviewDatum('') }}>
+                      Abbrechen
                     </Button>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
-
-              {/* Interview-Datum Eingabe */}
-              {isPendingInterview && (
-                <div className="px-5 pb-4 flex items-center gap-2 bg-purple-50/50 border-t border-purple-100">
-                  <span className="text-xs text-muted-foreground">Interview-Datum:</span>
-                  <input
-                    type="date"
-                    value={interviewDatum}
-                    onChange={(e) => setInterviewDatum(e.target.value)}
-                    className="h-7 rounded border border-border bg-background px-2 text-xs"
-                    autoFocus
-                  />
-                  <Button
-                    size="sm"
-                    className="h-7 text-xs"
-                    disabled={!interviewDatum}
-                    onClick={() => handleInterviewConfirm(resource)}
-                  >
-                    Bestätigen
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 text-xs"
-                    onClick={() => { setPendingInterviewId(null); setInterviewDatum('') }}
-                  >
-                    Abbrechen
-                  </Button>
-                </div>
-              )}
-            </div>
-          )
-        })}
+            )
+          })}
+        </div>
       </div>
-    </div>
+
+      {/* Feedback Modal */}
+      <Dialog open={!!feedbackModal} onOpenChange={(open) => { if (!open) { setFeedbackModal(null); setFeedbackText('') } }}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>
+              Status: {feedbackModal?.targetStatus}
+            </DialogTitle>
+            <DialogDescription>
+              Feedback für <span className="font-medium text-foreground">{feedbackModal?.resource.name}</span> (optional — sichtbar für die Agentur)
+            </DialogDescription>
+          </DialogHeader>
+
+          <textarea
+            className="w-full min-h-[120px] rounded-md border border-border bg-background px-3 py-2 text-sm resize-y placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            placeholder="Begründung oder Hinweise für die Agentur…"
+            value={feedbackText}
+            onChange={(e) => setFeedbackText(e.target.value)}
+            maxLength={1000}
+            autoFocus
+          />
+          <p className="text-[11px] text-muted-foreground text-right -mt-1">{feedbackText.length}/1000</p>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setFeedbackModal(null); setFeedbackText('') }} disabled={savingFeedback}>
+              Abbrechen
+            </Button>
+            <Button onClick={handleFeedbackSave} disabled={savingFeedback}>
+              {savingFeedback ? 'Speichert…' : 'Speichern & Status setzen'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </TooltipProvider>
   )
 }

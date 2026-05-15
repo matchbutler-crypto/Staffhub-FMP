@@ -32,6 +32,7 @@ export interface PoolRessource {
   link_created_at?: string | null
   ki_score?: number | null
   cv_pfad?: string | null
+  link_feedback?: string | null
 }
 
 export const VERFUEGBARKEIT_COLORS: Record<string, string> = {

@@ -223,14 +223,22 @@ export default function VakanzDetailPage() {
     }
   }
 
-  async function handleLinkStatusChange(resource: PoolRessource, newStatus: string, interviewDatum?: string | null) {
+  async function handleLinkStatusChange(
+    resource: PoolRessource,
+    newStatus: string,
+    options?: { interviewDatum?: string | null; feedback?: string | null }
+  ) {
     if (!resource.link_id) return
     setUpdatingLinkId(resource.link_id)
     try {
       const res = await fetch(`/api/ressource-links/${resource.link_id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus, interview_datum: interviewDatum ?? null }),
+        body: JSON.stringify({
+          status: newStatus,
+          interview_datum: options?.interviewDatum ?? null,
+          feedback: options?.feedback ?? null,
+        }),
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
@@ -238,7 +246,9 @@ export default function VakanzDetailPage() {
         return
       }
       setGespielt((prev) => prev.map((r) =>
-        r.id === resource.id ? { ...r, link_status: newStatus } : r
+        r.id === resource.id
+          ? { ...r, link_status: newStatus, link_feedback: options?.feedback ?? r.link_feedback }
+          : r
       ))
       toast.success(`Status auf „${newStatus}" gesetzt`)
     } catch {
@@ -526,22 +536,18 @@ export default function VakanzDetailPage() {
                 )
               )}
 
-              {/* Manager: Pool-Ressourcen */}
-              {isManager && (
-                loadingGespielt ? (
-                  <div className="space-y-2">{[1,2].map((i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
-                ) : gespielt.length > 0 ? (
-                  <div className="space-y-2">
-                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pool-Ressourcen</h3>
-                    <GespielteRessourcenTable
-                      resources={gespielt}
-                      vakanzId={id}
-                      isManager
-                      onWithdraw={(r) => { setRueckzugTarget(r); setRueckzugOpen(true) }}
-                      onStatusChange={handleLinkStatusChange}
-                    />
-                  </div>
-                ) : null
+              {/* Manager: Pool-Ressourcen — kein Skeleton (verhindert Layout-Flicker beim Laden) */}
+              {isManager && gespielt.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pool-Ressourcen</h3>
+                  <GespielteRessourcenTable
+                    resources={gespielt}
+                    vakanzId={id}
+                    isManager
+                    onWithdraw={(r) => { setRueckzugTarget(r); setRueckzugOpen(true) }}
+                    onStatusChange={handleLinkStatusChange}
+                  />
+                </div>
               )}
 
               {/* Manager: Kandidaten-Profile */}
