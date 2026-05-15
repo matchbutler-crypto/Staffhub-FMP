@@ -20,14 +20,12 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import type { ParsedVakanz } from '@/lib/openai'
 
@@ -82,17 +80,6 @@ export const vakanzSchema = z.object({
 
 export type VakanzFormData = z.infer<typeof vakanzSchema>
 
-// ── Component ──────────────────────────────────────────────────────────────────
-
-interface VakanzFormSheetProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  mode: 'create' | 'edit'
-  vakanz?: VakanzForForm | null
-  showBudget: boolean
-  onSuccess: () => void
-}
-
 // ── KI Panel ───────────────────────────────────────────────────────────────────
 
 type KiState = 'idle' | 'open' | 'loading' | 'done'
@@ -141,13 +128,11 @@ function KiPanel({ onFill }: { onFill: (data: ParsedVakanz) => void }) {
 
   return (
     <div className="ki-panel relative overflow-hidden rounded-xl border border-zinc-200 bg-zinc-950 shadow-2xl">
-      {/* animated gradient border top */}
       <div className="ki-border-glow absolute inset-x-0 top-0 h-px" />
-
       <div className="px-4 pt-4 pb-3">
         <div className="mb-2.5 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className={`relative flex h-6 w-6 items-center justify-center rounded-md bg-amber-500/15`}>
+            <div className="relative flex h-6 w-6 items-center justify-center rounded-md bg-amber-500/15">
               {state === 'loading' ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-400" />
               ) : state === 'done' ? (
@@ -168,7 +153,6 @@ function KiPanel({ onFill }: { onFill: (data: ParsedVakanz) => void }) {
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
-
         {state !== 'done' && (
           <>
             <textarea
@@ -196,7 +180,6 @@ function KiPanel({ onFill }: { onFill: (data: ParsedVakanz) => void }) {
             </div>
           </>
         )}
-
         {state === 'done' && (
           <p className="text-xs text-zinc-400">
             Felder wurden vorausgefüllt — bitte prüfen und bei Bedarf anpassen.{' '}
@@ -210,7 +193,6 @@ function KiPanel({ onFill }: { onFill: (data: ParsedVakanz) => void }) {
           </p>
         )}
       </div>
-
       <style>{`
         .ki-border-glow {
           background: linear-gradient(90deg, transparent 0%, #f59e0b 30%, #fbbf24 50%, #f59e0b 70%, transparent 100%);
@@ -231,20 +213,21 @@ function KiPanel({ onFill }: { onFill: (data: ParsedVakanz) => void }) {
           box-shadow: 0 0 18px rgba(245,158,11,0.5);
           transform: translateY(-1px);
         }
-        @keyframes ki-field-flash {
-          0% { background-color: rgba(245,158,11,0.12); }
-          100% { background-color: transparent; }
-        }
-        .ki-filled {
-          animation: ki-field-flash 1.2s ease-out forwards;
-          border-radius: 6px;
-        }
       `}</style>
     </div>
   )
 }
 
 // ── Main Component ─────────────────────────────────────────────────────────────
+
+interface VakanzFormSheetProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  mode: 'create' | 'edit'
+  vakanz?: VakanzForForm | null
+  showBudget: boolean
+  onSuccess: () => void
+}
 
 export function VakanzFormSheet({ open, onOpenChange, mode, vakanz, showBudget, onSuccess }: VakanzFormSheetProps) {
   const [saving, setSaving] = React.useState(false)
@@ -336,28 +319,48 @@ export function VakanzFormSheet({ open, onOpenChange, mode, vakanz, showBudget, 
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="flex w-[500px] flex-col gap-0 overflow-hidden p-0 sm:w-[560px]">
-        <SheetHeader className="border-b px-6 py-4">
-          <div className="flex items-center justify-between">
-            <SheetTitle>{mode === 'create' ? 'Neue Vakanz erstellen' : 'Vakanz bearbeiten'}</SheetTitle>
-            {mode === 'create' && <KiPanel onFill={handleKiFill} />}
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex max-h-[90vh] w-full max-w-2xl flex-col gap-0 overflow-hidden p-0 [&>button]:hidden">
+        {/* Header */}
+        <DialogHeader className="shrink-0 border-b px-6 py-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col gap-0.5">
+              <DialogTitle className="text-lg">
+                {mode === 'create' ? 'Neue Vakanz erstellen' : 'Vakanz bearbeiten'}
+              </DialogTitle>
+              <DialogDescription className="text-sm">
+                {mode === 'create' ? 'Füllen Sie alle Pflichtfelder aus.' : 'Bearbeiten Sie die Vakanz-Details.'}
+              </DialogDescription>
+            </div>
+            {mode === 'create' && (
+              <div className="shrink-0 pt-0.5">
+                <KiPanel onFill={handleKiFill} />
+              </div>
+            )}
           </div>
-          <SheetDescription>{mode === 'create' ? 'Füllen Sie alle Pflichtfelder aus.' : 'Bearbeiten Sie die Vakanz-Details.'}</SheetDescription>
-        </SheetHeader>
-        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-1 flex-col overflow-hidden">
-          <div className="flex-1 overflow-y-auto px-6 py-4">
+          {/* KI panel expanded state lives below the title row */}
+        </DialogHeader>
+
+        {/* Scrollable form body */}
+        <form onSubmit={handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col">
+          <div className="flex-1 overflow-y-auto px-6 py-5">
             <div className="flex flex-col gap-4">
+
+              {/* Row 1: Rolle */}
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="v-rolle">Benötigte Rolle <span className="text-destructive">*</span></Label>
                 <Input id="v-rolle" placeholder="z.B. Senior Frontend Engineer" {...register('rolle')} className={errors.rolle ? 'border-destructive' : ''} />
                 {errors.rolle && <p className="text-xs text-destructive">{errors.rolle.message}</p>}
               </div>
+
+              {/* Row 2: Projektkontext */}
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="v-beschreibung">Projektkontext <span className="text-destructive">*</span></Label>
                 <Textarea id="v-beschreibung" placeholder="Kontext, Aufgaben, Anforderungen..." className={`min-h-[90px] ${errors.beschreibung ? 'border-destructive' : ''}`} {...register('beschreibung')} />
                 {errors.beschreibung && <p className="text-xs text-destructive">{errors.beschreibung.message}</p>}
               </div>
+
+              {/* Row 3: Branche + Kunde */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="v-branche">Branche <span className="text-destructive">*</span></Label>
@@ -374,6 +377,8 @@ export function VakanzFormSheet({ open, onOpenChange, mode, vakanz, showBudget, 
                   <Input id="v-kunde" placeholder="optional" {...register('kunde')} />
                 </div>
               </div>
+
+              {/* Row 4: Daten */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="v-start">Geplanter Projektstart <span className="text-destructive">*</span></Label>
@@ -386,6 +391,8 @@ export function VakanzFormSheet({ open, onOpenChange, mode, vakanz, showBudget, 
                   {errors.enddatum && <p className="text-xs text-destructive">{errors.enddatum.message}</p>}
                 </div>
               </div>
+
+              {/* Row 5: Team + FTE */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="v-team">Teamgröße</Label>
@@ -397,6 +404,8 @@ export function VakanzFormSheet({ open, onOpenChange, mode, vakanz, showBudget, 
                   {errors.fte_anzahl && <p className="text-xs text-destructive">{errors.fte_anzahl.message}</p>}
                 </div>
               </div>
+
+              {/* Row 6: Level + Arbeitsmodell */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="v-level">Erfahrungslevel <span className="text-destructive">*</span></Label>
@@ -428,6 +437,8 @@ export function VakanzFormSheet({ open, onOpenChange, mode, vakanz, showBudget, 
                   {errors.arbeitsmodell && <p className="text-xs text-destructive">{errors.arbeitsmodell.message}</p>}
                 </div>
               </div>
+
+              {/* Conditional: Onsite-Anteil */}
               {watchedArbeitsmodell === 'Hybrid' && (
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="v-onsite">Onsite-Anteil (%)</Label>
@@ -435,18 +446,24 @@ export function VakanzFormSheet({ open, onOpenChange, mode, vakanz, showBudget, 
                   {errors.onsite_anteil && <p className="text-xs text-destructive">{errors.onsite_anteil.message}</p>}
                 </div>
               )}
+
+              {/* Row 7: Skills Must Have */}
               <div className="flex flex-col gap-1.5">
                 <Label>Skills (Must Have) <span className="text-destructive">*</span></Label>
                 <Controller control={control} name="skills" render={({ field }) => (
                   <TagInput value={field.value} onChange={field.onChange} error={errors.skills?.message} />
                 )} />
               </div>
+
+              {/* Row 8: Skills Nice Have */}
               <div className="flex flex-col gap-1.5">
                 <Label>Skills (Nice Have)</Label>
                 <Controller control={control} name="skills_nice_have" render={({ field }) => (
                   <TagInput value={field.value ?? []} onChange={field.onChange} />
                 )} />
               </div>
+
+              {/* Row 9: Budget + Region */}
               <div className="grid grid-cols-2 gap-3">
                 {showBudget && (
                   <div className="flex flex-col gap-1.5">
@@ -460,14 +477,20 @@ export function VakanzFormSheet({ open, onOpenChange, mode, vakanz, showBudget, 
                   <Input id="v-standort" placeholder="z.B. Deutschland" {...register('standort')} />
                 </div>
               </div>
+
+              {/* Row 10: Ansprechpartner */}
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="v-ansprech">Ansprechpartner</Label>
                 <Input id="v-ansprech" placeholder="optional" {...register('ansprechpartner')} />
               </div>
+
+              {/* Row 11: Kommentare */}
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="v-kommentare">Weitere Kommentare</Label>
                 <Textarea id="v-kommentare" placeholder="optional" className="min-h-[70px]" {...register('weitere_kommentare')} />
               </div>
+
+              {/* Edit-only: Status */}
               {mode === 'edit' && (
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="v-status">Status</Label>
@@ -487,16 +510,18 @@ export function VakanzFormSheet({ open, onOpenChange, mode, vakanz, showBudget, 
               )}
             </div>
           </div>
-          <SheetFooter className="border-t px-6 py-4">
-            <SheetClose asChild>
-              <Button type="button" variant="outline" disabled={saving}>Abbrechen</Button>
-            </SheetClose>
+
+          {/* Footer */}
+          <div className="flex shrink-0 items-center justify-end gap-2 border-t px-6 py-4">
+            <Button type="button" variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>
+              Abbrechen
+            </Button>
             <Button type="submit" disabled={saving}>
               {saving ? 'Speichern…' : mode === 'create' ? 'Vakanz erstellen' : 'Änderungen speichern'}
             </Button>
-          </SheetFooter>
+          </div>
         </form>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   )
 }
