@@ -195,7 +195,7 @@ export function RessourceEinsetzenDialog({
             <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input className="pl-9" placeholder="Name oder Skill suchen…" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
-          <div className="flex-1 overflow-y-auto rounded-md border min-h-[200px] max-h-[min(420px,calc(90vh-220px))]">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden rounded-md border min-h-[200px] max-h-[min(420px,calc(90vh-220px))]">
             {loadingPool ? (
               <div className="p-4 text-center text-sm text-muted-foreground">Lädt…</div>
             ) : filteredWithScore.length === 0 ? (
@@ -203,7 +203,13 @@ export function RessourceEinsetzenDialog({
                 {ressourcen.length === 0 ? "Noch keine Pool-Ressourcen vorhanden." : "Keine Ressourcen gefunden."}
               </div>
             ) : (
-              <table className="w-full text-sm">
+              <table className="w-full text-sm table-fixed">
+                <colgroup>
+                  <col className="w-[46%]" />
+                  <col className="w-[26%]" />
+                  <col className="w-[16%]" />
+                  <col className="w-[12%]" />
+                </colgroup>
                 <thead className="border-b bg-muted/50">
                   <tr>
                     <th className="px-3 py-2 text-left font-medium text-muted-foreground">Name</th>
@@ -230,8 +236,8 @@ export function RessourceEinsetzenDialog({
                         }}
                         className={`transition-colors ${isDisabled ? "cursor-not-allowed opacity-50" : isSelected ? "bg-primary/5 cursor-pointer" : "hover:bg-muted/50 cursor-pointer"}`}
                       >
-                        <td className="px-3 py-2.5">
-                          <div className="flex items-center gap-2">
+                        <td className="px-3 py-2.5 min-w-0">
+                          <div className="flex items-center gap-2 min-w-0">
                             <input
                               type="checkbox"
                               checked={isSelected}
@@ -239,12 +245,12 @@ export function RessourceEinsetzenDialog({
                               disabled={isDisabled}
                               className="size-4 shrink-0 rounded border-border accent-primary"
                             />
-                            <span className="font-medium">{r.name}</span>
-                            {isDisabled && <span className="shrink-0 inline-flex items-center rounded border border-border bg-muted/60 px-1.5 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">Bereits eingereicht</span>}
+                            <span className="font-medium truncate">{r.name}</span>
+                            {isDisabled && <span className="shrink-0 inline-flex items-center rounded border border-border bg-muted/60 px-1.5 py-0.5 text-[10px] text-muted-foreground">Eingereicht</span>}
                           </div>
                         </td>
-                        <td className="px-3 py-2.5">
-                          <span className="text-xs text-foreground">{r.rolle || r.erfahrungslevel}</span>
+                        <td className="px-3 py-2.5 min-w-0">
+                          <span className="text-xs text-foreground truncate block">{r.rolle || r.erfahrungslevel}</span>
                         </td>
                         <td className="px-3 py-2.5 text-muted-foreground">
                           {r.verfuegbar_ab
