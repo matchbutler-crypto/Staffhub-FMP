@@ -192,7 +192,7 @@ export async function POST(
   if (slackOk) {
     const now = new Date().toISOString()
     await supabase
-      .from('vakanzen')
+      .from('vakanzen_data')
       .update({
         slack_ts: String(Date.now() / 1000), // legacy field kept
         slack_detail_posted_at: now,

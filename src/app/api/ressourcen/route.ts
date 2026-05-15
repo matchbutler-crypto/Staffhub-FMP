@@ -51,7 +51,8 @@ export async function GET(request: NextRequest) {
       id, agentur_id, name, rolle, skills, erfahrungslevel,
       verfuegbarkeit, verfuegbar_ab, cv_pfad,
       ek_tagesrate, notizen, created_at, updated_at,
-      agenturen(name)
+      agenturen(name),
+      ressource_vakanz_links(count)
     `)
     .order('updated_at', { ascending: false })
     .limit(500)
@@ -71,10 +72,12 @@ export async function GET(request: NextRequest) {
   }
 
   let result = (data ?? []).map((r) => {
-    const { ek_tagesrate, notizen, ...rest } = r
+    const { ek_tagesrate, notizen, ressource_vakanz_links, ...rest } = r
     const canSeePrivate = isManager || r.agentur_id === profile.agentur_id
+    const linkCount = (ressource_vakanz_links as { count: number }[])?.[0]?.count ?? 0
     return {
       ...rest,
+      link_count: linkCount,
       ...(canSeePrivate ? { ek_tagesrate, notizen } : {}),
     }
   })

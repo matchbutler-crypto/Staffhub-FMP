@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { parseVakanzFromText } from '@/lib/openai'
+import { normalizeSkills } from '@/lib/skillNormalization'
 
 export const maxDuration = 30
 
@@ -40,6 +41,17 @@ export async function POST(request: NextRequest) {
 
   try {
     const result = await parseVakanzFromText(text)
+
+    // Normalize skills against DB for consistent naming
+    if (result.skills.length > 0) {
+      const normalized = await normalizeSkills(result.skills, supabase)
+      result.skills = normalized.map(s => s.name)
+    }
+    if (result.skills_nice_have.length > 0) {
+      const normalized = await normalizeSkills(result.skills_nice_have, supabase)
+      result.skills_nice_have = normalized.map(s => s.name)
+    }
+
     return NextResponse.json({ vakanz: result })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unbekannter Fehler'

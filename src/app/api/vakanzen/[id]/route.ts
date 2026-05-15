@@ -159,7 +159,7 @@ export async function PUT(
   }
 
   const { data: vakanz, error } = await supabase
-    .from('vakanzen')
+    .from('vakanzen_data')
     .update(updateData)
     .eq('id', id)
     .select('id, titel, status, besetzt_seit, updated_at')

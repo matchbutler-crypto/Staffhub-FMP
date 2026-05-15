@@ -53,7 +53,7 @@ export async function PATCH(
   }
 
   const { data: vakanz, error } = await supabase
-    .from('vakanzen')
+    .from('vakanzen_data')
     .update(updatePayload)
     .eq('id', id)
     .select('id, titel, status, besetzt_seit, updated_at')

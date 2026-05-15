@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import {
   IconArrowRight,
+  IconChevronDown,
+  IconChevronRight,
   IconClock,
   IconDownload,
   IconLink,
@@ -77,6 +79,7 @@ interface Ressource {
   cv_pfad?: string | null
   ek_tagesrate?: number | null
   notizen?: string | null
+  link_count?: number
   created_at: string
   updated_at: string
   agenturen?: Agentur | null
@@ -1074,6 +1077,33 @@ export default function RessourcenPage() {
   const [selectedRessource, setSelectedRessource] =
     React.useState<Ressource | null>(null)
 
+  const [expandedIds, setExpandedIds] = React.useState<Set<string>>(new Set())
+  const [linksCache, setLinksCache] = React.useState<Record<string, VakanzLink[]>>({})
+  const [loadingLinkIds, setLoadingLinkIds] = React.useState<Set<string>>(new Set())
+
+  async function handleToggleExpand(id: string, e: React.MouseEvent) {
+    e.stopPropagation()
+    setExpandedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) { next.delete(id); return next }
+      next.add(id)
+      return next
+    })
+    if (!(id in linksCache) && !loadingLinkIds.has(id)) {
+      setLoadingLinkIds((prev) => new Set(prev).add(id))
+      try {
+        const res = await fetch(`/api/ressourcen/${id}/links`)
+        if (res.ok) {
+          const d = await res.json()
+          setLinksCache((prev) => ({ ...prev, [id]: d.links ?? [] }))
+        }
+      } catch { /* silently fail */ }
+      finally {
+        setLoadingLinkIds((prev) => { const next = new Set(prev); next.delete(id); return next })
+      }
+    }
+  }
+
   async function fetchRessourcen() {
     setLoading(true)
     setError(null)
@@ -1294,48 +1324,113 @@ export default function RessourcenPage() {
                         <TableHead>Level</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>EK-Rate</TableHead>
+                        <TableHead>Vakanzen</TableHead>
                         <TableHead>Aktualisiert</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {loading ? (
-                        <TableSkeletonRows cols={7} />
+                        <TableSkeletonRows cols={8} />
                       ) : filtered.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={7} className="py-12 text-center text-muted-foreground">
+                          <TableCell colSpan={8} className="py-12 text-center text-muted-foreground">
                             {ressourcen.length === 0 ? "Noch keine Ressourcen vorhanden." : "Keine Ressourcen für diese Filter."}
                           </TableCell>
                         </TableRow>
                       ) : (
-                        filtered.map((r) => (
-                          <TableRow
-                            key={r.id}
-                            className="cursor-pointer"
-                            onClick={() => { setSelectedRessource(r); setDetailOpen(true) }}
-                          >
-                            <TableCell className="font-medium">{r.name}</TableCell>
-                            <TableCell className="text-muted-foreground">{r.agenturen?.name ?? "—"}</TableCell>
-                            <TableCell><SkillTags skills={r.skills} /></TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className={erfahrungsColors[r.erfahrungslevel]}>
-                                {r.erfahrungslevel}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className={verfuegbarkeitColors[r.verfuegbarkeit]}>
-                                {r.verfuegbarkeit}
-                                {r.verfuegbarkeit === "Verfügbar ab" && r.verfuegbar_ab &&
-                                  ` ${new Date(r.verfuegbar_ab).toLocaleDateString("de-DE")}`}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              {r.ek_tagesrate != null ? `${r.ek_tagesrate.toLocaleString("de-DE")} €` : <span className="text-muted-foreground">—</span>}
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground">
-                              {new Date(r.updated_at).toLocaleDateString("de-DE")}
-                            </TableCell>
-                          </TableRow>
-                        ))
+                        filtered.map((r) => {
+                          const isExpanded = expandedIds.has(r.id)
+                          const isLoadingLinks = loadingLinkIds.has(r.id)
+                          const cachedLinks = linksCache[r.id] ?? []
+                          const linkCount = r.link_count ?? 0
+                          return (
+                            <React.Fragment key={r.id}>
+                              <TableRow
+                                className="cursor-pointer"
+                                onClick={() => { setSelectedRessource(r); setDetailOpen(true) }}
+                              >
+                                <TableCell className="font-medium">{r.name}</TableCell>
+                                <TableCell className="text-muted-foreground">{r.agenturen?.name ?? "—"}</TableCell>
+                                <TableCell><SkillTags skills={r.skills} /></TableCell>
+                                <TableCell>
+                                  <Badge variant="outline" className={erfahrungsColors[r.erfahrungslevel]}>
+                                    {r.erfahrungslevel}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant="outline" className={verfuegbarkeitColors[r.verfuegbarkeit]}>
+                                    {r.verfuegbarkeit}
+                                    {r.verfuegbarkeit === "Verfügbar ab" && r.verfuegbar_ab &&
+                                      ` ${new Date(r.verfuegbar_ab).toLocaleDateString("de-DE")}`}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  {r.ek_tagesrate != null ? `${r.ek_tagesrate.toLocaleString("de-DE")} €` : <span className="text-muted-foreground">—</span>}
+                                </TableCell>
+                                <TableCell onClick={(e) => { if (linkCount > 0) handleToggleExpand(r.id, e) }}>
+                                  {linkCount > 0 ? (
+                                    <button
+                                      className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                                        isExpanded
+                                          ? "border-primary/30 bg-primary/5 text-primary"
+                                          : "border-border bg-muted/50 text-muted-foreground hover:border-primary/20 hover:text-foreground"
+                                      }`}
+                                    >
+                                      <IconLink className="size-3.5" />
+                                      {linkCount}
+                                      <IconChevronDown
+                                        className={`size-3.5 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
+                                      />
+                                    </button>
+                                  ) : (
+                                    <span className="text-muted-foreground">—</span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-xs text-muted-foreground">
+                                  {new Date(r.updated_at).toLocaleDateString("de-DE")}
+                                </TableCell>
+                              </TableRow>
+                              {isExpanded && (
+                                <TableRow className="bg-muted/30 hover:bg-muted/30">
+                                  <TableCell colSpan={8} className="py-3 px-4">
+                                    {isLoadingLinks ? (
+                                      <div className="flex flex-col gap-1.5">
+                                        {[1, 2].map((i) => <Skeleton key={i} className="h-5 w-full rounded" />)}
+                                      </div>
+                                    ) : cachedLinks.length === 0 ? (
+                                      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                        <IconLink className="size-3.5" />
+                                        Noch auf keine Vakanz gespielt.
+                                      </p>
+                                    ) : (
+                                      <div className="flex flex-col divide-y rounded-md border bg-background">
+                                        {cachedLinks.map((link) => (
+                                          <div key={link.id} className="flex items-center gap-3 px-3 py-2">
+                                            <span className="min-w-0 flex-1 truncate text-xs font-medium">
+                                              {link.vakanzen_data?.rolle ?? "Unbekannte Vakanz"}
+                                            </span>
+                                            <span className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium ${linkStatusColors[link.status]}`}>
+                                              {link.status}
+                                            </span>
+                                            {link.interview_datum && (
+                                              <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                                <IconClock className="size-3" />
+                                                {new Date(link.interview_datum).toLocaleDateString("de-DE")}
+                                              </span>
+                                            )}
+                                            <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                                              {new Date(link.created_at).toLocaleDateString("de-DE")}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                            </React.Fragment>
+                          )
+                        })
                       )}
                     </TableBody>
                   </Table>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 const ROLLEN = ['Admin', 'Staffhub Manager', 'Agentur'] as const
 
@@ -67,4 +68,43 @@ export async function PATCH(
   }
 
   return NextResponse.json({ user: data })
+}
+
+// ── DELETE /api/admin/users/[id] ──────────────────────────────────────────────
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const supabase = await createClient()
+  const adminUser = await requireAdmin(supabase)
+  if (!adminUser) {
+    return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
+  }
+
+  if (adminUser.id === id) {
+    return NextResponse.json({ error: 'Eigenen Account nicht löschbar' }, { status: 400 })
+  }
+
+  let supabaseAdmin
+  try {
+    supabaseAdmin = createAdminClient()
+  } catch {
+    return NextResponse.json(
+      { error: 'Server-Konfigurationsfehler: SUPABASE_SERVICE_ROLE_KEY fehlt' },
+      { status: 503 }
+    )
+  }
+
+  // Delete profile row first (FK may not cascade automatically)
+  await supabase.from('profiles').delete().eq('id', id)
+
+  // Delete auth user
+  const { error } = await supabaseAdmin.auth.admin.deleteUser(id)
+  if (error) {
+    return NextResponse.json({ error: `Fehler beim Löschen: ${error.message}` }, { status: 500 })
+  }
+
+  return NextResponse.json({ success: true })
 }

@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
   }
 
   const { data: vakanz, error } = await supabase
-    .from('vakanzen')
+    .from('vakanzen_data')
     .insert({
       ...parsed.data,
       titel: parsed.data.rolle,

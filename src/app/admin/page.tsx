@@ -7,6 +7,7 @@ import {
   IconUserOff,
   IconUserCheck,
   IconShield,
+  IconTrash,
 } from "@tabler/icons-react"
 import { toast } from "sonner"
 
@@ -547,6 +548,9 @@ export default function AdminPage() {
   const [agenturSheetOpen, setAgenturSheetOpen] = React.useState(false)
   const [loeschenOpen, setLoeschenOpen] = React.useState(false)
   const [loeschenAgentur, setLoeschenAgentur] = React.useState<Agentur | null>(null)
+  const [userLoeschenOpen, setUserLoeschenOpen] = React.useState(false)
+  const [userLoeschen, setUserLoeschen] = React.useState<User | null>(null)
+  const [userLoeschenLoading, setUserLoeschenLoading] = React.useState(false)
   const [rolleDialogOpen, setRolleDialogOpen] = React.useState(false)
   const [rolleUser, setRolleUser] = React.useState<User | null>(null)
 
@@ -586,6 +590,26 @@ export default function AdminPage() {
     fetchUsers()
     fetchAgenturen()
   }, [])
+
+  async function handleUserLoeschen() {
+    if (!userLoeschen) return
+    setUserLoeschenLoading(true)
+    try {
+      const res = await fetch(`/api/admin/users/${userLoeschen.id}`, { method: "DELETE" })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error ?? "Fehler beim Löschen")
+      }
+      toast.success(`Benutzer „${userLoeschen.name}" gelöscht`)
+      setUserLoeschenOpen(false)
+      setUserLoeschen(null)
+      fetchUsers()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Fehler beim Löschen")
+    } finally {
+      setUserLoeschenLoading(false)
+    }
+  }
 
   async function toggleUserAktiv(user: User) {
     try {
@@ -751,6 +775,14 @@ export default function AdminPage() {
                                           </>
                                         )}
                                       </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem
+                                        className="text-destructive focus:text-destructive"
+                                        onClick={() => { setUserLoeschen(u); setUserLoeschenOpen(true) }}
+                                      >
+                                        <IconTrash className="mr-2 size-4" />
+                                        Löschen
+                                      </DropdownMenuItem>
                                     </DropdownMenuContent>
                                   </DropdownMenu>
                                 </TableCell>
@@ -881,6 +913,27 @@ export default function AdminPage() {
         agentur={loeschenAgentur}
         onSuccess={fetchAgenturen}
       />
+
+      <AlertDialog open={userLoeschenOpen} onOpenChange={(open) => { if (!userLoeschenLoading) setUserLoeschenOpen(open) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Benutzer löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <strong>{userLoeschen?.name ?? "Dieser Benutzer"}</strong> wird dauerhaft gelöscht. Dieser Vorgang kann nicht rückgängig gemacht werden.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={userLoeschenLoading}>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleUserLoeschen}
+              disabled={userLoeschenLoading}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {userLoeschenLoading ? "Wird gelöscht…" : "Löschen"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <RolleAendernDialog
         open={rolleDialogOpen}

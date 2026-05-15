@@ -55,7 +55,7 @@ export async function PATCH(
   // Aktuellen Link laden
   const { data: link } = await supabase
     .from('ressource_vakanz_links')
-    .select('id, ressource_id, status, vakanzen_data(rolle)')
+    .select('id, ressource_id, vakanz_id, status, vakanzen_data(rolle, enddatum)')
     .eq('id', id)
     .single()
 
@@ -90,6 +90,7 @@ export async function PATCH(
   // Automatischer Historien-Eintrag
   const vakanzenArray = Array.isArray(link.vakanzen_data) ? link.vakanzen_data : [link.vakanzen_data]
   const vakanzRolle = vakanzenArray[0]?.rolle ?? 'unbekannte Vakanz'
+  const vakanzEnddatum = vakanzenArray[0]?.enddatum ?? null
   let histText = newStatus === 'Interview geplant' && interview_datum
     ? `Interview geplant am ${new Date(interview_datum).toLocaleDateString('de-DE')} (Vakanz: "${vakanzRolle}")`
     : `Status auf "${newStatus}" gesetzt (Vakanz: "${vakanzRolle}")`
@@ -102,6 +103,23 @@ export async function PATCH(
     text: histText,
     erstellt_von: user.id,
   })
+
+  // Bei Zugesagt: Verfügbarkeit automatisch auf Enddatum der Vakanz setzen
+  if (newStatus === 'Zugesagt' && vakanzEnddatum) {
+    await supabase
+      .from('ressourcen')
+      .update({ verfuegbarkeit: 'Verfügbar ab', verfuegbar_ab: vakanzEnddatum })
+      .eq('id', link.ressource_id)
+
+    const dateLabel = new Date(vakanzEnddatum).toLocaleDateString('de-DE')
+    await supabase.from('ressource_historie').insert({
+      ressource_id: link.ressource_id,
+      link_id: id,
+      typ: 'system',
+      text: `Verfügbarkeit automatisch auf "Verfügbar ab ${dateLabel}" aktualisiert (Beauftragung: "${vakanzRolle}")`,
+      erstellt_von: user.id,
+    })
+  }
 
   return NextResponse.json({ link: updated })
 }
