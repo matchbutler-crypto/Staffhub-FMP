@@ -435,37 +435,82 @@ function VakanzCard({
     >
       {/* ── Card Header ─────────────────────────────────────────────────────── */}
       <div
-        className="flex cursor-pointer items-start gap-3 px-4 py-3.5 select-none"
+        className="flex cursor-pointer items-start gap-3 px-4 py-4 select-none"
         onClick={() => onNavigate(vakanz.id)}
       >
-        {/* Main content — two rows */}
-        <div className="flex flex-1 flex-col gap-1.5 min-w-0">
+        {/* Main content — detail-style layout */}
+        <div className="flex flex-1 flex-col gap-2.5 min-w-0">
           {/* Row 1: Title */}
           <span className="font-semibold text-sm text-foreground leading-snug">
             {vakanz.rolle}
           </span>
-          {/* Row 2: Badges + Skills + Metadata */}
-          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
-            <span
-              className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusColors[vakanz.status]}`}
-            >
+
+          {/* Row 2: Status + Level + Arbeitsmodell + Branche badges */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusColors[vakanz.status]}`}>
               {vakanz.status}
             </span>
             <span className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium ${erfahrungsColors[vakanz.erfahrungslevel]}`}>
               {vakanz.erfahrungslevel}
             </span>
             <span className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium ${arbeitsmodellColors[vakanz.arbeitsmodell]}`}>
-              {vakanz.arbeitsmodell}
+              {vakanz.arbeitsmodell}{vakanz.onsite_anteil != null ? ` · ${vakanz.onsite_anteil}% Onsite` : ""}
             </span>
-            <SkillTags skills={vakanz.skills} />
-            <span className="text-muted-foreground/40 text-xs shrink-0 select-none">·</span>
-            <span className="text-xs text-muted-foreground shrink-0">Start: {vakanz.startdatum}</span>
-            {vakanz.standort && <span className="text-xs text-muted-foreground shrink-0">· {vakanz.standort}</span>}
-            {vakanz.kunde && <span className="text-xs text-muted-foreground shrink-0">· {vakanz.kunde}</span>}
-            {isManagerOrAdmin && vakanz.budget_intern != null && (
-              <span className="text-xs font-medium text-foreground shrink-0">· {vakanz.budget_intern.toLocaleString("de-DE")} €/Tag</span>
+            {vakanz.branche && (
+              <span className="inline-flex shrink-0 items-center rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-xs text-muted-foreground">
+                {vakanz.branche}
+              </span>
             )}
           </div>
+
+          {/* Row 3: Meta-Grid */}
+          <div className="flex flex-wrap gap-x-6 gap-y-1.5">
+            <div>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Start</p>
+              <p className="text-xs font-medium">{new Date(vakanz.startdatum).toLocaleDateString("de-DE")}</p>
+            </div>
+            {vakanz.enddatum && (
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Ende</p>
+                <p className="text-xs font-medium">{new Date(vakanz.enddatum).toLocaleDateString("de-DE")}</p>
+              </div>
+            )}
+            <div>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">FTE</p>
+              <p className="text-xs font-medium">{vakanz.fte_anzahl}</p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Auslastung</p>
+              <p className="text-xs font-medium">{vakanz.auslastung}%</p>
+            </div>
+            {vakanz.standort && (
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Standort</p>
+                <p className="text-xs font-medium">{vakanz.standort}</p>
+              </div>
+            )}
+            {isManagerOrAdmin && vakanz.ansprechpartner && (
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Kontakt</p>
+                <p className="text-xs font-medium">{vakanz.ansprechpartner}</p>
+              </div>
+            )}
+            {vakanz.kunde && (
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Kunde</p>
+                <p className="text-xs font-medium">{vakanz.kunde}</p>
+              </div>
+            )}
+            {isManagerOrAdmin && vakanz.budget_intern != null && (
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">EK/Tag</p>
+                <p className="text-xs font-medium">{vakanz.budget_intern.toLocaleString("de-DE")} €</p>
+              </div>
+            )}
+          </div>
+
+          {/* Row 4: Skills */}
+          <SkillTags skills={vakanz.skills} />
         </div>
 
         {/* Right side: profile count + slack indicator + dropdown */}
@@ -706,17 +751,26 @@ function VakanzCard({
 
 function VakanzCardSkeleton() {
   return (
-    <div className="rounded-xl border bg-card px-4 py-3.5 shadow-xs border-l-4 border-l-border">
+    <div className="rounded-xl border bg-card px-4 py-4 shadow-xs border-l-4 border-l-border">
       <div className="flex items-start gap-3">
-        <div className="flex flex-1 flex-col gap-2">
+        <div className="flex flex-1 flex-col gap-2.5">
           <Skeleton className="h-4 w-64" />
           <div className="flex items-center gap-1.5">
             <Skeleton className="h-5 w-16 rounded-full" />
             <Skeleton className="h-5 w-16 rounded-full" />
             <Skeleton className="h-5 w-20 rounded-full" />
+            <Skeleton className="h-5 w-20 rounded-full" />
+          </div>
+          <div className="flex gap-6">
+            <Skeleton className="h-8 w-12" />
+            <Skeleton className="h-8 w-12" />
+            <Skeleton className="h-8 w-14" />
+            <Skeleton className="h-8 w-16" />
+          </div>
+          <div className="flex gap-1.5">
             <Skeleton className="h-5 w-14 rounded" />
-            <Skeleton className="h-5 w-18 rounded" />
-            <Skeleton className="h-3 w-28 ml-2" />
+            <Skeleton className="h-5 w-16 rounded" />
+            <Skeleton className="h-5 w-12 rounded" />
           </div>
         </div>
         <Skeleton className="h-7 w-16 rounded-full" />
