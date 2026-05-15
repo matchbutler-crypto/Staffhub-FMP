@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import type React from 'react'
+import React from 'react'
 import { type PoolRessource } from './ressource-einsetzen-dialog'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -25,6 +25,27 @@ import { toast } from 'sonner'
 
 const LINK_STATUSES = ['Gespielt', 'Interview geplant', 'Zugesagt', 'Abgesagt', 'Abgelehnt'] as const
 const FEEDBACK_STATUSES = ['Abgesagt', 'Abgelehnt'] as const
+
+const STATUS_CONFIG: Record<string, { color: string; dot: string; icon: React.ReactNode }> = {
+  'Gespielt':          { color: 'bg-blue-50 text-blue-700 border-blue-200',          dot: 'bg-blue-400',    icon: <Send className="h-3 w-3" /> },
+  'Interview geplant': { color: 'bg-violet-50 text-violet-700 border-violet-200',    dot: 'bg-violet-400',  icon: <CalendarClock className="h-3 w-3" /> },
+  'Zugesagt':          { color: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-400', icon: <CheckCircle2 className="h-3 w-3" /> },
+  'Abgesagt':          { color: 'bg-orange-50 text-orange-700 border-orange-200',    dot: 'bg-orange-400',  icon: <XCircle className="h-3 w-3" /> },
+  'Abgelehnt':         { color: 'bg-red-50 text-red-700 border-red-200',             dot: 'bg-red-400',     icon: <Ban className="h-3 w-3" /> },
+  'Zurückgezogen':     { color: 'bg-gray-100 text-gray-500 border-gray-200',         dot: 'bg-gray-400',    icon: <Undo2 className="h-3 w-3" /> },
+}
+
+const FALLBACK_STATUS = { color: 'bg-gray-100 text-gray-600 border-gray-200', dot: 'bg-gray-300', icon: null }
+function getStatusConfig(status: string | null | undefined) {
+  return STATUS_CONFIG[status ?? ''] ?? FALLBACK_STATUS
+}
+
+function getScoreColor(score: number | null | undefined) {
+  if (score === null || score === undefined) return 'bg-gray-100 text-gray-700 border-gray-200'
+  if (score >= 70) return 'bg-emerald-100 text-emerald-700 border-emerald-200'
+  if (score >= 50) return 'bg-amber-100 text-amber-700 border-amber-200'
+  return 'bg-rose-100 text-rose-700 border-rose-200'
+}
 
 interface StatusChangeOptions {
   interviewDatum?: string | null
@@ -151,41 +172,17 @@ export function GespielteRessourcenTable({
     return new Date(isoDate).toLocaleDateString('de-DE')
   }
 
-  const getScoreColor = (score: number | null | undefined) => {
-    if (score === null || score === undefined) return 'bg-gray-100 text-gray-700 border-gray-200'
-    if (score >= 70) return 'bg-emerald-100 text-emerald-700 border-emerald-200'
-    if (score >= 50) return 'bg-amber-100 text-amber-700 border-amber-200'
-    return 'bg-rose-100 text-rose-700 border-rose-200'
-  }
-
-  const STATUS_CONFIG: Record<string, {
-    color: string
-    dot: string
-    icon: React.ReactNode
-    selectTrigger: string
-  }> = {
-    'Gespielt':          { color: 'bg-blue-50 text-blue-700 border-blue-200',    dot: 'bg-blue-400',   icon: <Send className="h-3 w-3" />,          selectTrigger: 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100' },
-    'Interview geplant': { color: 'bg-violet-50 text-violet-700 border-violet-200', dot: 'bg-violet-400', icon: <CalendarClock className="h-3 w-3" />,  selectTrigger: 'border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100' },
-    'Zugesagt':          { color: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-400', icon: <CheckCircle2 className="h-3 w-3" />, selectTrigger: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
-    'Abgesagt':          { color: 'bg-orange-50 text-orange-700 border-orange-200', dot: 'bg-orange-400', icon: <XCircle className="h-3 w-3" />,       selectTrigger: 'border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100' },
-    'Abgelehnt':         { color: 'bg-red-50 text-red-700 border-red-200',      dot: 'bg-red-400',    icon: <Ban className="h-3 w-3" />,            selectTrigger: 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100' },
-    'Zurückgezogen':     { color: 'bg-gray-100 text-gray-500 border-gray-200',  dot: 'bg-gray-400',   icon: <Undo2 className="h-3 w-3" />,          selectTrigger: 'border-gray-200 bg-gray-100 text-gray-500 hover:bg-gray-200' },
-  }
-
-  const getStatusConfig = (status: string | null | undefined) =>
-    STATUS_CONFIG[status ?? ''] ?? { color: 'bg-gray-100 text-gray-600 border-gray-200', dot: 'bg-gray-300', icon: null, selectTrigger: '' }
-
   const isRetractable = (status: string | null | undefined) =>
     status !== 'Zurückgezogen' && status !== 'Zugesagt'
 
   return (
     <TooltipProvider>
       <div className="w-full border border-border rounded-lg overflow-hidden bg-background">
-        {/* Header */}
+        {/* Header — manager: 3+2+1+2+2+2=12 | agentur: 3+2+2+3+2=12 */}
         <div className="grid grid-cols-12 gap-4 px-5 py-3 bg-muted border-b border-border">
           <div className="col-span-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Name</div>
           <div className="col-span-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Gespielt am</div>
-          <div className="col-span-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+          <div className={`${isManager ? 'col-span-1' : 'col-span-2'} text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1`}>
             Match
             <Tooltip>
               <TooltipTrigger asChild>
@@ -198,8 +195,10 @@ export function GespielteRessourcenTable({
               </TooltipContent>
             </Tooltip>
           </div>
-          <div className="col-span-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</div>
-          {/* Fixed-width action header to prevent layout shift */}
+          <div className={`${isManager ? 'col-span-2' : 'col-span-3'} text-xs font-semibold text-muted-foreground uppercase tracking-wide`}>Status</div>
+          {isManager && (
+            <div className="col-span-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Agentur</div>
+          )}
           <div className="col-span-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide text-right">Aktion</div>
         </div>
 
@@ -229,7 +228,7 @@ export function GespielteRessourcenTable({
                   </div>
 
                   {/* Score */}
-                  <div className="col-span-2">
+                  <div className={isManager ? 'col-span-1' : 'col-span-2'}>
                     {isCalculating ? (
                       <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
                         <Loader2 className="h-3 w-3 animate-spin" />
@@ -243,7 +242,7 @@ export function GespielteRessourcenTable({
                   </div>
 
                   {/* Status */}
-                  <div className="col-span-3">
+                  <div className={isManager ? 'col-span-2' : 'col-span-3'}>
                     {isManager && currentStatus !== 'Zurückgezogen' ? (
                       isUpdating ? (
                         <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -253,11 +252,11 @@ export function GespielteRessourcenTable({
                       ) : (
                         <div className="flex flex-col gap-1.5">
                           <Select value={currentStatus} onValueChange={(v) => handleStatusSelect(resource, v)}>
-                            <SelectTrigger className={`h-7 w-full border text-xs font-medium transition-colors [&>svg]:hidden ${getStatusConfig(currentStatus).selectTrigger}`}>
-                              <span className="flex items-center gap-1.5 min-w-0">
-                                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${getStatusConfig(currentStatus).dot}`} />
-                                <span className="truncate">{currentStatus}</span>
-                                <ChevronDown className="ml-auto h-3 w-3 shrink-0 opacity-60" />
+                            <SelectTrigger className={`h-auto w-fit rounded-full border px-2.5 py-1 text-xs font-medium transition-all cursor-pointer [&>svg]:hidden hover:opacity-80 active:scale-95 ${getStatusConfig(currentStatus).color}`}>
+                              <span className="flex items-center gap-1.5 whitespace-nowrap">
+                                {getStatusConfig(currentStatus).icon}
+                                <span>{currentStatus}</span>
+                                <ChevronDown className="h-3 w-3 opacity-50" />
                               </span>
                             </SelectTrigger>
                             <SelectContent>
@@ -313,6 +312,19 @@ export function GespielteRessourcenTable({
                       </div>
                     )}
                   </div>
+
+                  {/* Agentur — manager only */}
+                  {isManager && (
+                    <div className="col-span-2">
+                      {resource.agentur_name ? (
+                        <span className="inline-flex items-center rounded-md border border-border bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground truncate max-w-full">
+                          {resource.agentur_name}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground/40">–</span>
+                      )}
+                    </div>
+                  )}
 
                   {/* Actions — fixed layout, no shift */}
                   <div className="col-span-2 flex justify-end items-center">

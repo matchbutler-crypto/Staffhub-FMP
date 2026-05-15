@@ -82,10 +82,13 @@ export async function GET(request: NextRequest) {
   }
 
   let result = (data ?? []).map((r) => {
-    const { ek_tagesrate, notizen, ...rest } = r
+    const { ek_tagesrate, notizen, agenturen, ...rest } = r
     const canSeePrivate = isManager || r.agentur_id === profile.agentur_id
+    const agenturEntry = agenturen as { name: string } | { name: string }[] | null
+    const agentur_name = Array.isArray(agenturEntry) ? (agenturEntry[0]?.name ?? null) : (agenturEntry?.name ?? null)
     return {
       ...rest,
+      agentur_name,
       link_count: linkCountMap.get(r.id) ?? 0,
       ...(canSeePrivate ? { ek_tagesrate, notizen } : {}),
     }
@@ -93,15 +96,16 @@ export async function GET(request: NextRequest) {
 
   // Add bereits_gespielt + link_id + ki_score when filtering for a specific vacancy
   if (vakanzId) {
-    const { data: links } = await supabase
-      .from('ressource_vakanz_links')
-      .select('id, ressource_id, status, created_at, feedback')
-      .eq('vakanz_id', vakanzId)
-
-    const { data: kiScores } = await supabase
-      .from('ressource_ki_scores')
-      .select('ressource_id, vakanz_id, score')
-      .eq('vakanz_id', vakanzId)
+    const [{ data: links }, { data: kiScores }] = await Promise.all([
+      supabase
+        .from('ressource_vakanz_links')
+        .select('id, ressource_id, status, created_at, feedback')
+        .eq('vakanz_id', vakanzId),
+      supabase
+        .from('ressource_ki_scores')
+        .select('ressource_id, vakanz_id, score')
+        .eq('vakanz_id', vakanzId),
+    ])
 
     const linkMap = new Map((links ?? []).map((l: { id: string; ressource_id: string; status: string; created_at: string; feedback?: string | null }) => [l.ressource_id, l]))
     const kiScoreMap = new Map((kiScores ?? []).map((k: { ressource_id: string; vakanz_id: string; score: number }) => [k.ressource_id, k.score]))

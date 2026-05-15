@@ -11,6 +11,7 @@ import {
   IconLayoutDashboard,
   IconReceipt,
   IconSettings,
+  IconSettingsCog,
   IconUsers,
 } from '@tabler/icons-react'
 
@@ -86,6 +87,12 @@ const ALL_NAV_MAIN = [
 ]
 
 const ALL_NAV_SECONDARY = [
+  {
+    title: 'Einstellungen',
+    url: '/settings',
+    icon: IconSettingsCog,
+    roles: ['Admin', 'Staffhub Manager', 'Agentur'],
+  },
   {
     title: 'Admin',
     url: '/admin',

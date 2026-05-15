@@ -386,7 +386,7 @@ function VakanzCard({
             kandidatenname: r.name,
             status: r.link_status || 'Gespielt',
             ki_score: r.ki_score ?? null,
-            agentur_name: null,
+            agentur_name: r.agentur_name ?? null,
             quelle: 'pool' as const,
             ressource_id: r.id,
           })),
@@ -652,6 +652,7 @@ function VakanzCard({
                   <GespielteRessourcenTable
                     resources={resources}
                     vakanzId={vakanz.id}
+                    isManager={isManagerOrAdmin}
                     onWithdraw={(r) => {
                       if (!r.link_id) { toast.error('Link-ID fehlt'); return }
                       handleWithdraw({
@@ -659,7 +660,7 @@ function VakanzCard({
                         kandidatenname: r.name,
                         status: r.link_status || 'Gespielt',
                         ki_score: r.ki_score ?? null,
-                        agentur_name: null,
+                        agentur_name: r.agentur_name ?? null,
                         quelle: 'pool',
                         ressource_id: r.id,
                       })
