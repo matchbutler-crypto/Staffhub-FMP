@@ -51,8 +51,7 @@ export async function GET(request: NextRequest) {
       id, agentur_id, name, rolle, skills, erfahrungslevel,
       verfuegbarkeit, verfuegbar_ab, cv_pfad,
       ek_tagesrate, notizen, created_at, updated_at,
-      agenturen(name),
-      ressource_vakanz_links(count)
+      agenturen(name)
     `)
     .order('updated_at', { ascending: false })
     .limit(500)
@@ -71,13 +70,23 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Fehler beim Laden der Ressourcen' }, { status: 500 })
   }
 
+  // Separate query for link counts — RLS filters to own resources for Agentur
+  const { data: linkCountRows } = await supabase
+    .from('ressource_vakanz_links')
+    .select('ressource_id')
+
+  const linkCountMap = new Map<string, number>()
+  for (const l of (linkCountRows ?? [])) {
+    const rid = (l as { ressource_id: string }).ressource_id
+    linkCountMap.set(rid, (linkCountMap.get(rid) ?? 0) + 1)
+  }
+
   let result = (data ?? []).map((r) => {
-    const { ek_tagesrate, notizen, ressource_vakanz_links, ...rest } = r
+    const { ek_tagesrate, notizen, ...rest } = r
     const canSeePrivate = isManager || r.agentur_id === profile.agentur_id
-    const linkCount = (ressource_vakanz_links as { count: number }[])?.[0]?.count ?? 0
     return {
       ...rest,
-      link_count: linkCount,
+      link_count: linkCountMap.get(r.id) ?? 0,
       ...(canSeePrivate ? { ek_tagesrate, notizen } : {}),
     }
   })
