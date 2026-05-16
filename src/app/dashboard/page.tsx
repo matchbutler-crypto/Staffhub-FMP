@@ -5,7 +5,6 @@ import Link from "next/link"
 import {
   IconAlertTriangle,
   IconBriefcase,
-  IconBuilding,
   IconCalendarCheck,
   IconClock,
   IconStack2,
@@ -42,14 +41,6 @@ import {
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type ProfilStatus = "Eingereicht" | "In Prüfung" | "Präsentiert" | "Interview" | "Beauftragt" | "Abgelehnt" | "Archiviert"
-
-interface AgenturPerf {
-  name: string
-  count: number
-  avg_score: number | null
-}
-
 interface VakanzOhneProfile {
   id: string
   rolle: string
@@ -78,8 +69,6 @@ interface ManagerData {
   neueste_vakanzen: { id: string; rolle: string; created_at: string }[]
   pool_stats: { total: number; by_link_status: Record<string, number> }
   bald_verfuegbar: { id: string; name: string; rolle: string | null; verfuegbar_ab: string }[]
-  pipeline: Record<string, number>
-  agentur_performance: AgenturPerf[]
   vakanzen_ohne_profile: VakanzOhneProfile[]
   bald_auslaufend: BaldAuslaufend[]
   ressourcen_pipeline: RessourcePipelineRow[]
@@ -97,27 +86,6 @@ interface AgenturData {
 type DashboardData = ManagerData | AgenturData
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-
-const PIPELINE_ORDER: ProfilStatus[] = ["Eingereicht", "In Prüfung", "Präsentiert", "Interview", "Beauftragt", "Abgelehnt"]
-
-const statusColors: Record<ProfilStatus, string> = {
-  Eingereicht: "bg-blue-100 text-blue-700 border-blue-200",
-  "In Prüfung": "bg-yellow-100 text-yellow-700 border-yellow-200",
-  Präsentiert: "bg-purple-100 text-purple-700 border-purple-200",
-  Interview: "bg-orange-100 text-orange-700 border-orange-200",
-  Beauftragt: "bg-green-100 text-green-700 border-green-200",
-  Abgelehnt: "bg-red-100 text-red-700 border-red-200",
-  Archiviert: "bg-gray-100 text-gray-600 border-gray-200",
-}
-
-const pipelineBarColors: Record<string, string> = {
-  Eingereicht: "bg-blue-400",
-  "In Prüfung": "bg-yellow-400",
-  Präsentiert: "bg-purple-400",
-  Interview: "bg-orange-400",
-  Beauftragt: "bg-green-500",
-  Abgelehnt: "bg-red-400",
-}
 
 // Link-Status config (mirrors GespielteRessourcenTable)
 const LINK_STATUSES = ["Gespielt", "Interview geplant", "Zugesagt", "Abgesagt", "Abgelehnt", "Zurückgezogen"] as const
@@ -138,12 +106,6 @@ function getLinkStatusConfig(status: string) {
 
 function fmt(n: number) {
   return n.toLocaleString("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })
-}
-
-function ScoreBadge({ score }: { score: number | null }) {
-  if (score === null) return <span className="text-xs text-muted-foreground">–</span>
-  const color = score >= 70 ? "bg-green-100 text-green-700 border-green-200" : score >= 40 ? "bg-yellow-100 text-yellow-700 border-yellow-200" : "bg-red-100 text-red-700 border-red-200"
-  return <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${color}`}>{score}</span>
 }
 
 function KpiSkeleton() {
@@ -168,10 +130,8 @@ function LinkStatusBadge({ status }: { status: string }) {
 // ── Manager Dashboard ──────────────────────────────────────────────────────────
 
 function ManagerDashboard({ data }: { data: ManagerData }) {
-  const { kpis, neueste_vakanzen, pool_stats, bald_verfuegbar, pipeline, agentur_performance, vakanzen_ohne_profile, bald_auslaufend, ressourcen_pipeline } = data
+  const { kpis, neueste_vakanzen, pool_stats, bald_verfuegbar, vakanzen_ohne_profile, bald_auslaufend, ressourcen_pipeline } = data
   const [statusFilter, setStatusFilter] = React.useState<string>("alle")
-
-  const pipelineMax = Math.max(...PIPELINE_ORDER.map(s => pipeline[s] ?? 0), 1)
 
   const filteredPipeline = statusFilter === "alle"
     ? ressourcen_pipeline
@@ -291,67 +251,7 @@ function ManagerDashboard({ data }: { data: ManagerData }) {
         </Link>
       </div>
 
-      {/* ── Row 2: Pipeline + Agentur-Performance ── */}
-      <div className="grid grid-cols-1 gap-4 px-4 lg:px-6 @2xl/main:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Kandidaten-Pipeline</CardTitle>
-            <CardDescription>Profile nach Status</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {PIPELINE_ORDER.map((status) => {
-              const count = pipeline[status] ?? 0
-              const pct = Math.round((count / pipelineMax) * 100)
-              const isAlert = status === "In Prüfung" && count > 0
-              return (
-                <div key={status} className="flex items-center gap-3">
-                  <span className={`w-28 shrink-0 text-xs ${isAlert ? "font-semibold text-yellow-700" : "text-muted-foreground"}`}>
-                    {isAlert && "⚠ "}{status}
-                  </span>
-                  <div className="flex flex-1 items-center gap-2">
-                    <div className="h-5 flex-1 overflow-hidden rounded-sm bg-muted">
-                      <div className={`h-full rounded-sm transition-all ${pipelineBarColors[status] ?? "bg-gray-400"}`} style={{ width: count === 0 ? "0%" : `${Math.max(pct, 3)}%` }} />
-                    </div>
-                    <span className={`w-6 text-right text-xs tabular-nums font-medium ${isAlert ? "text-yellow-700" : "text-foreground"}`}>{count}</span>
-                  </div>
-                </div>
-              )
-            })}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex-row items-start justify-between space-y-0">
-            <div>
-              <CardTitle className="text-base">Agentur-Performance</CardTitle>
-              <CardDescription>Ø KI-Score · Einreichungen gesamt</CardDescription>
-            </div>
-            <Link href="/agenturen" className="text-xs text-muted-foreground hover:text-foreground hover:underline">Alle →</Link>
-          </CardHeader>
-          <CardContent>
-            {agentur_performance.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Noch keine Daten.</p>
-            ) : (
-              <div className="space-y-2">
-                {agentur_performance.map((a) => (
-                  <div key={a.name} className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <IconBuilding className="size-3.5 shrink-0 text-muted-foreground" />
-                      <span className="text-sm truncate">{a.name}</span>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-xs text-muted-foreground tabular-nums">{a.count} Profile</span>
-                      <ScoreBadge score={a.avg_score} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* ── Row 3: Vakanzen ohne Profile + Bald auslaufend ── */}
+      {/* ── Row 2: Vakanzen ohne Profile + Bald auslaufend ── */}
       <div className="grid grid-cols-1 gap-4 px-4 lg:px-6 @2xl/main:grid-cols-2">
         <Card>
           <CardHeader className="flex-row items-start justify-between space-y-0">
