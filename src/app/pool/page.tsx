@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -1818,6 +1819,7 @@ function TableSkeletonRows({ cols }: { cols: number }) {
 // ── PoolPage ───────────────────────────────────────────────────────────────────
 
 export default function PoolPage() {
+  const router = useRouter()
   const { user } = useUser()
   const isManager = user?.rolle === "Staffhub Manager" || user?.rolle === "Admin"
   const isAdmin = user?.rolle === "Admin"
@@ -2308,7 +2310,14 @@ export default function PoolPage() {
                                           const standortLabel = [vd?.arbeitsmodell, vd?.standort].filter(Boolean).join(" · ") || "—"
                                           return (
                                             <tr key={l.id}>
-                                              <td className="py-1.5 pr-4 font-medium text-foreground">{vd?.rolle ?? "—"}</td>
+                                              <td className="py-1.5 pr-4 font-medium text-foreground">
+                                                <button
+                                                  className="text-left hover:underline focus:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-sm"
+                                                  onClick={(e) => { e.stopPropagation(); if (l.vakanz_id) router.push(`/vakanzen/${l.vakanz_id}`) }}
+                                                >
+                                                  {vd?.rolle ?? "—"}
+                                                </button>
+                                              </td>
                                               <td className="py-1.5 pr-4">
                                                 <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${linkStatusColors[l.status]}`}>
                                                   {l.status}
