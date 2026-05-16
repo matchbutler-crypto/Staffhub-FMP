@@ -19,7 +19,6 @@ export const ROLE_ROUTES: Record<string, string[]> = {
     '/dashboard',
     '/vakanzen',
     '/profile',
-    '/agenturen',
     '/beauftragungen',
     '/abrechnung',
     '/slack-log',

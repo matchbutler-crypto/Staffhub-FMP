@@ -47,7 +47,7 @@ const ALL_NAV_MAIN = [
     title: 'Agenturen',
     url: '/agenturen',
     icon: IconBuilding,
-    roles: ['Admin', 'Staffhub Manager'],
+    roles: ['Admin'],
   },
   {
     title: 'Beauftragungen',

@@ -34,8 +34,8 @@ describe('isAllowedRoute', () => {
     it('allows /profile', () => {
       expect(isAllowedRoute('/profile', 'Staffhub Manager')).toBe(true)
     })
-    it('allows /agenturen', () => {
-      expect(isAllowedRoute('/agenturen', 'Staffhub Manager')).toBe(true)
+    it('blocks /agenturen', () => {
+      expect(isAllowedRoute('/agenturen', 'Staffhub Manager')).toBe(false)
     })
     it('allows /abrechnung', () => {
       expect(isAllowedRoute('/abrechnung', 'Staffhub Manager')).toBe(true)
