@@ -4,6 +4,7 @@ import * as React from "react"
 import Link from "next/link"
 import { toast } from "sonner"
 import {
+  IconBuilding,
   IconDotsVertical,
   IconLock,
   IconPencil,
@@ -26,6 +27,13 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
@@ -106,6 +114,39 @@ function TableSkeletonRows({ cols = 9, rows = 5 }: { cols?: number; rows?: numbe
   )
 }
 
+// ── KPI Helpers (Manager only) ─────────────────────────────────────────────────
+
+interface AgenturPerf {
+  name: string
+  count: number
+  avg_score: number | null
+}
+
+const PIPELINE_ORDER = ["Eingereicht", "In Prüfung", "Präsentiert", "Interview", "Beauftragt", "Abgelehnt"] as const
+
+const pipelineBarColors: Record<string, string> = {
+  Eingereicht: "bg-blue-400",
+  "In Prüfung": "bg-yellow-400",
+  Präsentiert: "bg-purple-400",
+  Interview: "bg-orange-400",
+  Beauftragt: "bg-green-500",
+  Abgelehnt: "bg-red-400",
+}
+
+function ScoreBadge({ score }: { score: number | null }) {
+  if (score === null) return <span className="text-xs text-muted-foreground">–</span>
+  const color = score >= 70
+    ? "bg-green-100 text-green-700 border-green-200"
+    : score >= 40
+    ? "bg-yellow-100 text-yellow-700 border-yellow-200"
+    : "bg-red-100 text-red-700 border-red-200"
+  return (
+    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${color}`}>
+      {score}
+    </span>
+  )
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function BeauftragungPage() {
@@ -132,6 +173,9 @@ export default function BeauftragungPage() {
   const [beendenItem, setBeendenItem] = React.useState<Beauftragung | null>(null)
   const [beending, setBeending] = React.useState(false)
 
+  const [pipeline, setPipeline] = React.useState<Record<string, number>>({})
+  const [agenturPerf, setAgenturPerf] = React.useState<AgenturPerf[]>([])
+
   async function load() {
     setLoading(true)
     setError(null)
@@ -144,7 +188,10 @@ export default function BeauftragungPage() {
       }
       const body = await r.json()
       // API gibt jetzt { data, total, page, pageSize } zurück
-      setItems(Array.isArray(body) ? body : (body.data ?? []))
+      const data: Beauftragung[] = Array.isArray(body) ? body : (body.data ?? [])
+      setItems(data)
+      if (body.pipeline) setPipeline(body.pipeline)
+      if (body.agentur_performance) setAgenturPerf(body.agentur_performance)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unbekannter Fehler")
     } finally {
@@ -254,6 +301,75 @@ export default function BeauftragungPage() {
                 </Button>
               </div>
             </div>
+
+            {/* KPI Cards — Manager/Admin only */}
+            {isManager && (
+              <div className="grid grid-cols-1 gap-4 px-4 lg:px-6 sm:grid-cols-2">
+                {/* Kandidaten-Pipeline */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Kandidaten-Pipeline</CardTitle>
+                    <CardDescription>Profile nach Status</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {PIPELINE_ORDER.map((status) => {
+                      const count = pipeline[status] ?? 0
+                      const pipelineMax = Math.max(...PIPELINE_ORDER.map(s => pipeline[s] ?? 0), 1)
+                      const pct = Math.round((count / pipelineMax) * 100)
+                      const isAlert = status === "In Prüfung" && count > 0
+                      return (
+                        <div key={status} className="flex items-center gap-3">
+                          <span className={`w-28 shrink-0 text-xs ${isAlert ? "font-semibold text-yellow-700" : "text-muted-foreground"}`}>
+                            {isAlert && "⚠ "}{status}
+                          </span>
+                          <div className="flex flex-1 items-center gap-2">
+                            <div className="h-5 flex-1 overflow-hidden rounded-sm bg-muted">
+                              <div
+                                className={`h-full rounded-sm transition-all ${pipelineBarColors[status] ?? "bg-gray-400"}`}
+                                style={{ width: count === 0 ? "0%" : `${Math.max(pct, 3)}%` }}
+                              />
+                            </div>
+                            <span className={`w-6 text-right text-xs tabular-nums font-medium ${isAlert ? "text-yellow-700" : "text-foreground"}`}>
+                              {count}
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </CardContent>
+                </Card>
+
+                {/* Agentur-Performance */}
+                <Card>
+                  <CardHeader className="flex-row items-start justify-between space-y-0">
+                    <div>
+                      <CardTitle className="text-base">Agentur-Performance</CardTitle>
+                      <CardDescription>Ø KI-Score · Einreichungen gesamt</CardDescription>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {agenturPerf.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Noch keine Daten.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {agenturPerf.map((a) => (
+                          <div key={a.name} className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <IconBuilding className="size-3.5 shrink-0 text-muted-foreground" />
+                              <span className="text-sm truncate">{a.name}</span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-xs text-muted-foreground tabular-nums">{a.count} Profile</span>
+                              <ScoreBadge score={a.avg_score} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
 
             {/* Error */}
             {error && (

@@ -128,6 +128,45 @@ export async function GET(request: NextRequest) {
     return base
   })
 
+  if (isManager) {
+    const [pipelineRes, agenturPerfRes] = await Promise.allSettled([
+      supabase.from('kandidaten_profile').select('status'),
+      supabase.from('kandidaten_profile')
+        .select('agentur_id, ki_score, agenturen!inner(name)')
+        .not('agentur_id', 'is', null),
+    ])
+
+    const pipelineRaw = pipelineRes.status === 'fulfilled' && !pipelineRes.value.error
+      ? (pipelineRes.value.data ?? [])
+      : []
+    const pipeline: Record<string, number> = {}
+    for (const p of pipelineRaw) pipeline[p.status] = (pipeline[p.status] ?? 0) + 1
+
+    type AgenturPerfRaw = { agentur_id: string | null; ki_score: number | null; agenturen: { name: string }[] | { name: string } | null }
+    const agenturRaw = agenturPerfRes.status === 'fulfilled' && !agenturPerfRes.value.error
+      ? (agenturPerfRes.value.data as AgenturPerfRaw[] ?? [])
+      : []
+    const agenturMap: Record<string, { name: string; count: number; scoreSum: number; scoreCount: number }> = {}
+    for (const p of agenturRaw) {
+      if (!p.agentur_id) continue
+      const agenturen = p.agenturen
+      const name = Array.isArray(agenturen) ? agenturen[0]?.name : agenturen?.name
+      if (!name) continue
+      if (!agenturMap[p.agentur_id]) agenturMap[p.agentur_id] = { name, count: 0, scoreSum: 0, scoreCount: 0 }
+      agenturMap[p.agentur_id].count++
+      if (p.ki_score !== null) { agenturMap[p.agentur_id].scoreSum += p.ki_score; agenturMap[p.agentur_id].scoreCount++ }
+    }
+    const agentur_performance = Object.values(agenturMap)
+      .map(({ name, count, scoreSum, scoreCount }) => ({
+        name,
+        count,
+        avg_score: scoreCount > 0 ? Math.round(scoreSum / scoreCount) : null,
+      }))
+      .sort((a, b) => (b.avg_score ?? 0) - (a.avg_score ?? 0))
+
+    return NextResponse.json({ data: result, total: count ?? 0, page, pageSize, pipeline, agentur_performance })
+  }
+
   return NextResponse.json({ data: result, total: count ?? 0, page, pageSize })
 }
 
