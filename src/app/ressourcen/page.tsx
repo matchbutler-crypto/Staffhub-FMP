@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import {
   IconArrowRight,
@@ -22,7 +21,6 @@ import {
 import { ERFAHRUNGSLEVEL, RESSOURCE_VERFUEGBARKEIT } from "@/lib/constants"
 import type { Erfahrungslevel, RessourceVerfuegbarkeit } from "@/lib/constants"
 import { AppSidebar } from "@/components/app-sidebar"
-import { type KandidatenProfil, type ProfilStatus } from "@/components/profil-einreichen-sheet"
 import { SiteHeader } from "@/components/site-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -52,6 +50,7 @@ import {
 } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Table,
   TableBody,
@@ -60,7 +59,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -160,33 +158,6 @@ const linkStatusColors: Record<LinkStatus, string> = {
   Abgesagt: "bg-gray-100 text-gray-500 border-gray-200",
   Abgelehnt: "bg-red-100 text-red-700 border-red-200",
   Zurückgezogen: "bg-gray-100 text-gray-400 border-gray-200",
-}
-
-// ── Profil-Helpers (Kandidatenprofile Tab) ─────────────────────────────────────
-
-const profilStatusColors: Record<ProfilStatus, string> = {
-  Eingereicht: "bg-blue-100 text-blue-700 border-blue-200",
-  "In Prüfung": "bg-yellow-100 text-yellow-700 border-yellow-200",
-  Präsentiert: "bg-purple-100 text-purple-700 border-purple-200",
-  Interview: "bg-orange-100 text-orange-700 border-orange-200",
-  Beauftragt: "bg-green-100 text-green-700 border-green-200",
-  Abgelehnt: "bg-red-100 text-red-700 border-red-200",
-  Archiviert: "bg-gray-100 text-gray-600 border-gray-200",
-}
-
-function ProfilScoreBadge({ score }: { score: number | null }) {
-  if (score === null) return <span className="text-xs text-muted-foreground">–</span>
-  const color =
-    score >= 70
-      ? "bg-green-100 text-green-700 border-green-200"
-      : score >= 40
-      ? "bg-yellow-100 text-yellow-700 border-yellow-200"
-      : "bg-red-100 text-red-700 border-red-200"
-  return (
-    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${color}`}>
-      {score}
-    </span>
-  )
 }
 
 // ── SkillTags ──────────────────────────────────────────────────────────────────
@@ -1048,20 +1019,6 @@ function TableSkeletonRows({ cols }: { cols: number }) {
 // ── RessourcenPage ─────────────────────────────────────────────────────────────
 
 export default function RessourcenPage() {
-  // ── Tab state (reads ?tab=profile from URL on mount) ────────────────────────
-  const [activeTab, setActiveTab] = React.useState("pool")
-  React.useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    if (params.get("tab") === "profile") setActiveTab("profile")
-  }, [])
-  function handleTabChange(value: string) {
-    setActiveTab(value)
-    const url = new URL(window.location.href)
-    if (value === "profile") url.searchParams.set("tab", "profile")
-    else url.searchParams.delete("tab")
-    window.history.replaceState({}, "", url.toString())
-  }
-
   // ── Freelancer-Pool state ───────────────────────────────────────────────────
   const [ressourcen, setRessourcen] = React.useState<Ressource[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -1161,47 +1118,6 @@ export default function RessourcenPage() {
     (agenturFilter !== "alle" ? 1 : 0) +
     (showDeaktiviert ? 1 : 0)
 
-  // ── Kandidatenprofile state ─────────────────────────────────────────────────
-  const router = useRouter()
-  const [profile, setProfile] = React.useState<KandidatenProfil[]>([])
-  const [profileLoading, setProfileLoading] = React.useState(false)
-  const [profileLoaded, setProfileLoaded] = React.useState(false)
-  const [profileSearchQuery, setProfileSearchQuery] = React.useState("")
-  const [profileStatusFilter, setProfileStatusFilter] = React.useState("alle")
-  const [downloadingId, setDownloadingId] = React.useState<string | null>(null)
-
-  async function fetchProfile() {
-    setProfileLoading(true)
-    try {
-      const res = await fetch("/api/profile")
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      setProfile(await res.json())
-    } catch { /* silently fail */ }
-    finally { setProfileLoading(false); setProfileLoaded(true) }
-  }
-
-  async function handleCvDownload(profilId: string) {
-    setDownloadingId(profilId)
-    try {
-      const res = await fetch(`/api/profile/${profilId}/cv`)
-      if (!res.ok) { toast.error("CV konnte nicht geladen werden."); return }
-      const { url } = await res.json()
-      window.open(url, "_blank", "noopener,noreferrer")
-    } catch { toast.error("Verbindungsfehler beim CV-Download.") }
-    finally { setDownloadingId(null) }
-  }
-
-  React.useEffect(() => {
-    if (activeTab === "profile" && !profileLoaded) fetchProfile()
-  }, [activeTab, profileLoaded])
-
-  const filteredProfile = profile.filter((p) => {
-    const q = profileSearchQuery.toLowerCase()
-    const matchSearch = !q || p.kandidatenname.toLowerCase().includes(q) || (p.vakanz_titel ?? "").toLowerCase().includes(q)
-    const matchStatus = profileStatusFilter === "alle" || p.status === profileStatusFilter
-    return matchSearch && matchStatus
-  })
-
   return (
     <SidebarProvider
       style={
@@ -1214,17 +1130,7 @@ export default function RessourcenPage() {
       <AppSidebar variant="inset" />
       <SidebarInset>
         <SiteHeader title="Ressourcen" />
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="flex flex-1 flex-col">
-          {/* Tab switcher */}
-          <div className="px-4 lg:px-6 pt-4 pb-2">
-            <TabsList>
-              <TabsTrigger value="pool">Freelancer-Pool</TabsTrigger>
-              <TabsTrigger value="profile">Kandidatenprofile</TabsTrigger>
-            </TabsList>
-          </div>
-
-          {/* ── Tab 1: Freelancer-Pool ─────────────────────────────────────── */}
-          <TabsContent value="pool" className="mt-0 flex-1">
+        <div className="flex flex-1 flex-col">
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
               {/* Header */}
               <div className="flex items-center justify-between px-4 lg:px-6">
@@ -1437,129 +1343,7 @@ export default function RessourcenPage() {
                 </div>
               </div>
             </div>
-          </TabsContent>
-
-          {/* ── Tab 2: Kandidatenprofile ───────────────────────────────────── */}
-          <TabsContent value="profile" className="mt-0 flex-1">
-            <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-              {/* Header */}
-              <div className="flex items-center justify-between px-4 lg:px-6">
-                <div>
-                  <h2 className="text-xl font-semibold">Kandidatenprofile</h2>
-                  <p className="text-sm text-muted-foreground">
-                    {profileLoading ? "Lädt…" : `${filteredProfile.length} Profile`}
-                  </p>
-                </div>
-              </div>
-
-              {/* Filter */}
-              <div className="flex flex-wrap items-center gap-3 px-4 lg:px-6">
-                <div className="relative min-w-[200px] flex-1 max-w-sm">
-                  <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    className="pl-9"
-                    placeholder="Kandidat oder Vakanz suchen…"
-                    value={profileSearchQuery}
-                    onChange={(e) => setProfileSearchQuery(e.target.value)}
-                  />
-                </div>
-                <Select value={profileStatusFilter} onValueChange={setProfileStatusFilter}>
-                  <SelectTrigger className="w-[160px]">
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="alle">Alle Status</SelectItem>
-                    <SelectItem value="Eingereicht">Eingereicht</SelectItem>
-                    <SelectItem value="In Prüfung">In Prüfung</SelectItem>
-                    <SelectItem value="Präsentiert">Präsentiert</SelectItem>
-                    <SelectItem value="Interview">Interview</SelectItem>
-                    <SelectItem value="Beauftragt">Beauftragt</SelectItem>
-                    <SelectItem value="Abgelehnt">Abgelehnt</SelectItem>
-                    <SelectItem value="Archiviert">Archiviert</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Table */}
-              <div className="px-4 lg:px-6">
-                <div className="overflow-hidden rounded-lg border">
-                  <Table>
-                    <TableHeader className="bg-muted sticky top-0 z-10">
-                      <TableRow>
-                        <TableHead>Kandidat</TableHead>
-                        <TableHead>Agentur</TableHead>
-                        <TableHead>Vakanz</TableHead>
-                        <TableHead>Level</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-center">KI-Score</TableHead>
-                        <TableHead>Eingereicht</TableHead>
-                        <TableHead className="w-16" />
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {profileLoading ? (
-                        <TableSkeletonRows cols={8} />
-                      ) : filteredProfile.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
-                            {profile.length === 0 ? "Noch keine Profile eingereicht." : "Keine Profile gefunden."}
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        filteredProfile.map((p) => (
-                          <TableRow
-                            key={p.id}
-                            className="cursor-pointer hover:bg-muted/50"
-                            onClick={() => router.push(`/profile/${p.id}`)}
-                          >
-                            <TableCell className="font-medium">{p.kandidatenname}</TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                              {(p as KandidatenProfil & { agentur_name?: string }).agentur_name ?? "–"}
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">{p.vakanz_titel ?? "–"}</TableCell>
-                            <TableCell className="text-sm">{p.erfahrungslevel}</TableCell>
-                            <TableCell>
-                              <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${profilStatusColors[p.status]}`}>
-                                {p.status}
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <ProfilScoreBadge score={p.ki_score} />
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                              {new Date(p.created_at).toLocaleDateString("de-DE")}
-                            </TableCell>
-                            <TableCell onClick={(e) => e.stopPropagation()}>
-                              <div className="flex items-center gap-1">
-                                <Button
-                                  variant="ghost" size="icon" className="size-7"
-                                  onClick={() => router.push(`/profile/${p.id}`)}
-                                  title="Details"
-                                >
-                                  <IconMessage className="size-3.5" />
-                                </Button>
-                                {p.cv_pfad && (
-                                  <Button
-                                    variant="ghost" size="icon" className="size-7"
-                                    disabled={downloadingId === p.id}
-                                    onClick={() => handleCvDownload(p.id)}
-                                    title="Lebenslauf herunterladen"
-                                  >
-                                    <IconDownload className="size-3.5" />
-                                  </Button>
-                                )}
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-            </div>
-          </TabsContent>
-        </Tabs>
+        </div>
       </SidebarInset>
 
       <RessourceDetailSheet
