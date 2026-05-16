@@ -21,6 +21,9 @@ describe('isAllowedRoute', () => {
     it('allows sub-paths (e.g. /dashboard/detail)', () => {
       expect(isAllowedRoute('/dashboard/detail', 'Admin')).toBe(true)
     })
+    it('allows /settings', () => {
+      expect(isAllowedRoute('/settings', 'Admin')).toBe(true)
+    })
   })
 
   // ── Staffhub Manager ─────────────────────────────────────────────────────
@@ -42,6 +45,9 @@ describe('isAllowedRoute', () => {
     })
     it('blocks /meine-profile', () => {
       expect(isAllowedRoute('/meine-profile', 'Staffhub Manager')).toBe(false)
+    })
+    it('allows /settings', () => {
+      expect(isAllowedRoute('/settings', 'Staffhub Manager')).toBe(true)
     })
   })
 
@@ -67,6 +73,9 @@ describe('isAllowedRoute', () => {
     })
     it('blocks /admin', () => {
       expect(isAllowedRoute('/admin', 'Agentur')).toBe(false)
+    })
+    it('allows /settings', () => {
+      expect(isAllowedRoute('/settings', 'Agentur')).toBe(true)
     })
   })
 
