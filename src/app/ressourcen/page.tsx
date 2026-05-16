@@ -1,5 +1,6 @@
 "use client"
 
+import { useRouter } from "next/navigation"
 import * as React from "react"
 import { toast } from "sonner"
 import {
@@ -99,7 +100,17 @@ interface VakanzLink {
   interview_datum: string | null
   created_at: string
   updated_at: string
-  vakanzen_data: { id: string; rolle: string; status: string } | null
+  vakanzen_data: {
+    id: string
+    rolle: string
+    status: string
+    erfahrungslevel?: string | null
+    arbeitsmodell?: string | null
+    standort?: string | null
+    branche?: string | null
+    startdatum?: string | null
+    enddatum?: string | null
+  } | null
 }
 
 interface Vakanz {
@@ -1034,6 +1045,8 @@ export default function RessourcenPage() {
   const [selectedRessource, setSelectedRessource] =
     React.useState<Ressource | null>(null)
 
+  const router = useRouter()
+
   const [expandedIds, setExpandedIds] = React.useState<Set<string>>(new Set())
   const [linksCache, setLinksCache] = React.useState<Record<string, VakanzLink[]>>({})
   const [loadingLinkIds, setLoadingLinkIds] = React.useState<Set<string>>(new Set())
@@ -1298,37 +1311,58 @@ export default function RessourcenPage() {
                               </TableRow>
                               {isExpanded && (
                                 <TableRow className="bg-muted/30 hover:bg-muted/30">
-                                  <TableCell colSpan={8} className="py-3 px-4">
+                                  <TableCell colSpan={8} className="px-6 py-0">
                                     {isLoadingLinks ? (
-                                      <div className="flex flex-col gap-1.5">
-                                        {[1, 2].map((i) => <Skeleton key={i} className="h-5 w-full rounded" />)}
-                                      </div>
+                                      <div className="py-3 text-xs text-muted-foreground">Lädt…</div>
                                     ) : cachedLinks.length === 0 ? (
-                                      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                                        <IconLink className="size-3.5" />
-                                        Noch auf keine Vakanz gespielt.
-                                      </p>
+                                      <div className="py-3 text-xs text-muted-foreground">Noch auf keine Vakanz gespielt.</div>
                                     ) : (
-                                      <div className="flex flex-col divide-y rounded-md border bg-background">
-                                        {cachedLinks.map((link) => (
-                                          <div key={link.id} className="flex items-center gap-3 px-3 py-2">
-                                            <span className="min-w-0 flex-1 truncate text-xs font-medium">
-                                              {link.vakanzen_data?.rolle ?? "Unbekannte Vakanz"}
-                                            </span>
-                                            <span className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium ${linkStatusColors[link.status]}`}>
-                                              {link.status}
-                                            </span>
-                                            {link.interview_datum && (
-                                              <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                                                <IconClock className="size-3" />
-                                                {new Date(link.interview_datum).toLocaleDateString("de-DE")}
-                                              </span>
-                                            )}
-                                            <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                                              {new Date(link.created_at).toLocaleDateString("de-DE")}
-                                            </span>
-                                          </div>
-                                        ))}
+                                      <div className="py-2">
+                                        <table className="w-full text-xs">
+                                          <thead>
+                                            <tr className="text-muted-foreground">
+                                              <th className="py-1.5 pr-4 text-left font-medium">Vakanz</th>
+                                              <th className="py-1.5 pr-4 text-left font-medium">Status</th>
+                                              <th className="py-1.5 pr-4 text-left font-medium">Level</th>
+                                              <th className="py-1.5 pr-4 text-left font-medium">Standort/Remote</th>
+                                              <th className="py-1.5 pr-4 text-left font-medium">Sektor</th>
+                                              <th className="py-1.5 pr-4 text-left font-medium">Start</th>
+                                              <th className="py-1.5 text-left font-medium">Ende</th>
+                                            </tr>
+                                          </thead>
+                                          <tbody className="divide-y divide-border/50">
+                                            {cachedLinks.map((link) => {
+                                              const vd = link.vakanzen_data
+                                              const standortLabel = [vd?.arbeitsmodell, vd?.standort].filter(Boolean).join(" · ") || "—"
+                                              return (
+                                                <tr key={link.id}>
+                                                  <td className="py-1.5 pr-4 font-medium text-foreground">
+                                                    <button
+                                                      className="text-left hover:underline focus:outline-none"
+                                                      onClick={(e) => { e.stopPropagation(); router.push(`/vakanzen/${link.vakanz_id}`) }}
+                                                    >
+                                                      {vd?.rolle ?? "—"}
+                                                    </button>
+                                                  </td>
+                                                  <td className="py-1.5 pr-4">
+                                                    <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${linkStatusColors[link.status]}`}>
+                                                      {link.status}
+                                                    </span>
+                                                  </td>
+                                                  <td className="py-1.5 pr-4 text-muted-foreground">{vd?.erfahrungslevel ?? "—"}</td>
+                                                  <td className="py-1.5 pr-4 text-muted-foreground">{standortLabel}</td>
+                                                  <td className="py-1.5 pr-4 text-muted-foreground">{vd?.branche ?? "—"}</td>
+                                                  <td className="py-1.5 pr-4 text-muted-foreground">
+                                                    {vd?.startdatum ? new Date(vd.startdatum).toLocaleDateString("de-DE") : "—"}
+                                                  </td>
+                                                  <td className="py-1.5 text-muted-foreground">
+                                                    {vd?.enddatum ? new Date(vd.enddatum).toLocaleDateString("de-DE") : "—"}
+                                                  </td>
+                                                </tr>
+                                              )
+                                            })}
+                                          </tbody>
+                                        </table>
                                       </div>
                                     )}
                                   </TableCell>
