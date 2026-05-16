@@ -1131,7 +1131,7 @@ export default function RessourcenPage() {
       <SidebarInset>
         <SiteHeader title="Ressourcen" />
         <div className="flex flex-1 flex-col">
-            <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+          <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
               {/* Header */}
               <div className="flex items-center justify-between px-4 lg:px-6">
                 <div>
@@ -1342,7 +1342,7 @@ export default function RessourcenPage() {
                   </Table>
                 </div>
               </div>
-            </div>
+          </div>
         </div>
       </SidebarInset>
 
