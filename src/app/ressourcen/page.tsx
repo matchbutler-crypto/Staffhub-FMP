@@ -1313,7 +1313,15 @@ export default function RessourcenPage() {
                                 <TableRow className="bg-muted/30 hover:bg-muted/30">
                                   <TableCell colSpan={8} className="px-6 py-0">
                                     {isLoadingLinks ? (
-                                      <div className="py-3 text-xs text-muted-foreground">Lädt…</div>
+                                      <div className="py-2">
+                                        {[1, 2].map((i) => (
+                                          <div key={i} className="flex gap-4 py-1.5">
+                                            {Array.from({ length: 7 }).map((_, j) => (
+                                              <Skeleton key={j} className="h-4 flex-1 rounded" />
+                                            ))}
+                                          </div>
+                                        ))}
+                                      </div>
                                     ) : cachedLinks.length === 0 ? (
                                       <div className="py-3 text-xs text-muted-foreground">Noch auf keine Vakanz gespielt.</div>
                                     ) : (
@@ -1338,8 +1346,8 @@ export default function RessourcenPage() {
                                                 <tr key={link.id}>
                                                   <td className="py-1.5 pr-4 font-medium text-foreground">
                                                     <button
-                                                      className="text-left hover:underline focus:outline-none"
-                                                      onClick={(e) => { e.stopPropagation(); router.push(`/vakanzen/${link.vakanz_id}`) }}
+                                                      className="text-left hover:underline focus:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-sm"
+                                                      onClick={(e) => { e.stopPropagation(); if (link.vakanz_id) router.push(`/vakanzen/${link.vakanz_id}`) }}
                                                     >
                                                       {vd?.rolle ?? "—"}
                                                     </button>
