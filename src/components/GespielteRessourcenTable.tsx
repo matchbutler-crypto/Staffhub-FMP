@@ -178,11 +178,11 @@ export function GespielteRessourcenTable({
   return (
     <TooltipProvider>
       <div className="w-full border border-border rounded-lg overflow-hidden bg-background">
-        {/* Header — manager: 3+2+1+2+2+2=12 | agentur: 3+2+2+3+2=12 */}
+        {/* Header — manager: 2+2+1+3+1+1+2=12 | agentur: 3+2+1+3+1+2=12 */}
         <div className="grid grid-cols-12 gap-4 px-5 py-3 bg-muted border-b border-border">
-          <div className="col-span-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Name</div>
+          <div className={`${isManager ? 'col-span-2' : 'col-span-3'} text-xs font-semibold text-muted-foreground uppercase tracking-wide`}>Name</div>
           <div className="col-span-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Gespielt am</div>
-          <div className={`${isManager ? 'col-span-1' : 'col-span-2'} text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1`}>
+          <div className="col-span-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
             Match
             <Tooltip>
               <TooltipTrigger asChild>
@@ -195,9 +195,10 @@ export function GespielteRessourcenTable({
               </TooltipContent>
             </Tooltip>
           </div>
-          <div className={`${isManager ? 'col-span-2' : 'col-span-3'} text-xs font-semibold text-muted-foreground uppercase tracking-wide`}>Status</div>
+          <div className="col-span-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</div>
+          <div className="col-span-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Kommentar</div>
           {isManager && (
-            <div className="col-span-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Agentur</div>
+            <div className="col-span-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Agentur</div>
           )}
           <div className="col-span-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide text-right">Aktion</div>
         </div>
@@ -217,7 +218,7 @@ export function GespielteRessourcenTable({
               <div key={resource.id}>
                 <div className="grid grid-cols-12 gap-4 px-5 py-4 items-center hover:bg-accent/50 transition-colors group">
                   {/* Name */}
-                  <div className="col-span-3">
+                  <div className={isManager ? 'col-span-2' : 'col-span-3'}>
                     <p className="text-sm font-semibold text-foreground">{resource.name}</p>
                     <p className="text-xs text-muted-foreground">{resource.erfahrungslevel}</p>
                   </div>
@@ -228,7 +229,7 @@ export function GespielteRessourcenTable({
                   </div>
 
                   {/* Score */}
-                  <div className={isManager ? 'col-span-1' : 'col-span-2'}>
+                  <div className="col-span-1">
                     {isCalculating ? (
                       <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
                         <Loader2 className="h-3 w-3 animate-spin" />
@@ -242,7 +243,7 @@ export function GespielteRessourcenTable({
                   </div>
 
                   {/* Status */}
-                  <div className={isManager ? 'col-span-2' : 'col-span-3'}>
+                  <div className="col-span-3">
                     {isManager && currentStatus !== 'Zurückgezogen' ? (
                       isUpdating ? (
                         <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -250,72 +251,59 @@ export function GespielteRessourcenTable({
                           Speichert…
                         </span>
                       ) : (
-                        <div className="flex flex-col gap-1.5">
-                          <Select value={currentStatus} onValueChange={(v) => handleStatusSelect(resource, v)}>
-                            <SelectTrigger className={`h-auto w-fit rounded-full border px-2.5 py-1 text-xs font-medium transition-all cursor-pointer [&>svg]:hidden hover:opacity-80 active:scale-95 ${getStatusConfig(currentStatus).color}`}>
-                              <span className="flex items-center gap-1.5 whitespace-nowrap">
-                                {getStatusConfig(currentStatus).icon}
-                                <span>{currentStatus}</span>
-                                <ChevronDown className="h-3 w-3 opacity-50" />
-                              </span>
-                            </SelectTrigger>
-                            <SelectContent>
-                              {LINK_STATUSES.map((s) => {
-                                const cfg = getStatusConfig(s)
-                                return (
-                                  <SelectItem key={s} value={s} className="text-xs">
-                                    <span className="flex items-center gap-2">
-                                      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${cfg.dot}`} />
-                                      {s}
-                                    </span>
-                                  </SelectItem>
-                                )
-                              })}
-                            </SelectContent>
-                          </Select>
-                          {hasFeedback && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground cursor-help transition-colors">
-                                  <MessageSquare className="h-3 w-3 shrink-0" />
-                                  <span className="truncate max-w-[140px]">{resource.link_feedback}</span>
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent className="max-w-[280px] text-xs">
-                                <p className="font-semibold mb-1">Feedback</p>
-                                <p className="whitespace-pre-wrap leading-relaxed">{resource.link_feedback}</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          )}
-                        </div>
+                        <Select value={currentStatus} onValueChange={(v) => handleStatusSelect(resource, v)}>
+                          <SelectTrigger className={`h-auto w-fit rounded-full border px-2.5 py-1 text-xs font-medium transition-all cursor-pointer [&>svg]:hidden hover:opacity-80 active:scale-95 ${getStatusConfig(currentStatus).color}`}>
+                            <span className="flex items-center gap-1.5 whitespace-nowrap">
+                              {getStatusConfig(currentStatus).icon}
+                              <span>{currentStatus}</span>
+                              <ChevronDown className="h-3 w-3 opacity-50" />
+                            </span>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {LINK_STATUSES.map((s) => {
+                              const cfg = getStatusConfig(s)
+                              return (
+                                <SelectItem key={s} value={s} className="text-xs">
+                                  <span className="flex items-center gap-2">
+                                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${cfg.dot}`} />
+                                    {s}
+                                  </span>
+                                </SelectItem>
+                              )
+                            })}
+                          </SelectContent>
+                        </Select>
                       )
                     ) : (
-                      <div className="flex flex-col gap-1.5">
-                        <span className={`inline-flex w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${getStatusConfig(currentStatus).color}`}>
-                          {getStatusConfig(currentStatus).icon}
-                          {currentStatus}
-                        </span>
-                        {hasFeedback && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground cursor-help transition-colors">
-                                <MessageSquare className="h-3 w-3 shrink-0" />
-                                <span className="truncate max-w-[140px]">{resource.link_feedback}</span>
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent className="max-w-[280px] text-xs">
-                              <p className="font-semibold mb-1">Feedback</p>
-                              <p className="whitespace-pre-wrap leading-relaxed">{resource.link_feedback}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        )}
-                      </div>
+                      <span className={`inline-flex w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${getStatusConfig(currentStatus).color}`}>
+                        {getStatusConfig(currentStatus).icon}
+                        {currentStatus}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Kommentar */}
+                  <div className="col-span-1 flex items-center">
+                    {hasFeedback ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex cursor-help text-muted-foreground hover:text-foreground transition-colors">
+                            <MessageSquare className="h-4 w-4" />
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-[280px] text-xs">
+                          <p className="font-semibold mb-1">Kommentar</p>
+                          <p className="whitespace-pre-wrap leading-relaxed">{resource.link_feedback}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : (
+                      <span className="text-xs text-muted-foreground/40">–</span>
                     )}
                   </div>
 
                   {/* Agentur — manager only */}
                   {isManager && (
-                    <div className="col-span-2">
+                    <div className="col-span-1">
                       {resource.agentur_name ? (
                         <span className="inline-flex items-center rounded-md border border-border bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground truncate max-w-full">
                           {resource.agentur_name}
