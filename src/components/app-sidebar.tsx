@@ -15,6 +15,7 @@ import {
   IconUsers,
 } from '@tabler/icons-react'
 
+import { ModeToggle } from '@/components/mode-toggle'
 import { NavMain } from '@/components/nav-main'
 import { NavSecondary } from '@/components/nav-secondary'
 import { NavUser } from '@/components/nav-user'
@@ -145,6 +146,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         )}
       </SidebarContent>
       <SidebarFooter>
+        <div className="flex items-center justify-end px-2 py-1 group-data-[collapsible=icon]:justify-center">
+          <ModeToggle />
+        </div>
         <NavUser
           user={{
             name: user?.name ?? '…',
