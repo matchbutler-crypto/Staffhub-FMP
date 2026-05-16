@@ -110,7 +110,7 @@ export async function GET() {
   ] = await Promise.allSettled([
     supabase.from('vakanzen').select('id', { count: 'exact', head: true }).eq('status', 'Offen'),
     supabase.from('beauftragungen').select('margenaufschlag, stunden_woche').eq('aktiv', true),
-    supabase.from('vakanzen').select('id, rolle, created_at, kandidaten_profile(id)').eq('status', 'Offen').order('created_at', { ascending: true }),
+    supabase.from('vakanzen').select('id, rolle, created_at, kandidaten_profile(id), ressource_vakanz_links(id)').eq('status', 'Offen').order('created_at', { ascending: true }),
     supabase.from('vakanzen').select('id, rolle, enddatum').eq('status', 'Offen').not('enddatum', 'is', null).lte('enddatum', in30Days).gte('enddatum', today).order('enddatum', { ascending: true }).limit(5),
     // 3 newest open vakanzen for Tile 1
     supabase.from('vakanzen').select('id, rolle, created_at').eq('status', 'Offen').order('created_at', { ascending: false }).limit(3),
@@ -132,10 +132,13 @@ export async function GET() {
   const monatsMarge = beauftragungen.reduce((sum, b) => sum + Number(b.margenaufschlag) * b.stunden_woche * 4, 0)
 
   // Vakanzen ohne Profile
-  type VakanzWithProfiles = { id: string; rolle: string; created_at: string; kandidaten_profile: { id: string }[] }
+  type VakanzWithProfiles = { id: string; rolle: string; created_at: string; kandidaten_profile: { id: string }[]; ressource_vakanz_links: { id: string }[] }
   const vakanzRaw = vakanzOhneProfileRes.status === 'fulfilled' && !vakanzOhneProfileRes.value.error ? (vakanzOhneProfileRes.value.data as VakanzWithProfiles[] ?? []) : []
   const vakanzenOhneProfile = vakanzRaw
-    .filter(v => !v.kandidaten_profile || v.kandidaten_profile.length === 0)
+    .filter(v =>
+      (!v.kandidaten_profile || v.kandidaten_profile.length === 0) &&
+      (!v.ressource_vakanz_links || v.ressource_vakanz_links.length === 0)
+    )
     .slice(0, 5)
     .map(v => ({
       id: v.id,
