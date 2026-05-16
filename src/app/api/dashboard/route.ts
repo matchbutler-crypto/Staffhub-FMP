@@ -99,8 +99,6 @@ export async function GET() {
   const [
     vakanzenRes,
     beauftragungRes,
-    pipelineRes,
-    agenturPerfRes,
     vakanzOhneProfileRes,
     baldAuslaufendRes,
     // New queries
@@ -112,8 +110,6 @@ export async function GET() {
   ] = await Promise.allSettled([
     supabase.from('vakanzen').select('id', { count: 'exact', head: true }).eq('status', 'Offen'),
     supabase.from('beauftragungen').select('margenaufschlag, stunden_woche').eq('aktiv', true),
-    supabase.from('kandidaten_profile').select('status'),
-    supabase.from('kandidaten_profile').select('agentur_id, ki_score, agenturen!inner(name)').not('agentur_id', 'is', null),
     supabase.from('vakanzen').select('id, rolle, created_at, kandidaten_profile(id)').eq('status', 'Offen').order('created_at', { ascending: true }),
     supabase.from('vakanzen').select('id, rolle, enddatum').eq('status', 'Offen').not('enddatum', 'is', null).lte('enddatum', in30Days).gte('enddatum', today).order('enddatum', { ascending: true }).limit(5),
     // 3 newest open vakanzen for Tile 1
@@ -134,27 +130,6 @@ export async function GET() {
   const vakanzenCount = vakanzenRes.status === 'fulfilled' && !vakanzenRes.value.error ? (vakanzenRes.value.count ?? 0) : 0
   const beauftragungen = beauftragungRes.status === 'fulfilled' && !beauftragungRes.value.error ? (beauftragungRes.value.data ?? []) : []
   const monatsMarge = beauftragungen.reduce((sum, b) => sum + Number(b.margenaufschlag) * b.stunden_woche * 4, 0)
-
-  // Pipeline (kandidaten_profile — kept for existing chart)
-  const pipelineRaw = pipelineRes.status === 'fulfilled' && !pipelineRes.value.error ? (pipelineRes.value.data ?? []) : []
-  const pipeline: Record<string, number> = {}
-  for (const p of pipelineRaw) pipeline[p.status] = (pipeline[p.status] ?? 0) + 1
-
-  // Agentur-Performance
-  const agenturRaw = agenturPerfRes.status === 'fulfilled' && !agenturPerfRes.value.error ? (agenturPerfRes.value.data ?? []) : []
-  const agenturMap: Record<string, { name: string; count: number; scoreSum: number; scoreCount: number }> = {}
-  for (const p of agenturRaw as { agentur_id: string | null; ki_score: number | null; agenturen: unknown }[]) {
-    if (!p.agentur_id) continue
-    const agenturen = p.agenturen as { name: string }[] | { name: string } | null
-    const name = Array.isArray(agenturen) ? agenturen[0]?.name : agenturen?.name
-    if (!name) continue
-    if (!agenturMap[p.agentur_id]) agenturMap[p.agentur_id] = { name, count: 0, scoreSum: 0, scoreCount: 0 }
-    agenturMap[p.agentur_id].count++
-    if (p.ki_score !== null) { agenturMap[p.agentur_id].scoreSum += p.ki_score; agenturMap[p.agentur_id].scoreCount++ }
-  }
-  const agenturPerformance = Object.values(agenturMap)
-    .map(({ name, count, scoreSum, scoreCount }) => ({ name, count, avg_score: scoreCount > 0 ? Math.round(scoreSum / scoreCount) : null }))
-    .sort((a, b) => (b.avg_score ?? 0) - (a.avg_score ?? 0))
 
   // Vakanzen ohne Profile
   type VakanzWithProfiles = { id: string; rolle: string; created_at: string; kandidaten_profile: { id: string }[] }
@@ -217,15 +192,12 @@ export async function GET() {
     rolle: 'Manager',
     kpis: {
       aktive_vakanzen: vakanzenCount,
-      in_pruefung: pipeline['In Prüfung'] ?? 0,
       aktive_beauftragungen: beauftragungen.length,
       monats_marge: Math.round(monatsMarge),
     },
     neueste_vakanzen: neuesteVakanzen,
     pool_stats: { total: poolTotal, by_link_status: byLinkStatus },
     bald_verfuegbar: baldVerfuegbar,
-    pipeline,
-    agentur_performance: agenturPerformance,
     vakanzen_ohne_profile: vakanzenOhneProfile,
     bald_auslaufend: baldAuslaufend,
     ressourcen_pipeline: ressourcenPipeline,
