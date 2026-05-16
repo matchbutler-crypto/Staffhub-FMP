@@ -65,7 +65,7 @@ interface RessourcePipelineRow {
 
 interface ManagerData {
   rolle: 'Manager'
-  kpis: { aktive_vakanzen: number; in_pruefung: number; aktive_beauftragungen: number; monats_marge: number }
+  kpis: { aktive_vakanzen: number; aktive_beauftragungen: number; monats_marge: number }
   neueste_vakanzen: { id: string; rolle: string; created_at: string }[]
   pool_stats: { total: number; by_link_status: Record<string, number> }
   bald_verfuegbar: { id: string; name: string; rolle: string | null; verfuegbar_ab: string }[]
