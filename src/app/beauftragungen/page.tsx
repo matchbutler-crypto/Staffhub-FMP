@@ -312,30 +312,32 @@ export default function BeauftragungPage() {
                     <CardDescription>Profile nach Status</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    {PIPELINE_ORDER.map((status) => {
-                      const count = pipeline[status] ?? 0
+                    {(() => {
                       const pipelineMax = Math.max(...PIPELINE_ORDER.map(s => pipeline[s] ?? 0), 1)
-                      const pct = Math.round((count / pipelineMax) * 100)
-                      const isAlert = status === "In Prüfung" && count > 0
-                      return (
-                        <div key={status} className="flex items-center gap-3">
-                          <span className={`w-28 shrink-0 text-xs ${isAlert ? "font-semibold text-yellow-700" : "text-muted-foreground"}`}>
-                            {isAlert && "⚠ "}{status}
-                          </span>
-                          <div className="flex flex-1 items-center gap-2">
-                            <div className="h-5 flex-1 overflow-hidden rounded-sm bg-muted">
-                              <div
-                                className={`h-full rounded-sm transition-all ${pipelineBarColors[status] ?? "bg-gray-400"}`}
-                                style={{ width: count === 0 ? "0%" : `${Math.max(pct, 3)}%` }}
-                              />
-                            </div>
-                            <span className={`w-6 text-right text-xs tabular-nums font-medium ${isAlert ? "text-yellow-700" : "text-foreground"}`}>
-                              {count}
+                      return PIPELINE_ORDER.map((status) => {
+                        const count = pipeline[status] ?? 0
+                        const pct = Math.round((count / pipelineMax) * 100)
+                        const isAlert = status === "In Prüfung" && count > 0
+                        return (
+                          <div key={status} className="flex items-center gap-3">
+                            <span className={`w-28 shrink-0 text-xs ${isAlert ? "font-semibold text-yellow-700" : "text-muted-foreground"}`}>
+                              {isAlert && "⚠ "}{status}
                             </span>
+                            <div className="flex flex-1 items-center gap-2">
+                              <div className="h-5 flex-1 overflow-hidden rounded-sm bg-muted">
+                                <div
+                                  className={`h-full rounded-sm transition-all ${pipelineBarColors[status] ?? "bg-gray-400"}`}
+                                  style={{ width: count === 0 ? "0%" : `${Math.max(pct, 3)}%` }}
+                                />
+                              </div>
+                              <span className={`w-6 text-right text-xs tabular-nums font-medium ${isAlert ? "text-yellow-700" : "text-foreground"}`}>
+                                {count}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      )
-                    })}
+                        )
+                      })
+                    })()}
                   </CardContent>
                 </Card>
 
