@@ -42,13 +42,21 @@ interface Beauftragung {
   erfahrungslevel: string
   vakanz_titel: string
   agentur_name: string
-  einkaufspreis: number
-  margenaufschlag: number
-  verkaufspreis: number
-  marge_prozent: number
+  einkaufspreis?: number
+  margenaufschlag?: number
+  verkaufspreis?: number
+  marge_prozent?: number
   startdatum: string
   stunden_woche: number
   aktiv: boolean
+}
+
+interface Zeitnachweis {
+  id: string
+  beauftragung_id: string
+  monat: string
+  stunden_ist: number | null
+  uploaded_at: string
 }
 
 interface AgenturGruppe {
@@ -66,38 +74,37 @@ function fmt(n: number) {
   return n.toLocaleString("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })
 }
 
-function calcUmsatz(b: Beauftragung) {
-  return Number(b.verkaufspreis) * b.stunden_woche * 4
+function effectiveStunden(b: Beauftragung, zn: Zeitnachweis | undefined): number {
+  return zn?.stunden_ist ?? (b.stunden_woche * 4)
 }
 
-function calcKosten(b: Beauftragung) {
-  return Number(b.einkaufspreis) * b.stunden_woche * 4
+function calcUmsatz(b: Beauftragung, zn?: Zeitnachweis) {
+  return (b.verkaufspreis ?? 0) * effectiveStunden(b, zn)
 }
 
-function gruppiereNachAgentur(daten: Beauftragung[]): AgenturGruppe[] {
+function calcKosten(b: Beauftragung, zn?: Zeitnachweis) {
+  return (b.einkaufspreis ?? 0) * effectiveStunden(b, zn)
+}
+
+function gruppiereNachAgentur(
+  daten: Beauftragung[],
+  zeitnachweise: Map<string, Zeitnachweis>
+): AgenturGruppe[] {
   const map = new Map<string, AgenturGruppe>()
   for (const b of daten) {
     if (!map.has(b.agentur_id)) {
-      map.set(b.agentur_id, {
-        agentur_name: b.agentur_name,
-        agentur_id: b.agentur_id,
-        zeilen: [],
-        umsatz: 0,
-        kosten: 0,
-        marge: 0,
-      })
+      map.set(b.agentur_id, { agentur_name: b.agentur_name, agentur_id: b.agentur_id, zeilen: [], umsatz: 0, kosten: 0, marge: 0 })
     }
     const g = map.get(b.agentur_id)!
-    const u = calcUmsatz(b)
-    const k = calcKosten(b)
+    const zn = zeitnachweise.get(b.id)
+    const u = calcUmsatz(b, zn)
+    const k = calcKosten(b, zn)
     g.zeilen.push(b)
     g.umsatz += u
     g.kosten += k
     g.marge += u - k
   }
-  return Array.from(map.values()).sort((a, b) =>
-    a.agentur_name.localeCompare(b.agentur_name, "de")
-  )
+  return Array.from(map.values()).sort((a, b) => a.agentur_name.localeCompare(b.agentur_name, "de"))
 }
 
 function monateListe() {
@@ -117,43 +124,34 @@ function aktuellerMonat() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
 }
 
-function exportCSV(gruppen: AgenturGruppe[], monatLabel: string) {
+function exportCSV(gruppen: AgenturGruppe[], monatLabel: string, zeitnachweise: Map<string, Zeitnachweis>) {
   const BOM = "\uFEFF"
   const sep = ";"
-  const header = [
-    "Agentur", "Kandidat", "Vakanz", "h/Woche",
-    "EK €/Tag", "VK €/Tag", "Marge%",
-    "Umsatz/Mo", "Kosten/Mo", "Marge/Mo",
-  ].join(sep)
-
+  const header = ["Agentur", "Kandidat", "Vakanz", "h/Woche", "h/Mo (Ist)", "EK €/Tag", "VK €/Tag", "Marge%", "Umsatz/Mo", "Kosten/Mo", "Marge/Mo"].join(sep)
   const zeilen: string[] = [BOM + header]
-
   for (const g of gruppen) {
     for (const b of g.zeilen) {
-      const u = calcUmsatz(b)
-      const k = calcKosten(b)
+      const zn = zeitnachweise.get(b.id)
+      const stunden = effectiveStunden(b, zn)
+      const u = calcUmsatz(b, zn)
+      const k = calcKosten(b, zn)
       zeilen.push([
-        b.agentur_name,
-        b.kandidatenname,
-        b.vakanz_titel,
-        b.stunden_woche,
-        Number(b.einkaufspreis).toFixed(2).replace(".", ","),
-        Number(b.verkaufspreis).toFixed(2).replace(".", ","),
-        `${b.marge_prozent}%`,
+        b.agentur_name, b.kandidatenname, b.vakanz_titel, b.stunden_woche, stunden,
+        (b.einkaufspreis ?? 0).toFixed(2).replace(".", ","),
+        (b.verkaufspreis ?? 0).toFixed(2).replace(".", ","),
+        `${b.marge_prozent ?? 0}%`,
         u.toFixed(2).replace(".", ","),
         k.toFixed(2).replace(".", ","),
         (u - k).toFixed(2).replace(".", ","),
       ].join(sep))
     }
-    zeilen.push([
-      `GESAMT ${g.agentur_name}`, "", "", "", "", "", "",
+    zeilen.push([`GESAMT ${g.agentur_name}`, "", "", "", "", "", "", "",
       g.umsatz.toFixed(2).replace(".", ","),
       g.kosten.toFixed(2).replace(".", ","),
       g.marge.toFixed(2).replace(".", ","),
     ].join(sep))
     zeilen.push("")
   }
-
   const blob = new Blob([zeilen.join("\r\n")], { type: "text/csv;charset=utf-8;" })
   const url = URL.createObjectURL(blob)
   const a = document.createElement("a")
@@ -185,6 +183,8 @@ export default function AbrechnungPage() {
   const [error, setError] = React.useState<string | null>(null)
   const [monat, setMonat] = React.useState(aktuellerMonat())
   const [expanded, setExpanded] = React.useState<Record<string, boolean>>({})
+  const [rolle, setRolle] = React.useState<string>("")
+  const [zeitnachweise, setZeitnachweise] = React.useState<Map<string, Zeitnachweis>>(new Map())
 
   const monate = React.useMemo(() => monateListe(), [])
 
@@ -197,7 +197,7 @@ export default function AbrechnungPage() {
       .then((body) => {
         const data: Beauftragung[] = Array.isArray(body) ? body : (body.data ?? [])
         setBeauftragungen(data)
-        // Expand all agencies by default
+        if (body.rolle) setRolle(body.rolle)
         const ids = [...new Set(data.map((b) => b.agentur_id))]
         setExpanded(Object.fromEntries(ids.map((id) => [id, true])))
       })
@@ -205,18 +205,35 @@ export default function AbrechnungPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  // Filter: aktiv + startdatum <= Ende des gewählten Monats
+  React.useEffect(() => {
+    if (beauftragungen.length === 0) return
+    const [year, month] = monat.split("-").map(Number)
+    const monatDate = `${year}-${String(month).padStart(2, "0")}-01`
+    const ids = beauftragungen.map((b) => b.id).join(",")
+    fetch(`/api/zeitnachweise?beauftragung_ids=${ids}&monat=${monatDate}`)
+      .then((r) => r.ok ? r.json() : { zeitnachweise: [] })
+      .then((body) => {
+        const map = new Map<string, Zeitnachweis>()
+        for (const zn of (body.zeitnachweise ?? [])) map.set(zn.beauftragung_id, zn)
+        setZeitnachweise(map)
+      })
+      .catch(() => {})
+  }, [monat, beauftragungen])
+
   const [monatJahr, monatMonat] = monat.split("-").map(Number)
-  const monatEnde = new Date(monatJahr, monatMonat, 0) // letzter Tag des Monats
-  const gefiltert = beauftragungen.filter((b) => {
-    return new Date(b.startdatum) <= monatEnde && b.aktiv
-  })
+  const monatEnde = new Date(monatJahr, monatMonat, 0)
+  const gefiltert = beauftragungen.filter((b) => new Date(b.startdatum) <= monatEnde && b.aktiv)
 
   const gruppen = React.useMemo(
-    () => gruppiereNachAgentur(gefiltert),
+    () => gruppiereNachAgentur(gefiltert, zeitnachweise),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [monat, beauftragungen]
+    [monat, beauftragungen, zeitnachweise]
   )
+
+  const isFinancial = rolle === 'Staffhub Manager' || rolle === 'Admin'
+  const isController = rolle === 'Controller'
+  const isAgentur = rolle === 'Agentur'
+  const colCount = loading || isFinancial ? 11 : isController ? 6 : 5
 
   const totalUmsatz = gruppen.reduce((s, g) => s + g.umsatz, 0)
   const totalKosten = gruppen.reduce((s, g) => s + g.kosten, 0)
@@ -268,7 +285,7 @@ export default function AbrechnungPage() {
                     variant="outline"
                     size="sm"
                     disabled={loading || gefiltert.length === 0}
-                    onClick={() => exportCSV(gruppen, monatLabel)}
+                    onClick={() => exportCSV(gruppen, monatLabel, zeitnachweise)}
                     className="gap-1.5"
                   >
                     <IconDownload className="size-4" />
@@ -399,8 +416,8 @@ export default function AbrechnungPage() {
 
                               {/* Kandidaten-Zeilen */}
                               {isOpen && g.zeilen.map((b) => {
-                                const u = calcUmsatz(b)
-                                const k = calcKosten(b)
+                                const u = calcUmsatz(b, zeitnachweise.get(b.id))
+                                const k = calcKosten(b, zeitnachweise.get(b.id))
                                 return (
                                   <TableRow key={b.id}>
                                     <TableCell></TableCell>
