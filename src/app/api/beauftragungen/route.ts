@@ -42,16 +42,19 @@ async function requireAny(supabase: Awaited<ReturnType<typeof createClient>>) {
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
+  const { data: { user: authUser } } = await supabase.auth.getUser()
   const { profile, error: authErr } = await requireAny(supabase)
 
+  console.log('[beauftragungen GET] authUser:', authUser?.id, '| authErr:', authErr, '| profile:', JSON.stringify(profile))
+
   if (authErr === 'auth') return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 })
-  if (authErr === 'inactive') return NextResponse.json({ error: 'Account deaktiviert' }, { status: 403 })
+  if (authErr === 'inactive') return NextResponse.json({ error: 'Account deaktiviert', debug_profile: profile }, { status: 403 })
 
   const isAgentur = profile?.rolle === 'Agentur'
   const isManager = profile?.rolle === 'Staffhub Manager' || profile?.rolle === 'Admin' || profile?.rolle === 'Controller'
 
   if (!isAgentur && !isManager) {
-    return NextResponse.json({ error: 'Keine Berechtigung', debug_rolle: profile?.rolle }, { status: 403 })
+    return NextResponse.json({ error: 'Keine Berechtigung', debug_rolle: profile?.rolle, debug_profile: profile }, { status: 403 })
   }
 
   if (isAgentur && !profile?.agentur_id) {
