@@ -35,7 +35,7 @@ const ALL_NAV_MAIN = [
     title: 'Dashboard',
     url: '/dashboard',
     icon: IconLayoutDashboard,
-    roles: ['Admin', 'Staffhub Manager', 'Agentur'],
+    roles: ['Admin', 'Staffhub Manager', 'Agentur', 'Controller'],
   },
   {
     title: 'Vakanzen',
@@ -59,7 +59,7 @@ const ALL_NAV_MAIN = [
     title: 'Abrechnung',
     url: '/abrechnung',
     icon: IconReceipt,
-    roles: ['Admin', 'Staffhub Manager'],
+    roles: ['Admin', 'Staffhub Manager', 'Controller'],
   },
   {
     title: 'Mein Pool',
@@ -92,7 +92,7 @@ const ALL_NAV_SECONDARY = [
     title: 'Einstellungen',
     url: '/settings',
     icon: IconSettingsCog,
-    roles: ['Admin', 'Staffhub Manager', 'Agentur'],
+    roles: ['Admin', 'Staffhub Manager', 'Agentur', 'Controller'],
   },
   {
     title: 'Admin',
