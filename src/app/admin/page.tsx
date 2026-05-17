@@ -64,7 +64,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type Rolle = "Admin" | "Staffhub Manager" | "Agentur"
+type Rolle = "Admin" | "Staffhub Manager" | "Controller" | "Agentur"
 
 interface Agentur {
   id: string
@@ -89,6 +89,7 @@ interface User {
 const rolleColors: Record<Rolle, string> = {
   Admin: "bg-red-100 text-red-700 border-red-200",
   "Staffhub Manager": "bg-blue-100 text-blue-700 border-blue-200",
+  Controller: "bg-green-100 text-green-700 border-green-200",
   Agentur: "bg-purple-100 text-purple-700 border-purple-200",
 }
 
@@ -182,6 +183,7 @@ function NeuerBenutzerSheet({
                 <SelectContent>
                   <SelectItem value="Admin">Admin</SelectItem>
                   <SelectItem value="Staffhub Manager">Staffhub Manager</SelectItem>
+                  <SelectItem value="Controller">Controller</SelectItem>
                   <SelectItem value="Agentur">Agentur</SelectItem>
                 </SelectContent>
               </Select>
@@ -297,6 +299,7 @@ function BenutzerBearbeitenSheet({ open, onOpenChange, user, agenturen, onSucces
                   <SelectContent>
                     <SelectItem value="Admin">Admin</SelectItem>
                     <SelectItem value="Staffhub Manager">Staffhub Manager</SelectItem>
+                    <SelectItem value="Controller">Controller</SelectItem>
                     <SelectItem value="Agentur">Agentur</SelectItem>
                   </SelectContent>
                 </Select>
