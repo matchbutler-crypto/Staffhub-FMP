@@ -236,3 +236,32 @@ export async function bewerteProfilMitOpenAI(
     model: 'gpt-4o-mini',
   }
 }
+
+export async function extractStundenFromPDF(pdfBuffer: ArrayBuffer): Promise<number | null> {
+  const base64 = Buffer.from(pdfBuffer).toString('base64')
+
+  const response = await getOpenAI().responses.create({
+    model: 'gpt-4o-mini',
+    input: [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'input_file',
+            filename: 'zeitnachweis.pdf',
+            file_data: `data:application/pdf;base64,${base64}`,
+          },
+          {
+            type: 'input_text',
+            text: 'Du bekommst einen Zeitnachweis (Stundennachweis). Extrahiere die Gesamtanzahl der geleisteten Stunden als Dezimalzahl. Antworte nur mit der Zahl, ohne Einheit oder Erklärung. Beispiel: 160.5',
+          },
+        ],
+      },
+    ],
+  })
+
+  const text = response.output_text?.trim()
+  if (!text) return null
+  const num = parseFloat(text)
+  return isNaN(num) || num < 0 ? null : num
+}
