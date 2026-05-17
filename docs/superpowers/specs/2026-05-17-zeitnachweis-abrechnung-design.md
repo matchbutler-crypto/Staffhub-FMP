@@ -68,7 +68,7 @@ Re-upload on same `(beauftragung_id, monat)` overwrites the previous entry (upse
 
 ## OpenAI Parsing
 
-OpenAI cannot read PDFs directly. The server uses `pdf-parse` (npm) to extract plain text from the PDF buffer first, then sends the text to OpenAI.
+The codebase already uses `responses.create` with `input_file` to send PDF buffers directly to OpenAI (see `extractSkillsFromCVBuffer` in `src/lib/openai.ts`). No pdf-parse needed — same pattern applies here.
 
 Model: `gpt-4o-mini` (cheap, fast).
 
