@@ -240,7 +240,8 @@ export default function AbrechnungPage() {
   const isFinancial = rolle === 'Staffhub Manager' || rolle === 'Admin'
   const isController = rolle === 'Controller'
   const isAgentur = rolle === 'Agentur'
-  const colCount = loading || isFinancial ? 11 : isController ? 6 : 5
+  const canEditMarge = rolle === 'Admin'
+  const colCount = loading || isFinancial ? (canEditMarge ? 12 : 11) : isController ? 6 : 5
 
   const totalUmsatz = gruppen.reduce((s, g) => s + g.umsatz, 0)
   const totalKosten = gruppen.reduce((s, g) => s + g.kosten, 0)
@@ -436,6 +437,9 @@ export default function AbrechnungPage() {
                             </TableHead>
                           </>
                         )}
+                        {canEditMarge && (
+                          <TableHead className="text-right">Marge €/Std</TableHead>
+                        )}
                         {isController && (
                           <>
                             <TableHead className="text-right">Marge €/Std</TableHead>
@@ -483,6 +487,7 @@ export default function AbrechnungPage() {
                                     <TableCell className="text-right tabular-nums font-semibold">{fmt(g.umsatz)}</TableCell>
                                     <TableCell className="text-right tabular-nums text-muted-foreground">{fmt(g.kosten)}</TableCell>
                                     <TableCell className="text-right tabular-nums text-green-700 font-semibold">{fmt(g.marge)}</TableCell>
+                                    {canEditMarge && <TableCell></TableCell>}
                                   </>
                                 )}
                                 {isController && (
@@ -533,6 +538,20 @@ export default function AbrechnungPage() {
                                           {fmt(calcUmsatz(b, zeitnachweise.get(b.id)) - calcKosten(b, zeitnachweise.get(b.id)))}
                                         </TableCell>
                                       </>
+                                    )}
+                                    {canEditMarge && (
+                                      <TableCell className="text-right tabular-nums text-sm">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="0.01"
+                                          value={margenOverrides[b.id] ?? b.margenaufschlag ?? 0}
+                                          onChange={(e) => setMargenOverrides((prev) => ({ ...prev, [b.id]: parseFloat(e.target.value) || 0 }))}
+                                          onBlur={(e) => saveMarge(b.id, parseFloat(e.target.value) || 0)}
+                                          disabled={savingMarge[b.id]}
+                                          className="w-20 rounded border border-input bg-background px-2 py-0.5 text-right text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+                                        />
+                                      </TableCell>
                                     )}
                                     {isController && (() => {
                                       const zn = zeitnachweise.get(b.id)
@@ -608,6 +627,7 @@ export default function AbrechnungPage() {
                               <TableCell className="text-right tabular-nums">{fmt(totalUmsatz)}</TableCell>
                               <TableCell className="text-right tabular-nums text-muted-foreground">{fmt(totalKosten)}</TableCell>
                               <TableCell className="text-right tabular-nums text-green-700">{fmt(totalMarge)}</TableCell>
+                              {canEditMarge && <TableCell></TableCell>}
                               <TableCell className="print:hidden"></TableCell>
                             </>
                           )}
