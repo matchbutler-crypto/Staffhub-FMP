@@ -188,6 +188,8 @@ export default function AbrechnungPage() {
   const [zeitnachweise, setZeitnachweise] = React.useState<Map<string, Zeitnachweis>>(new Map())
   const [uploadingId, setUploadingId] = React.useState<string | null>(null)
   const [uploadErrors, setUploadErrors] = React.useState<Record<string, string>>({})
+  const [margenOverrides, setMargenOverrides] = React.useState<Record<string, number>>({})
+  const [savingMarge, setSavingMarge] = React.useState<Record<string, boolean>>({})
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const uploadTargetRef = React.useRef<{ beauftragungId: string; monat: string } | null>(null)
 
@@ -264,6 +266,25 @@ export default function AbrechnungPage() {
       monat: `${year}-${String(month).padStart(2, "0")}-01`,
     }
     fileInputRef.current?.click()
+  }
+
+  async function saveMarge(beauftragungId: string, value: number) {
+    setSavingMarge((prev) => ({ ...prev, [beauftragungId]: true }))
+    try {
+      const r = await fetch(`/api/beauftragungen/${beauftragungId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ margenaufschlag: value }),
+      })
+      if (!r.ok) throw new Error((await r.json()).error ?? "Fehler")
+      setBeauftragungen((prev) =>
+        prev.map((b) => b.id === beauftragungId ? { ...b, margenaufschlag: value } : b)
+      )
+    } catch {
+      setMargenOverrides((prev) => { const next = { ...prev }; delete next[beauftragungId]; return next })
+    } finally {
+      setSavingMarge((prev) => ({ ...prev, [beauftragungId]: false }))
+    }
   }
 
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -471,7 +492,8 @@ export default function AbrechnungPage() {
                                     <TableCell className="text-right tabular-nums text-green-700 font-semibold">
                                       {fmt(g.zeilen.reduce((sum, b) => {
                                         const zn = zeitnachweise.get(b.id)
-                                        return sum + (b.margenaufschlag ?? 0) * effectiveStunden(b, zn)
+                                        const marge = margenOverrides[b.id] ?? b.margenaufschlag ?? 0
+                                        return sum + marge * effectiveStunden(b, zn)
                                       }, 0))}
                                     </TableCell>
                                   </>
@@ -515,11 +537,20 @@ export default function AbrechnungPage() {
                                     {isController && (() => {
                                       const zn = zeitnachweise.get(b.id)
                                       const stunden = effectiveStunden(b, zn)
-                                      const marge = b.margenaufschlag ?? 0
+                                      const marge = margenOverrides[b.id] ?? b.margenaufschlag ?? 0
                                       return (
                                         <>
-                                          <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
-                                            {marge.toLocaleString("de-DE")} €
+                                          <TableCell className="text-right tabular-nums text-sm">
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              step="0.01"
+                                              value={margenOverrides[b.id] ?? b.margenaufschlag ?? 0}
+                                              onChange={(e) => setMargenOverrides((prev) => ({ ...prev, [b.id]: parseFloat(e.target.value) || 0 }))}
+                                              onBlur={(e) => saveMarge(b.id, parseFloat(e.target.value) || 0)}
+                                              disabled={savingMarge[b.id]}
+                                              className="w-20 rounded border border-input bg-background px-2 py-0.5 text-right text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+                                            />
                                           </TableCell>
                                           <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
                                             {stunden}{zn?.stunden_ist != null ? "" : <span className="ml-1 text-[10px] text-muted-foreground/60">est.</span>}
@@ -586,7 +617,8 @@ export default function AbrechnungPage() {
                               <TableCell className="text-right tabular-nums text-green-700">
                                 {fmt(gefiltert.reduce((sum, b) => {
                                   const zn = zeitnachweise.get(b.id)
-                                  return sum + (b.margenaufschlag ?? 0) * effectiveStunden(b, zn)
+                                  const marge = margenOverrides[b.id] ?? b.margenaufschlag ?? 0
+                                  return sum + marge * effectiveStunden(b, zn)
                                 }, 0))}
                               </TableCell>
                             </>
