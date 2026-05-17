@@ -56,3 +56,47 @@ export async function PUT(
 
   return NextResponse.json({ beauftragung: data })
 }
+
+// ── PATCH /api/beauftragungen/[id] ────────────────────────────────────────────
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const supabase = await createClient()
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 })
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('rolle, aktiv')
+    .eq('id', user.id)
+    .single()
+
+  if (!profile?.aktiv) return NextResponse.json({ error: 'Account deaktiviert' }, { status: 403 })
+  if (!['Controller', 'Staffhub Manager', 'Admin'].includes(profile.rolle)) {
+    return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
+  }
+
+  const body = await request.json().catch(() => null)
+  const parsed = z.object({ margenaufschlag: z.number().min(0) }).safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Validierungsfehler', details: parsed.error.flatten().fieldErrors }, { status: 400 })
+  }
+
+  const { data, error } = await supabase
+    .from('beauftragungen')
+    .update({ margenaufschlag: parsed.data.margenaufschlag })
+    .eq('id', id)
+    .select('id, margenaufschlag, verkaufspreis, updated_at')
+    .single()
+
+  if (error) {
+    if (error.code === 'PGRST116') return NextResponse.json({ error: 'Beauftragung nicht gefunden' }, { status: 404 })
+    return NextResponse.json({ error: 'Fehler beim Aktualisieren' }, { status: 500 })
+  }
+
+  return NextResponse.json({ beauftragung: data })
+}

@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
   if (authErr === 'inactive') return NextResponse.json({ error: 'Account deaktiviert' }, { status: 403 })
 
   const isAgentur = profile?.rolle === 'Agentur'
-  const isManager = profile?.rolle === 'Staffhub Manager' || profile?.rolle === 'Admin'
+  const isManager = profile?.rolle === 'Staffhub Manager' || profile?.rolle === 'Admin' || profile?.rolle === 'Controller'
 
   if (!isAgentur && !isManager) {
     return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
@@ -164,10 +164,10 @@ export async function GET(request: NextRequest) {
       }))
       .sort((a, b) => (b.avg_score ?? 0) - (a.avg_score ?? 0))
 
-    return NextResponse.json({ data: result, total: count ?? 0, page, pageSize, pipeline, agentur_performance })
+    return NextResponse.json({ data: result, total: count ?? 0, page, pageSize, pipeline, agentur_performance, rolle: profile?.rolle })
   }
 
-  return NextResponse.json({ data: result, total: count ?? 0, page, pageSize })
+  return NextResponse.json({ data: result, total: count ?? 0, page, pageSize, rolle: profile?.rolle })
 }
 
 // ── POST /api/beauftragungen ───────────────────────────────────────────────────
