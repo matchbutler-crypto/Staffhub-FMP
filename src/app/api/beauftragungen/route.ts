@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
   const isManager = profile?.rolle === 'Staffhub Manager' || profile?.rolle === 'Admin' || profile?.rolle === 'Controller'
 
   if (!isAgentur && !isManager) {
-    return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
+    return NextResponse.json({ error: 'Keine Berechtigung', debug_rolle: profile?.rolle }, { status: 403 })
   }
 
   if (isAgentur && !profile?.agentur_id) {
