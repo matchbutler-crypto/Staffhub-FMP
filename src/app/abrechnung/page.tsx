@@ -8,6 +8,7 @@ import {
   IconDownload,
   IconLock,
   IconPrinter,
+  IconUpload,
   IconUserCheck,
 } from "@tabler/icons-react"
 
@@ -185,6 +186,10 @@ export default function AbrechnungPage() {
   const [expanded, setExpanded] = React.useState<Record<string, boolean>>({})
   const [rolle, setRolle] = React.useState<string>("")
   const [zeitnachweise, setZeitnachweise] = React.useState<Map<string, Zeitnachweis>>(new Map())
+  const [uploadingId, setUploadingId] = React.useState<string | null>(null)
+  const [uploadErrors, setUploadErrors] = React.useState<Record<string, string>>({})
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
+  const uploadTargetRef = React.useRef<{ beauftragungId: string; monat: string } | null>(null)
 
   const monate = React.useMemo(() => monateListe(), [])
 
@@ -252,8 +257,47 @@ export default function AbrechnungPage() {
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }))
   }
 
+  function triggerUpload(beauftragungId: string) {
+    const [year, month] = monat.split("-").map(Number)
+    uploadTargetRef.current = {
+      beauftragungId,
+      monat: `${year}-${String(month).padStart(2, "0")}-01`,
+    }
+    fileInputRef.current?.click()
+  }
+
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    const target = uploadTargetRef.current
+    if (!file || !target) return
+    e.target.value = ""
+    setUploadingId(target.beauftragungId)
+    setUploadErrors((prev) => ({ ...prev, [target.beauftragungId]: "" }))
+    const fd = new FormData()
+    fd.append("file", file)
+    fd.append("beauftragung_id", target.beauftragungId)
+    fd.append("monat", target.monat)
+    try {
+      const r = await fetch("/api/zeitnachweise", { method: "POST", body: fd })
+      const body = await r.json()
+      if (!r.ok) throw new Error(body.error ?? "Upload fehlgeschlagen")
+      const zn: Zeitnachweis = body.zeitnachweis
+      setZeitnachweise((prev) => { const next = new Map(prev); next.set(zn.beauftragung_id, zn); return next })
+      if (zn.stunden_ist === null) {
+        setUploadErrors((prev) => ({ ...prev, [target.beauftragungId]: "Stunden konnten nicht extrahiert werden." }))
+      }
+    } catch (err) {
+      setUploadErrors((prev) => ({ ...prev, [target.beauftragungId]: err instanceof Error ? err.message : "Upload fehlgeschlagen" }))
+    } finally {
+      setUploadingId(null)
+      uploadTargetRef.current = null
+    }
+  }
+
   return (
-    <SidebarProvider
+    <>
+      <input ref={fileInputRef} type="file" accept="application/pdf" className="hidden" onChange={handleFileSelect} />
+      <SidebarProvider
       style={{ "--sidebar-width": "18rem", "--header-height": "3rem" } as React.CSSProperties}
     >
       <AppSidebar variant="inset" />
@@ -350,37 +394,45 @@ export default function AbrechnungPage() {
                         <TableHead className="w-8"></TableHead>
                         <TableHead>Kandidat / Agentur</TableHead>
                         <TableHead>Vakanz</TableHead>
-                        <TableHead className="text-right">h/Woche</TableHead>
-                        <TableHead className="text-right">
-                          <span className="inline-flex items-center gap-1">
-                            <IconLock className="size-3 text-muted-foreground" />EK €/Tag
-                          </span>
-                        </TableHead>
-                        <TableHead className="text-right">VK €/Tag</TableHead>
-                        <TableHead className="text-right">
-                          <span className="inline-flex items-center gap-1">
-                            <IconLock className="size-3 text-muted-foreground" />Marge%
-                          </span>
-                        </TableHead>
-                        <TableHead className="text-right">Umsatz/Mo</TableHead>
-                        <TableHead className="text-right">
-                          <span className="inline-flex items-center gap-1">
-                            <IconLock className="size-3 text-muted-foreground" />Kosten/Mo
-                          </span>
-                        </TableHead>
-                        <TableHead className="text-right">
-                          <span className="inline-flex items-center gap-1">
-                            <IconLock className="size-3 text-muted-foreground" />Marge/Mo
-                          </span>
-                        </TableHead>
+                        {(isFinancial || isAgentur) && (
+                          <TableHead className="text-right">h/Woche</TableHead>
+                        )}
+                        {isFinancial && (
+                          <>
+                            <TableHead className="text-right">
+                              <span className="inline-flex items-center gap-1"><IconLock className="size-3 text-muted-foreground" />EK €/Tag</span>
+                            </TableHead>
+                            <TableHead className="text-right">VK €/Tag</TableHead>
+                            <TableHead className="text-right">
+                              <span className="inline-flex items-center gap-1"><IconLock className="size-3 text-muted-foreground" />Marge%</span>
+                            </TableHead>
+                            <TableHead className="text-right">Umsatz/Mo</TableHead>
+                            <TableHead className="text-right">
+                              <span className="inline-flex items-center gap-1"><IconLock className="size-3 text-muted-foreground" />Kosten/Mo</span>
+                            </TableHead>
+                            <TableHead className="text-right">
+                              <span className="inline-flex items-center gap-1"><IconLock className="size-3 text-muted-foreground" />Marge/Mo</span>
+                            </TableHead>
+                          </>
+                        )}
+                        {isController && (
+                          <>
+                            <TableHead className="text-right">Marge €/Std</TableHead>
+                            <TableHead className="text-right">Std/Mo (Ist)</TableHead>
+                            <TableHead className="text-right">Marge/Mo</TableHead>
+                          </>
+                        )}
+                        {!isController && (
+                          <TableHead className="text-right print:hidden">Zeitnachweis</TableHead>
+                        )}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {loading ? (
-                        <TableSkeletonRows cols={10} />
+                        <TableSkeletonRows cols={colCount} />
                       ) : gefiltert.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={10} className="h-32 text-center text-muted-foreground">
+                          <TableCell colSpan={colCount} className="h-32 text-center text-muted-foreground">
                             Keine aktiven Beauftragungen für {monatLabel}.
                           </TableCell>
                         </TableRow>
@@ -395,49 +447,119 @@ export default function AbrechnungPage() {
                                 onClick={() => toggleAgentur(g.agentur_id)}
                               >
                                 <TableCell className="py-2">
-                                  {isOpen
-                                    ? <IconChevronDown className="size-4 text-muted-foreground" />
-                                    : <IconChevronRight className="size-4 text-muted-foreground" />}
+                                  {isOpen ? <IconChevronDown className="size-4 text-muted-foreground" /> : <IconChevronRight className="size-4 text-muted-foreground" />}
                                 </TableCell>
                                 <TableCell colSpan={2} className="font-semibold">
                                   {g.agentur_name}{" "}
-                                  <span className="text-xs font-normal text-muted-foreground">
-                                    ({g.zeilen.length} Beauftragungen)
-                                  </span>
+                                  <span className="text-xs font-normal text-muted-foreground">({g.zeilen.length} Beauftragungen)</span>
                                 </TableCell>
-                                <TableCell></TableCell>
-                                <TableCell></TableCell>
-                                <TableCell></TableCell>
-                                <TableCell></TableCell>
-                                <TableCell className="text-right tabular-nums font-semibold">{fmt(g.umsatz)}</TableCell>
-                                <TableCell className="text-right tabular-nums text-muted-foreground">{fmt(g.kosten)}</TableCell>
-                                <TableCell className="text-right tabular-nums text-green-700 font-semibold">{fmt(g.marge)}</TableCell>
+                                {isFinancial && (
+                                  <>
+                                    <TableCell></TableCell>
+                                    <TableCell></TableCell>
+                                    <TableCell></TableCell>
+                                    <TableCell></TableCell>
+                                    <TableCell className="text-right tabular-nums font-semibold">{fmt(g.umsatz)}</TableCell>
+                                    <TableCell className="text-right tabular-nums text-muted-foreground">{fmt(g.kosten)}</TableCell>
+                                    <TableCell className="text-right tabular-nums text-green-700 font-semibold">{fmt(g.marge)}</TableCell>
+                                  </>
+                                )}
+                                {isController && (
+                                  <>
+                                    <TableCell></TableCell>
+                                    <TableCell></TableCell>
+                                    <TableCell className="text-right tabular-nums text-green-700 font-semibold">
+                                      {fmt(g.zeilen.reduce((sum, b) => {
+                                        const zn = zeitnachweise.get(b.id)
+                                        return sum + (b.margenaufschlag ?? 0) * effectiveStunden(b, zn)
+                                      }, 0))}
+                                    </TableCell>
+                                  </>
+                                )}
+                                {isAgentur && (
+                                  <>
+                                    <TableCell></TableCell>
+                                  </>
+                                )}
+                                {!isController && <TableCell className="print:hidden"></TableCell>}
                               </TableRow>
 
                               {/* Kandidaten-Zeilen */}
                               {isOpen && g.zeilen.map((b) => {
-                                const u = calcUmsatz(b, zeitnachweise.get(b.id))
-                                const k = calcKosten(b, zeitnachweise.get(b.id))
                                 return (
                                   <TableRow key={b.id}>
                                     <TableCell></TableCell>
                                     <TableCell className="pl-6 text-sm">{b.kandidatenname}</TableCell>
-                                    <TableCell className="text-sm text-muted-foreground max-w-[160px] truncate">
-                                      {b.vakanz_titel}
-                                    </TableCell>
-                                    <TableCell className="text-right tabular-nums text-sm">{b.stunden_woche}</TableCell>
-                                    <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
-                                      {Number(b.einkaufspreis).toLocaleString("de-DE")} €
-                                    </TableCell>
-                                    <TableCell className="text-right tabular-nums text-sm font-medium">
-                                      {Number(b.verkaufspreis).toLocaleString("de-DE")} €
-                                    </TableCell>
-                                    <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
-                                      {b.marge_prozent}%
-                                    </TableCell>
-                                    <TableCell className="text-right tabular-nums text-sm">{fmt(u)}</TableCell>
-                                    <TableCell className="text-right tabular-nums text-sm text-muted-foreground">{fmt(k)}</TableCell>
-                                    <TableCell className="text-right tabular-nums text-sm text-green-700">{fmt(u - k)}</TableCell>
+                                    <TableCell className="text-sm text-muted-foreground max-w-[160px] truncate">{b.vakanz_titel}</TableCell>
+                                    {(isFinancial || isAgentur) && (
+                                      <TableCell className="text-right tabular-nums text-sm">{b.stunden_woche}</TableCell>
+                                    )}
+                                    {isFinancial && (
+                                      <>
+                                        <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
+                                          {(b.einkaufspreis ?? 0).toLocaleString("de-DE")} €
+                                        </TableCell>
+                                        <TableCell className="text-right tabular-nums text-sm font-medium">
+                                          {(b.verkaufspreis ?? 0).toLocaleString("de-DE")} €
+                                        </TableCell>
+                                        <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
+                                          {b.marge_prozent ?? 0}%
+                                        </TableCell>
+                                        <TableCell className="text-right tabular-nums text-sm">{fmt(calcUmsatz(b, zeitnachweise.get(b.id)))}</TableCell>
+                                        <TableCell className="text-right tabular-nums text-sm text-muted-foreground">{fmt(calcKosten(b, zeitnachweise.get(b.id)))}</TableCell>
+                                        <TableCell className="text-right tabular-nums text-sm text-green-700">
+                                          {fmt(calcUmsatz(b, zeitnachweise.get(b.id)) - calcKosten(b, zeitnachweise.get(b.id)))}
+                                        </TableCell>
+                                      </>
+                                    )}
+                                    {isController && (() => {
+                                      const zn = zeitnachweise.get(b.id)
+                                      const stunden = effectiveStunden(b, zn)
+                                      const marge = b.margenaufschlag ?? 0
+                                      return (
+                                        <>
+                                          <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
+                                            {marge.toLocaleString("de-DE")} €
+                                          </TableCell>
+                                          <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
+                                            {stunden}{zn?.stunden_ist != null ? "" : <span className="ml-1 text-[10px] text-muted-foreground/60">est.</span>}
+                                          </TableCell>
+                                          <TableCell className="text-right tabular-nums text-sm text-green-700">
+                                            {fmt(marge * stunden)}
+                                          </TableCell>
+                                        </>
+                                      )
+                                    })()}
+                                    {!isController && (
+                                      <TableCell className="text-right print:hidden">
+                                        {uploadErrors[b.id] && (
+                                          <p className="text-[10px] text-destructive mb-1">{uploadErrors[b.id]}</p>
+                                        )}
+                                        {zeitnachweise.has(b.id) ? (
+                                          <div className="flex flex-col items-end gap-0.5">
+                                            <span className="text-[10px] text-green-700 font-medium">
+                                              {zeitnachweise.get(b.id)!.stunden_ist != null ? `${zeitnachweise.get(b.id)!.stunden_ist} Std.` : "Parsing fehlgeschlagen"}
+                                            </span>
+                                            <button
+                                              className="text-[10px] text-muted-foreground hover:underline disabled:opacity-50"
+                                              onClick={() => triggerUpload(b.id)}
+                                              disabled={uploadingId === b.id}
+                                            >
+                                              {uploadingId === b.id ? "Lädt…" : "Ersetzen"}
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          <button
+                                            className="inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[11px] text-muted-foreground hover:border-foreground hover:text-foreground disabled:opacity-50"
+                                            onClick={() => triggerUpload(b.id)}
+                                            disabled={uploadingId === b.id}
+                                          >
+                                            <IconUpload className="size-3" />
+                                            {uploadingId === b.id ? "Lädt…" : "Upload"}
+                                          </button>
+                                        )}
+                                      </TableCell>
+                                    )}
                                   </TableRow>
                                 )
                               })}
@@ -446,13 +568,29 @@ export default function AbrechnungPage() {
                         })
                       )}
                     </TableBody>
-                    {!loading && gefiltert.length > 0 && (
+                    {!loading && gefiltert.length > 0 && (isFinancial || isController) && (
                       <TableFooter>
                         <TableRow className="bg-muted/80 font-bold">
-                          <TableCell colSpan={7} className="text-right">Gesamt {monatLabel}</TableCell>
-                          <TableCell className="text-right tabular-nums">{fmt(totalUmsatz)}</TableCell>
-                          <TableCell className="text-right tabular-nums text-muted-foreground">{fmt(totalKosten)}</TableCell>
-                          <TableCell className="text-right tabular-nums text-green-700">{fmt(totalMarge)}</TableCell>
+                          {isFinancial && (
+                            <>
+                              <TableCell colSpan={8} className="text-right">Gesamt {monatLabel}</TableCell>
+                              <TableCell className="text-right tabular-nums">{fmt(totalUmsatz)}</TableCell>
+                              <TableCell className="text-right tabular-nums text-muted-foreground">{fmt(totalKosten)}</TableCell>
+                              <TableCell className="text-right tabular-nums text-green-700">{fmt(totalMarge)}</TableCell>
+                              <TableCell className="print:hidden"></TableCell>
+                            </>
+                          )}
+                          {isController && (
+                            <>
+                              <TableCell colSpan={5} className="text-right">Gesamt {monatLabel}</TableCell>
+                              <TableCell className="text-right tabular-nums text-green-700">
+                                {fmt(gefiltert.reduce((sum, b) => {
+                                  const zn = zeitnachweise.get(b.id)
+                                  return sum + (b.margenaufschlag ?? 0) * effectiveStunden(b, zn)
+                                }, 0))}
+                              </TableCell>
+                            </>
+                          )}
                         </TableRow>
                       </TableFooter>
                     )}
@@ -465,5 +603,6 @@ export default function AbrechnungPage() {
         </div>
       </SidebarInset>
     </SidebarProvider>
+    </>
   )
 }
