@@ -13,7 +13,7 @@ export async function GET() {
     .from('profiles').select('rolle, aktiv, agentur_id').eq('id', user.id).single()
   if (!profile?.aktiv) return NextResponse.json({ error: 'Account deaktiviert' }, { status: 403 })
 
-  const isManager = profile.rolle === 'Staffhub Manager' || profile.rolle === 'Admin'
+  const isManager = profile.rolle === 'Staffhub Manager' || profile.rolle === 'Admin' || profile.rolle === 'Controller'
   const isAgentur = profile.rolle === 'Agentur'
 
   if (!isManager && !isAgentur) {
