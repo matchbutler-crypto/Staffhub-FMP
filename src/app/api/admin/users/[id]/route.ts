@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-const ROLLEN = ['Admin', 'Staffhub Manager', 'Agentur'] as const
+const ROLLEN = ['Admin', 'Staffhub Manager', 'Controller', 'Agentur'] as const
 
 const updateSchema = z.object({
   aktiv: z.boolean().optional(),
