@@ -14,7 +14,7 @@ Extends the existing `/abrechnung` page — no new top-level routes. New DB tabl
 - Modify: `src/app/abrechnung/page.tsx` — upload button, actual hours display, Controller margin editing
 - Create: `src/app/api/zeitnachweise/route.ts` — POST upload + parse
 - Create: `src/app/api/zeitnachweise/[id]/route.ts` — GET signed URL, DELETE
-- Modify: `src/app/api/beauftragungen/[id]/route.ts` — PATCH margenaufschlag (if not already patchable)
+- Modify: `src/app/api/beauftragungen/[id]/route.ts` — add PATCH handler for margenaufschlag (file exists, only has PUT today)
 - DB migration: create `zeitnachweise` table
 
 ## Data Model
@@ -68,7 +68,9 @@ Re-upload on same `(beauftragung_id, monat)` overwrites the previous entry (upse
 
 ## OpenAI Parsing
 
-Model: `gpt-4o-mini` (cheap, fast, handles PDFs via text extraction).
+OpenAI cannot read PDFs directly. The server uses `pdf-parse` (npm) to extract plain text from the PDF buffer first, then sends the text to OpenAI.
+
+Model: `gpt-4o-mini` (cheap, fast).
 
 Prompt:
 ```
@@ -77,6 +79,7 @@ Extrahiere die Gesamtanzahl der geleisteten Stunden als Dezimalzahl.
 Antworte nur mit der Zahl, ohne Einheit oder Erklärung. Beispiel: 160.5
 ```
 
+If `pdf-parse` fails (corrupt/scanned PDF), `stunden_ist` is saved as null.
 If OpenAI returns a non-numeric response or the request fails: save `stunden_ist: null`, save raw response in `parsed_raw`. UI shows "Stunden konnten nicht extrahiert werden" with the option to re-upload.
 
 ## Abrechnung UI Changes
