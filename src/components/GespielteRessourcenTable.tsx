@@ -6,12 +6,11 @@ import { type PoolRessource } from './ressource-einsetzen-dialog'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   Dialog,
   DialogContent,
@@ -251,28 +250,28 @@ export function GespielteRessourcenTable({
                           Speichert…
                         </span>
                       ) : (
-                        <Select value={currentStatus} onValueChange={(v) => handleStatusSelect(resource, v)}>
-                          <SelectTrigger className={`h-auto w-fit rounded-full border px-2.5 py-1 text-xs font-medium transition-all cursor-pointer [&>svg]:hidden hover:opacity-80 active:scale-95 ${getStatusConfig(currentStatus).color}`}>
-                            <span className="flex items-center gap-1.5 whitespace-nowrap">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button className={`inline-flex w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium cursor-pointer hover:opacity-80 active:scale-95 transition-all focus:outline-none ${getStatusConfig(currentStatus).color}`}>
                               {getStatusConfig(currentStatus).icon}
                               <span>{currentStatus}</span>
                               <ChevronDown className="h-3 w-3 opacity-50" />
-                            </span>
-                          </SelectTrigger>
-                          <SelectContent>
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start">
                             {LINK_STATUSES.map((s) => {
                               const cfg = getStatusConfig(s)
                               return (
-                                <SelectItem key={s} value={s} className="text-xs">
+                                <DropdownMenuItem key={s} onSelect={() => handleStatusSelect(resource, s)} className="text-xs">
                                   <span className="flex items-center gap-2">
                                     <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${cfg.dot}`} />
                                     {s}
                                   </span>
-                                </SelectItem>
+                                </DropdownMenuItem>
                               )
                             })}
-                          </SelectContent>
-                        </Select>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       )
                     ) : (
                       <span className={`inline-flex w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${getStatusConfig(currentStatus).color}`}>
