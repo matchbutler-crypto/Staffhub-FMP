@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { computePreise } from '@/lib/beauftragungen-pricing'
 
 const beauftragungSchema = z.object({
   profil_id: z.string().uuid(),
   agentur_id: z.string().uuid(),
-  einkaufspreis: z.number().min(0),
-  margenaufschlag: z.number().min(0).default(0),
+  agentur_rohpreis: z.number().positive(),
+  marge_inkludiert: z.boolean().default(false),
+  margenaufschlag: z.number().min(0).default(75),
   startdatum: z.string().date('Ungültiges Datum (erwartet YYYY-MM-DD)'),
   stunden_woche: z.number().int().min(1).max(168),
 })
@@ -42,19 +44,16 @@ async function requireAny(supabase: Awaited<ReturnType<typeof createClient>>) {
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
-  const { data: { user: authUser } } = await supabase.auth.getUser()
   const { profile, error: authErr } = await requireAny(supabase)
 
-  console.log('[beauftragungen GET] authUser:', authUser?.id, '| authErr:', authErr, '| profile:', JSON.stringify(profile))
-
   if (authErr === 'auth') return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 })
-  if (authErr === 'inactive') return NextResponse.json({ error: 'Account deaktiviert', debug_profile: profile }, { status: 403 })
+  if (authErr === 'inactive') return NextResponse.json({ error: 'Account deaktiviert' }, { status: 403 })
 
   const isAgentur = profile?.rolle === 'Agentur'
   const isManager = profile?.rolle === 'Staffhub Manager' || profile?.rolle === 'Admin' || profile?.rolle === 'Controller'
 
   if (!isAgentur && !isManager) {
-    return NextResponse.json({ error: 'Keine Berechtigung', debug_rolle: profile?.rolle, debug_profile: profile }, { status: 403 })
+    return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
   }
 
   if (isAgentur && !profile?.agentur_id) {
@@ -74,6 +73,8 @@ export async function GET(request: NextRequest) {
       id,
       profil_id,
       agentur_id,
+      agentur_rohpreis,
+      marge_inkludiert,
       einkaufspreis,
       margenaufschlag,
       verkaufspreis,
@@ -89,11 +90,7 @@ export async function GET(request: NextRequest) {
     .range(from, to)
 
   if (nurAktive) query = query.eq('aktiv', true)
-
-  // Agentur sieht nur eigene Beauftragungen
-  if (isAgentur) {
-    query = query.eq('agentur_id', profile.agentur_id!)
-  }
+  if (isAgentur) query = query.eq('agentur_id', profile.agentur_id!)
 
   const { data, error, count } = await query
 
@@ -192,7 +189,16 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // Prüfen ob Profil Status = Beauftragt
+  const { agentur_rohpreis, margenaufschlag, marge_inkludiert } = parsed.data
+  const { einkaufspreis, verkaufspreis } = computePreise(agentur_rohpreis, margenaufschlag, marge_inkludiert)
+
+  if (einkaufspreis <= 0) {
+    return NextResponse.json(
+      { error: 'EK-Preis muss > 0 sein (Rohpreis muss größer als Marge sein wenn "Marge enthalten")' },
+      { status: 400 }
+    )
+  }
+
   const { data: profil } = await supabase
     .from('kandidaten_profile')
     .select('id, status')
@@ -212,12 +218,15 @@ export async function POST(request: NextRequest) {
     .insert({
       profil_id: parsed.data.profil_id,
       agentur_id: parsed.data.agentur_id,
-      einkaufspreis: parsed.data.einkaufspreis,
-      margenaufschlag: parsed.data.margenaufschlag,
+      agentur_rohpreis,
+      marge_inkludiert,
+      einkaufspreis,
+      margenaufschlag,
+      verkaufspreis,
       startdatum: parsed.data.startdatum,
       stunden_woche: parsed.data.stunden_woche,
     })
-    .select('id, verkaufspreis, aktiv, created_at')
+    .select('id, einkaufspreis, margenaufschlag, verkaufspreis, aktiv, created_at')
     .single()
 
   if (error) {
