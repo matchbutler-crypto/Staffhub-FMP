@@ -151,8 +151,9 @@ export default function ProfilDetailPage() {
   // Beauftragung-Dialog
   const [beauftragungDialog, setBeauftragungDialog] = React.useState(false)
   const [beauftragungForm, setBeauftragungForm] = React.useState({
-    einkaufspreis: "",
-    margenaufschlag: "0",
+    agentur_rohpreis: "",
+    marge_inkludiert: false,
+    margenaufschlag: "75",
     startdatum: "",
     stunden_woche: "",
   })
@@ -232,7 +233,7 @@ export default function ProfilDetailPage() {
     if (!profil) return
     // Beauftragung-Dialog öffnen statt direkt Status setzen
     if (newStatus === "Beauftragt") {
-      setBeauftragungForm({ einkaufspreis: "", margenaufschlag: "0", startdatum: "", stunden_woche: "" })
+      setBeauftragungForm({ agentur_rohpreis: "", marge_inkludiert: false, margenaufschlag: "75", startdatum: "", stunden_woche: "" })
       setBeauftragungDialog(true)
       return
     }
@@ -259,12 +260,14 @@ export default function ProfilDetailPage() {
 
   async function handleBeauftragungSubmit() {
     if (!profil) return
-    const ek = parseFloat(beauftragungForm.einkaufspreis)
-    const mg = parseFloat(beauftragungForm.margenaufschlag || "0")
+    const rohpreis = parseFloat(beauftragungForm.agentur_rohpreis)
+    const mg = parseFloat(beauftragungForm.margenaufschlag || "75")
     const stunden = parseInt(beauftragungForm.stunden_woche)
+    const margeInkludiert = beauftragungForm.marge_inkludiert
 
-    if (isNaN(ek) || ek < 0) { toast.error("Einkaufspreis ungültig."); return }
+    if (isNaN(rohpreis) || rohpreis <= 0) { toast.error("Agentur-Preis ungültig."); return }
     if (isNaN(mg) || mg < 0) { toast.error("Margenaufschlag ungültig."); return }
+    if (margeInkludiert && rohpreis <= mg) { toast.error("Rohpreis muss größer als Marge sein."); return }
     if (isNaN(stunden) || stunden < 1 || stunden > 168) { toast.error("Stunden/Woche: Wert zwischen 1 und 168."); return }
     if (!beauftragungForm.startdatum) { toast.error("Startdatum ist erforderlich."); return }
 
@@ -289,7 +292,8 @@ export default function ProfilDetailPage() {
         body: JSON.stringify({
           profil_id: id,
           agentur_id: profil.agentur_id,
-          einkaufspreis: ek,
+          agentur_rohpreis: rohpreis,
+          marge_inkludiert: margeInkludiert,
           margenaufschlag: mg,
           startdatum: beauftragungForm.startdatum,
           stunden_woche: stunden,
@@ -688,43 +692,60 @@ export default function ProfilDetailPage() {
 
           <div className="grid gap-4 py-2">
             <div className="grid gap-1.5">
-              <Label htmlFor="b-ek">Einkaufspreis (€ / Tag)</Label>
+              <Label htmlFor="b-rohpreis">Agentur-Preis (€ / Tag)</Label>
               <Input
-                id="b-ek"
+                id="b-rohpreis"
                 type="number"
                 min={0}
                 step={1}
                 placeholder="z.B. 600"
-                value={beauftragungForm.einkaufspreis}
+                value={beauftragungForm.agentur_rohpreis}
                 onChange={(e) =>
-                  setBeauftragungForm((f) => ({ ...f, einkaufspreis: e.target.value }))
+                  setBeauftragungForm((f) => ({ ...f, agentur_rohpreis: e.target.value }))
                 }
               />
             </div>
 
             <div className="grid gap-1.5">
-              <Label htmlFor="b-mg">Margenaufschlag (€ / Tag)</Label>
+              <Label htmlFor="b-mg">Marge (€ / Tag)</Label>
               <Input
                 id="b-mg"
                 type="number"
                 min={0}
                 step={1}
-                placeholder="z.B. 100"
+                placeholder="z.B. 75"
                 value={beauftragungForm.margenaufschlag}
                 onChange={(e) =>
                   setBeauftragungForm((f) => ({ ...f, margenaufschlag: e.target.value }))
                 }
               />
-              {beauftragungForm.einkaufspreis && (
-                <p className="text-xs text-muted-foreground">
-                  Verkaufspreis:{" "}
-                  {(
-                    parseFloat(beauftragungForm.einkaufspreis || "0") +
-                    parseFloat(beauftragungForm.margenaufschlag || "0")
-                  ).toLocaleString("de-DE")}{" "}
-                  €/Tag
-                </p>
-              )}
+              <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={beauftragungForm.marge_inkludiert}
+                  onChange={(e) =>
+                    setBeauftragungForm((f) => ({ ...f, marge_inkludiert: e.target.checked }))
+                  }
+                  className="rounded"
+                />
+                Marge bereits im Preis enthalten
+              </label>
+              {beauftragungForm.agentur_rohpreis && (() => {
+                const rohpreis = parseFloat(beauftragungForm.agentur_rohpreis || "0")
+                const mg = parseFloat(beauftragungForm.margenaufschlag || "75")
+                const inkl = beauftragungForm.marge_inkludiert
+                const ek = inkl ? rohpreis - mg : rohpreis
+                const vk = inkl ? rohpreis : rohpreis + mg
+                const valid = ek > 0
+                return (
+                  <div className={`mt-1 rounded border px-3 py-2 text-xs ${valid ? "border-border bg-muted/40" : "border-destructive/40 bg-destructive/10"}`}>
+                    <div className="flex justify-between"><span className="text-muted-foreground">EK (an Agentur):</span><span>{valid ? `${ek.toLocaleString("de-DE")} €` : "–"}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Staffhub-Marge:</span><span>{mg.toLocaleString("de-DE")} €</span></div>
+                    <div className="flex justify-between font-medium"><span>VK (an Kunden):</span><span>{valid ? `${vk.toLocaleString("de-DE")} €` : "–"}</span></div>
+                    {!valid && <p className="mt-1 text-destructive">Rohpreis muss größer als Marge sein.</p>}
+                  </div>
+                )
+              })()}
             </div>
 
             <div className="grid gap-1.5">
