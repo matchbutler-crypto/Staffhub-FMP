@@ -47,6 +47,8 @@ interface Beauftragung {
   margenaufschlag?: number
   verkaufspreis?: number
   marge_prozent?: number
+  agentur_rohpreis?: number
+  marge_inkludiert?: boolean
   startdatum: string
   stunden_woche: number
   aktiv: boolean
@@ -244,7 +246,7 @@ export default function AbrechnungPage() {
   const isController = rolle === 'Controller'
   const isAgentur = rolle === 'Agentur'
   const canEditMarge = rolle === 'Admin'
-  const colCount = loading || isFinancial ? (canEditMarge ? 12 : 11) : isController ? 6 : 5
+  const colCount = loading || isFinancial ? (canEditMarge ? 12 : 11) : isController ? 8 : 5
 
   const totalUmsatz = gruppen.reduce((s, g) => s + g.umsatz, 0)
   const totalKosten = gruppen.reduce((s, g) => s + g.kosten, 0)
@@ -445,9 +447,17 @@ export default function AbrechnungPage() {
                         )}
                         {isController && (
                           <>
-                            <TableHead className="text-right">Marge €/Std</TableHead>
+                            <TableHead className="text-right">
+                              <span className="inline-flex items-center gap-1"><IconLock className="size-3 text-muted-foreground" />EK €/Tag</span>
+                            </TableHead>
+                            <TableHead className="text-right">VK €/Tag</TableHead>
+                            <TableHead className="text-right">
+                              <span className="inline-flex items-center gap-1"><IconLock className="size-3 text-muted-foreground" />Marge €/Tag</span>
+                            </TableHead>
                             <TableHead className="text-right">Std/Mo (Ist)</TableHead>
-                            <TableHead className="text-right">Marge/Mo</TableHead>
+                            <TableHead className="text-right">
+                              <span className="inline-flex items-center gap-1"><IconLock className="size-3 text-muted-foreground" />Marge/Mo</span>
+                            </TableHead>
                           </>
                         )}
                         {!isController && (
@@ -495,6 +505,8 @@ export default function AbrechnungPage() {
                                 )}
                                 {isController && (
                                   <>
+                                    <TableCell></TableCell>
+                                    <TableCell></TableCell>
                                     <TableCell></TableCell>
                                     <TableCell></TableCell>
                                     <TableCell className="text-right tabular-nums text-green-700 font-semibold">
@@ -562,6 +574,12 @@ export default function AbrechnungPage() {
                                       const marge = margenOverrides[b.id] ?? b.margenaufschlag ?? 0
                                       return (
                                         <>
+                                          <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
+                                            {(b.einkaufspreis ?? 0).toLocaleString("de-DE")} €
+                                          </TableCell>
+                                          <TableCell className="text-right tabular-nums text-sm font-medium">
+                                            {(b.verkaufspreis ?? 0).toLocaleString("de-DE")} €
+                                          </TableCell>
                                           <TableCell className="text-right tabular-nums text-sm">
                                             <input
                                               type="number"
@@ -636,7 +654,7 @@ export default function AbrechnungPage() {
                           )}
                           {isController && (
                             <>
-                              <TableCell colSpan={5} className="text-right">Gesamt {monatLabel}</TableCell>
+                              <TableCell colSpan={7} className="text-right">Gesamt {monatLabel}</TableCell>
                               <TableCell className="text-right tabular-nums text-green-700">
                                 {fmt(gefiltert.reduce((sum, b) => {
                                   const zn = zeitnachweise.get(b.id)
