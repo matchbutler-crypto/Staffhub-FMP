@@ -365,6 +365,37 @@ function VakanzCard({
   const [withdrawingId, setWithdrawingId] = React.useState<string | null>(null)
   const [liveCount, setLiveCount] = React.useState<number | null>(null)
 
+  async function handleLinkStatusChange(
+    resource: PoolRessource,
+    newStatus: string,
+    options?: { interviewDatum?: string | null; feedback?: string | null }
+  ) {
+    if (!resource.link_id) return
+    try {
+      const res = await fetch(`/api/ressource-links/${resource.link_id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: newStatus,
+          interview_datum: options?.interviewDatum ?? null,
+          feedback: options?.feedback ?? null,
+        }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        toast.error(body.error ?? 'Fehler beim Statuswechsel')
+        return
+      }
+      setResources((prev) => prev
+        ? prev.map((r) => r.id === resource.id ? { ...r, link_status: newStatus, link_feedback: options?.feedback ?? r.link_feedback } : r)
+        : prev
+      )
+      toast.success(`Status auf „${newStatus}" gesetzt`)
+    } catch {
+      toast.error('Verbindungsfehler')
+    }
+  }
+
   async function handleToggle() {
     if (!expanded && profiles === null) {
       setLoadingProfiles(true)
@@ -653,6 +684,7 @@ function VakanzCard({
                     resources={resources}
                     vakanzId={vakanz.id}
                     isManager={isManagerOrAdmin}
+                    onStatusChange={handleLinkStatusChange}
                     onWithdraw={(r) => {
                       if (!r.link_id) { toast.error('Link-ID fehlt'); return }
                       handleWithdraw({
