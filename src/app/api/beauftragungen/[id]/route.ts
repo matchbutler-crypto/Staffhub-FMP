@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { computePreise } from '@/lib/beauftragungen-pricing'
 
 const updateSchema = z.object({
-  einkaufspreis: z.number().min(0),
-  margenaufschlag: z.number().min(0).default(0),
+  agentur_rohpreis: z.number().positive(),
+  marge_inkludiert: z.boolean().default(false),
+  margenaufschlag: z.number().min(0).default(75),
   startdatum: z.string().date('Ungültiges Datum (erwartet YYYY-MM-DD)'),
   stunden_woche: z.number().int().min(1).max(168),
 })
@@ -37,16 +39,29 @@ export async function PUT(
     return NextResponse.json({ error: 'Validierungsfehler', details: parsed.error.flatten().fieldErrors }, { status: 400 })
   }
 
+  const { agentur_rohpreis, margenaufschlag, marge_inkludiert } = parsed.data
+  const { einkaufspreis, verkaufspreis } = computePreise(agentur_rohpreis, margenaufschlag, marge_inkludiert)
+
+  if (einkaufspreis <= 0) {
+    return NextResponse.json(
+      { error: 'EK-Preis muss > 0 sein (Rohpreis muss größer als Marge sein wenn "Marge enthalten")' },
+      { status: 400 }
+    )
+  }
+
   const { data, error } = await supabase
     .from('beauftragungen')
     .update({
-      einkaufspreis: parsed.data.einkaufspreis,
-      margenaufschlag: parsed.data.margenaufschlag,
+      agentur_rohpreis,
+      marge_inkludiert,
+      einkaufspreis,
+      margenaufschlag,
+      verkaufspreis,
       startdatum: parsed.data.startdatum,
       stunden_woche: parsed.data.stunden_woche,
     })
     .eq('id', id)
-    .select('id, einkaufspreis, margenaufschlag, verkaufspreis, updated_at')
+    .select('id, agentur_rohpreis, marge_inkludiert, einkaufspreis, margenaufschlag, verkaufspreis, updated_at')
     .single()
 
   if (error) {
@@ -58,6 +73,7 @@ export async function PUT(
 }
 
 // ── PATCH /api/beauftragungen/[id] ────────────────────────────────────────────
+// Nur margenaufschlag ändern — recomputes EK/VK basierend auf gespeichertem Rohpreis
 
 export async function PATCH(
   request: NextRequest,
@@ -86,11 +102,27 @@ export async function PATCH(
     return NextResponse.json({ error: 'Validierungsfehler', details: parsed.error.flatten().fieldErrors }, { status: 400 })
   }
 
+  const { data: current, error: fetchErr } = await supabase
+    .from('beauftragungen')
+    .select('agentur_rohpreis, marge_inkludiert')
+    .eq('id', id)
+    .single()
+
+  if (fetchErr || !current) {
+    return NextResponse.json({ error: 'Beauftragung nicht gefunden' }, { status: 404 })
+  }
+
+  const { einkaufspreis, verkaufspreis } = computePreise(
+    Number(current.agentur_rohpreis),
+    parsed.data.margenaufschlag,
+    current.marge_inkludiert
+  )
+
   const { data, error } = await supabase
     .from('beauftragungen')
-    .update({ margenaufschlag: parsed.data.margenaufschlag })
+    .update({ margenaufschlag: parsed.data.margenaufschlag, einkaufspreis, verkaufspreis })
     .eq('id', id)
-    .select('id, margenaufschlag, verkaufspreis, updated_at')
+    .select('id, margenaufschlag, einkaufspreis, verkaufspreis, updated_at')
     .single()
 
   if (error) {
