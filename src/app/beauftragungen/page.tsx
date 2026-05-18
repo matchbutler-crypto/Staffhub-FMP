@@ -73,6 +73,8 @@ interface Beauftragung {
   vakanz_titel: string
   agentur_name: string
   einkaufspreis?: number
+  agentur_rohpreis?: number
+  marge_inkludiert?: boolean
   margenaufschlag?: number
   verkaufspreis?: number
   marge_prozent?: number
@@ -162,8 +164,9 @@ export default function BeauftragungPage() {
   // Edit-Dialog
   const [editItem, setEditItem] = React.useState<Beauftragung | null>(null)
   const [editForm, setEditForm] = React.useState({
-    einkaufspreis: "",
-    margenaufschlag: "",
+    agentur_rohpreis: "",
+    marge_inkludiert: false,
+    margenaufschlag: "75",
     startdatum: "",
     stunden_woche: "",
   })
@@ -204,8 +207,9 @@ export default function BeauftragungPage() {
   function openEdit(b: Beauftragung) {
     setEditItem(b)
     setEditForm({
-      einkaufspreis: String(b.einkaufspreis),
-      margenaufschlag: String(b.margenaufschlag),
+      agentur_rohpreis: String(b.agentur_rohpreis ?? b.einkaufspreis ?? ""),
+      marge_inkludiert: b.marge_inkludiert ?? false,
+      margenaufschlag: String(b.margenaufschlag ?? "75"),
       startdatum: b.startdatum,
       stunden_woche: String(b.stunden_woche),
     })
@@ -213,13 +217,15 @@ export default function BeauftragungPage() {
 
   async function handleSave() {
     if (!editItem) return
-    const ek = parseFloat(editForm.einkaufspreis)
-    const mg = parseFloat(editForm.margenaufschlag)
+    const rohpreis = parseFloat(editForm.agentur_rohpreis)
+    const mg = parseFloat(editForm.margenaufschlag || "75")
     const stunden = parseInt(editForm.stunden_woche)
+    const margeInkludiert = editForm.marge_inkludiert
 
-    if (isNaN(ek) || ek < 0) { toast.error("Einkaufspreis ungültig."); return }
+    if (isNaN(rohpreis) || rohpreis <= 0) { toast.error("Agentur-Preis ungültig."); return }
     if (isNaN(mg) || mg < 0) { toast.error("Margenaufschlag ungültig."); return }
-    if (isNaN(stunden) || stunden < 1 || stunden > 168) { toast.error("Stunden/Woche: 1–168."); return }
+    if (margeInkludiert && rohpreis <= mg) { toast.error("Rohpreis muss größer als Marge sein."); return }
+    if (isNaN(stunden) || stunden < 1 || stunden > 168) { toast.error("Stunden/Woche ungültig."); return }
     if (!editForm.startdatum) { toast.error("Startdatum fehlt."); return }
 
     setSaving(true)
@@ -227,7 +233,7 @@ export default function BeauftragungPage() {
       const r = await fetch(`/api/beauftragungen/${editItem.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ einkaufspreis: ek, margenaufschlag: mg, startdatum: editForm.startdatum, stunden_woche: stunden }),
+        body: JSON.stringify({ agentur_rohpreis: rohpreis, marge_inkludiert: margeInkludiert, margenaufschlag: mg, startdatum: editForm.startdatum, stunden_woche: stunden }),
       })
       if (!r.ok) {
         const b = await r.json().catch(() => ({}))
@@ -506,26 +512,52 @@ export default function BeauftragungPage() {
 
           <div className="grid gap-4 py-2">
             <div className="grid gap-1.5">
-              <Label htmlFor="e-ek">Einkaufspreis (€ / Tag)</Label>
+              <Label htmlFor="edit-rohpreis">Agentur-Preis (€ / Tag)</Label>
               <Input
-                id="e-ek" type="number" min={0} step={1}
-                value={editForm.einkaufspreis}
-                onChange={(e) => setEditForm((f) => ({ ...f, einkaufspreis: e.target.value }))}
+                id="edit-rohpreis"
+                type="number"
+                min={0}
+                step={1}
+                value={editForm.agentur_rohpreis}
+                onChange={(e) => setEditForm((f) => ({ ...f, agentur_rohpreis: e.target.value }))}
               />
             </div>
+
             <div className="grid gap-1.5">
-              <Label htmlFor="e-mg">Margenaufschlag (€ / Tag)</Label>
+              <Label htmlFor="edit-mg">Marge (€ / Tag)</Label>
               <Input
-                id="e-mg" type="number" min={0} step={1}
+                id="edit-mg"
+                type="number"
+                min={0}
+                step={1}
                 value={editForm.margenaufschlag}
                 onChange={(e) => setEditForm((f) => ({ ...f, margenaufschlag: e.target.value }))}
               />
-              {editForm.einkaufspreis && (
-                <p className="text-xs text-muted-foreground">
-                  Verkaufspreis:{" "}
-                  {(parseFloat(editForm.einkaufspreis || "0") + parseFloat(editForm.margenaufschlag || "0")).toLocaleString("de-DE")} €/Tag
-                </p>
-              )}
+              <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={editForm.marge_inkludiert}
+                  onChange={(e) => setEditForm((f) => ({ ...f, marge_inkludiert: e.target.checked }))}
+                  className="rounded"
+                />
+                Marge bereits im Preis enthalten
+              </label>
+              {editForm.agentur_rohpreis && (() => {
+                const rohpreis = parseFloat(editForm.agentur_rohpreis || "0")
+                const mg = parseFloat(editForm.margenaufschlag || "75")
+                const inkl = editForm.marge_inkludiert
+                const ek = inkl ? rohpreis - mg : rohpreis
+                const vk = inkl ? rohpreis : rohpreis + mg
+                const valid = ek > 0
+                return (
+                  <div className={`mt-1 rounded border px-3 py-2 text-xs ${valid ? "border-border bg-muted/40" : "border-destructive/40 bg-destructive/10"}`}>
+                    <div className="flex justify-between"><span className="text-muted-foreground">EK:</span><span>{valid ? `${ek.toLocaleString("de-DE")} €` : "–"}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Marge:</span><span>{mg.toLocaleString("de-DE")} €</span></div>
+                    <div className="flex justify-between font-medium"><span>VK:</span><span>{valid ? `${vk.toLocaleString("de-DE")} €` : "–"}</span></div>
+                    {!valid && <p className="mt-1 text-destructive">Rohpreis muss größer als Marge sein.</p>}
+                  </div>
+                )
+              })()}
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="e-start">Startdatum</Label>
