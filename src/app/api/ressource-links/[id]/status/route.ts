@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 
-const LINK_STATUS = ['Gespielt', 'Interview geplant', 'Zugesagt', 'Abgesagt', 'Abgelehnt'] as const
+const LINK_STATUS = ['Gespielt', 'Interview geplant', 'Zugesagt', 'Beauftragt', 'Abgesagt', 'Abgelehnt'] as const
 type LinkStatus = typeof LINK_STATUS[number]
 
 // 'Zurückgezogen' ist ein terminaler Status (nur via /rueckzug Endpunkt erreichbar)
@@ -104,8 +104,8 @@ export async function PATCH(
     erstellt_von: user.id,
   })
 
-  // Bei Zugesagt: Verfügbarkeit automatisch auf Enddatum der Vakanz setzen
-  if (newStatus === 'Zugesagt' && vakanzEnddatum) {
+  // Bei Beauftragt: Verfügbarkeit automatisch auf Enddatum der Vakanz setzen
+  if (newStatus === 'Beauftragt' && vakanzEnddatum) {
     await supabase
       .from('ressourcen')
       .update({ verfuegbarkeit: 'Verfügbar ab', verfuegbar_ab: vakanzEnddatum })
@@ -116,7 +116,7 @@ export async function PATCH(
       ressource_id: link.ressource_id,
       link_id: id,
       typ: 'system',
-      text: `Verfügbarkeit automatisch auf "Verfügbar ab ${dateLabel}" aktualisiert (Beauftragung: "${vakanzRolle}")`,
+      text: `Verfügbarkeit automatisch auf "Verfügbar ab ${dateLabel}" aktualisiert (Beauftragt für: "${vakanzRolle}")`,
       erstellt_von: user.id,
     })
   }

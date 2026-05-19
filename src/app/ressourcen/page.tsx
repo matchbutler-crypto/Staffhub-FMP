@@ -88,6 +88,7 @@ type LinkStatus =
   | "Gespielt"
   | "Interview geplant"
   | "Zugesagt"
+  | "Beauftragt"
   | "Abgesagt"
   | "Abgelehnt"
   | "Zurückgezogen"
@@ -140,7 +141,8 @@ interface Feedback {
 const VALID_TRANSITIONS: Record<LinkStatus, LinkStatus[]> = {
   Gespielt: ["Interview geplant", "Abgesagt", "Abgelehnt"],
   "Interview geplant": ["Zugesagt", "Abgesagt", "Abgelehnt"],
-  Zugesagt: [],
+  Zugesagt: ["Beauftragt"],
+  Beauftragt: [],
   Abgesagt: [],
   Abgelehnt: [],
   Zurückgezogen: [],
@@ -165,7 +167,8 @@ const erfahrungsColors: Record<Erfahrungslevel, string> = {
 const linkStatusColors: Record<LinkStatus, string> = {
   Gespielt: "bg-blue-100 text-blue-700 border-blue-200",
   "Interview geplant": "bg-amber-100 text-amber-700 border-amber-200",
-  Zugesagt: "bg-green-100 text-green-700 border-green-200",
+  Zugesagt: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  Beauftragt: "bg-teal-100 text-teal-700 border-teal-200",
   Abgesagt: "bg-gray-100 text-gray-500 border-gray-200",
   Abgelehnt: "bg-red-100 text-red-700 border-red-200",
   Zurückgezogen: "bg-gray-100 text-gray-400 border-gray-200",

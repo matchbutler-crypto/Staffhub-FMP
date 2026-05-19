@@ -19,16 +19,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Trash2, Loader2, Info, Download, MessageSquare, Send, CalendarClock, CheckCircle2, XCircle, Ban, Undo2, ChevronDown } from 'lucide-react'
+import { Trash2, Loader2, Info, Download, MessageSquare, Send, CalendarClock, CheckCircle2, XCircle, Ban, Undo2, ChevronDown, Briefcase } from 'lucide-react'
 import { toast } from 'sonner'
 
-const LINK_STATUSES = ['Gespielt', 'Interview geplant', 'Zugesagt', 'Abgesagt', 'Abgelehnt'] as const
+const LINK_STATUSES = ['Gespielt', 'Interview geplant', 'Zugesagt', 'Beauftragt', 'Abgesagt', 'Abgelehnt'] as const
 const FEEDBACK_STATUSES = ['Abgesagt', 'Abgelehnt'] as const
 
 const STATUS_CONFIG: Record<string, { color: string; dot: string; icon: React.ReactNode }> = {
   'Gespielt':          { color: 'bg-blue-50 text-blue-700 border-blue-200',          dot: 'bg-blue-400',    icon: <Send className="h-3 w-3" /> },
   'Interview geplant': { color: 'bg-violet-50 text-violet-700 border-violet-200',    dot: 'bg-violet-400',  icon: <CalendarClock className="h-3 w-3" /> },
   'Zugesagt':          { color: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-400', icon: <CheckCircle2 className="h-3 w-3" /> },
+  'Beauftragt':        { color: 'bg-teal-50 text-teal-700 border-teal-200',          dot: 'bg-teal-400',    icon: <Briefcase className="h-3 w-3" /> },
   'Abgesagt':          { color: 'bg-orange-50 text-orange-700 border-orange-200',    dot: 'bg-orange-400',  icon: <XCircle className="h-3 w-3" /> },
   'Abgelehnt':         { color: 'bg-red-50 text-red-700 border-red-200',             dot: 'bg-red-400',     icon: <Ban className="h-3 w-3" /> },
   'Zurückgezogen':     { color: 'bg-gray-100 text-gray-500 border-gray-200',         dot: 'bg-gray-400',    icon: <Undo2 className="h-3 w-3" /> },
@@ -172,7 +173,7 @@ export function GespielteRessourcenTable({
   }
 
   const isRetractable = (status: string | null | undefined) =>
-    status !== 'Zurückgezogen' && status !== 'Zugesagt'
+    status !== 'Zurückgezogen' && status !== 'Zugesagt' && status !== 'Beauftragt'
 
   return (
     <TooltipProvider>

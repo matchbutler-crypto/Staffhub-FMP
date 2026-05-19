@@ -16,6 +16,7 @@ import {
   XCircle,
   Ban,
   Undo2,
+  Briefcase,
 } from "lucide-react"
 
 import { AppSidebar } from "@/components/app-sidebar"
@@ -88,13 +89,14 @@ type DashboardData = ManagerData | AgenturData
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 // Link-Status config (mirrors GespielteRessourcenTable)
-const LINK_STATUSES = ["Gespielt", "Interview geplant", "Zugesagt", "Abgesagt", "Abgelehnt", "Zurückgezogen"] as const
+const LINK_STATUSES = ["Gespielt", "Interview geplant", "Zugesagt", "Beauftragt", "Abgesagt", "Abgelehnt", "Zurückgezogen"] as const
 type LinkStatus = typeof LINK_STATUSES[number]
 
 const linkStatusConfig: Record<LinkStatus, { color: string; dot: string; icon: React.ReactNode; label: string }> = {
   "Gespielt":          { color: "bg-blue-50 text-blue-700 border-blue-200",        dot: "bg-blue-400",    icon: <Send className="h-3 w-3" />,          label: "Gespielt" },
   "Interview geplant": { color: "bg-violet-50 text-violet-700 border-violet-200",  dot: "bg-violet-400",  icon: <CalendarClock className="h-3 w-3" />,  label: "Interview" },
   "Zugesagt":          { color: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-400", icon: <CheckCircle2 className="h-3 w-3" />, label: "Zugesagt" },
+  "Beauftragt":        { color: "bg-teal-50 text-teal-700 border-teal-200",          dot: "bg-teal-400",    icon: <Briefcase className="h-3 w-3" />,     label: "Beauftragt" },
   "Abgesagt":          { color: "bg-orange-50 text-orange-700 border-orange-200",  dot: "bg-orange-400",  icon: <XCircle className="h-3 w-3" />,        label: "Abgesagt" },
   "Abgelehnt":         { color: "bg-red-50 text-red-700 border-red-200",            dot: "bg-red-400",     icon: <Ban className="h-3 w-3" />,            label: "Abgelehnt" },
   "Zurückgezogen":     { color: "bg-gray-100 text-gray-500 border-gray-200",        dot: "bg-gray-400",    icon: <Undo2 className="h-3 w-3" />,          label: "Zurückgezogen" },
