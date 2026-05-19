@@ -2376,6 +2376,16 @@ export default function PoolPage() {
                                     Stammdaten ausstehend
                                   </span>
                                 )}
+                                {stammdatenAusstehend(r) && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 text-xs border-amber-200 text-amber-700 hover:bg-amber-50"
+                                    onClick={() => setStammdatenModal(r)}
+                                  >
+                                    Stammdaten erfassen
+                                  </Button>
+                                )}
                               </div>
                             </TableCell>
                             <TableCell>
