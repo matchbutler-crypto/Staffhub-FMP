@@ -73,10 +73,13 @@ export async function GET(request: NextRequest) {
   }
 
   // Separate query for link counts — RLS filters to own resources for Agentur
-  const [{ data: linkCountRows }, { data: beauftragtLinkRows }] = await Promise.all([
+  const [{ data: linkCountRows, error: linkCountError }, { data: beauftragtLinkRows, error: beauftragtError }] = await Promise.all([
     supabase.from('ressource_vakanz_links').select('ressource_id'),
     supabase.from('ressource_vakanz_links').select('ressource_id').eq('status', 'Beauftragt'),
   ])
+  if (linkCountError || beauftragtError) {
+    return NextResponse.json({ error: 'Fehler beim Laden der Link-Informationen' }, { status: 500 })
+  }
 
   const linkCountMap = new Map<string, number>()
   for (const l of (linkCountRows ?? [])) {
