@@ -66,7 +66,9 @@ import {
 
 interface Beauftragung {
   id: string
-  profil_id: string
+  profil_id: string | null
+  ressource_link_id?: string | null
+  is_pool?: boolean
   agentur_id: string
   kandidatenname: string
   erfahrungslevel: string
@@ -430,9 +432,18 @@ export default function BeauftragungPage() {
                       items.map((b) => (
                         <TableRow key={b.id} className={b.aktiv ? "" : "opacity-50"}>
                           <TableCell className="font-medium">
-                            <Link href={`/profile/${b.profil_id}`} className="hover:underline">
-                              {b.kandidatenname}
-                            </Link>
+                            <div className="flex items-center gap-1.5">
+                              {b.is_pool && (
+                                <span className="inline-flex items-center rounded border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-teal-700">Pool</span>
+                              )}
+                              {b.is_pool ? (
+                                <span>{b.kandidatenname}</span>
+                              ) : (
+                                <Link href={`/profile/${b.profil_id}`} className="hover:underline">
+                                  {b.kandidatenname}
+                                </Link>
+                              )}
+                            </div>
                             <p className="text-xs text-muted-foreground">{b.erfahrungslevel}</p>
                           </TableCell>
                           {isManager && <TableCell className="text-sm">{b.agentur_name}</TableCell>}

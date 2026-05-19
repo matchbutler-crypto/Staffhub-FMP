@@ -683,6 +683,7 @@ function VakanzCard({
                   <GespielteRessourcenTable
                     resources={resources}
                     vakanzId={vakanz.id}
+                    vakanzTitel={vakanz.rolle}
                     isManager={isManagerOrAdmin}
                     onStatusChange={handleLinkStatusChange}
                     onWithdraw={(r) => {

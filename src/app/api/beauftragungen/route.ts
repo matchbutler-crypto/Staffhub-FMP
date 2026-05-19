@@ -3,9 +3,22 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { computePreise } from '@/lib/beauftragungen-pricing'
 
-const beauftragungSchema = z.object({
+const profilBeauftragungSchema = z.object({
   profil_id: z.string().uuid(),
   agentur_id: z.string().uuid(),
+  agentur_rohpreis: z.number().positive(),
+  marge_inkludiert: z.boolean().default(false),
+  margenaufschlag: z.number().min(0).default(75),
+  startdatum: z.string().date('Ungültiges Datum (erwartet YYYY-MM-DD)'),
+  stunden_woche: z.number().int().min(1).max(168),
+})
+
+const poolBeauftragungSchema = z.object({
+  ressource_link_id: z.string().uuid(),
+  agentur_id: z.string().uuid(),
+  ressource_name: z.string().min(1),
+  vakanz_titel: z.string().min(1),
+  erfahrungslevel_pool: z.string().optional(),
   agentur_rohpreis: z.number().positive(),
   marge_inkludiert: z.boolean().default(false),
   margenaufschlag: z.number().min(0).default(75),
@@ -72,6 +85,10 @@ export async function GET(request: NextRequest) {
     .select(`
       id,
       profil_id,
+      ressource_link_id,
+      ressource_name,
+      vakanz_titel,
+      erfahrungslevel_pool,
       agentur_id,
       agentur_rohpreis,
       marge_inkludiert,
@@ -83,7 +100,7 @@ export async function GET(request: NextRequest) {
       aktiv,
       created_at,
       updated_at,
-      kandidaten_profile!inner(kandidatenname, erfahrungslevel, vakanz_id, vakanzen!inner(titel)),
+      kandidaten_profile(kandidatenname, erfahrungslevel, vakanz_id, vakanzen!inner(titel)),
       agenturen!inner(name)
     `, { count: 'exact' })
     .order('created_at', { ascending: false })
@@ -106,12 +123,14 @@ export async function GET(request: NextRequest) {
     }
     const marge_euro = Number(margenaufschlag)
     const vk = Number(verkaufspreis)
+    const isPool = !b.profil_id
 
     const base = {
       ...rest,
-      kandidatenname: kandidaten_profile?.kandidatenname ?? '–',
-      erfahrungslevel: kandidaten_profile?.erfahrungslevel ?? '–',
-      vakanz_titel: kandidaten_profile?.vakanzen?.titel ?? '–',
+      is_pool: isPool,
+      kandidatenname: isPool ? (b.ressource_name ?? '–') : (kandidaten_profile?.kandidatenname ?? '–'),
+      erfahrungslevel: isPool ? (b.erfahrungslevel_pool ?? '–') : (kandidaten_profile?.erfahrungslevel ?? '–'),
+      vakanz_titel: isPool ? (b.vakanz_titel ?? '–') : (kandidaten_profile?.vakanzen?.titel ?? '–'),
       agentur_name: agenturen?.name ?? '–',
     }
 
@@ -181,7 +200,52 @@ export async function POST(request: NextRequest) {
   if (authErr === 'forbidden') return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
 
   const body = await request.json().catch(() => null)
-  const parsed = beauftragungSchema.safeParse(body)
+
+  // Detect which path: pool resource or CV profile
+  const isPoolRequest = body && 'ressource_link_id' in body
+
+  if (isPoolRequest) {
+    const parsed = poolBeauftragungSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Validierungsfehler', details: parsed.error.flatten().fieldErrors },
+        { status: 400 }
+      )
+    }
+    const { agentur_rohpreis, margenaufschlag, marge_inkludiert } = parsed.data
+    const { einkaufspreis, verkaufspreis } = computePreise(agentur_rohpreis, margenaufschlag, marge_inkludiert)
+    if (einkaufspreis <= 0) {
+      return NextResponse.json(
+        { error: 'EK-Preis muss > 0 sein (Rohpreis muss größer als Marge sein wenn "Marge enthalten")' },
+        { status: 400 }
+      )
+    }
+    const { data: neu, error } = await supabase
+      .from('beauftragungen')
+      .insert({
+        ressource_link_id: parsed.data.ressource_link_id,
+        agentur_id: parsed.data.agentur_id,
+        ressource_name: parsed.data.ressource_name,
+        vakanz_titel: parsed.data.vakanz_titel,
+        erfahrungslevel_pool: parsed.data.erfahrungslevel_pool ?? null,
+        agentur_rohpreis,
+        marge_inkludiert,
+        einkaufspreis,
+        margenaufschlag,
+        verkaufspreis,
+        startdatum: parsed.data.startdatum,
+        stunden_woche: parsed.data.stunden_woche,
+      })
+      .select('id, einkaufspreis, margenaufschlag, verkaufspreis, aktiv, created_at')
+      .single()
+    if (error) {
+      return NextResponse.json({ error: 'Fehler beim Anlegen der Beauftragung' }, { status: 500 })
+    }
+    return NextResponse.json({ beauftragung: neu }, { status: 201 })
+  }
+
+  // CV-Profile path
+  const parsed = profilBeauftragungSchema.safeParse(body)
   if (!parsed.success) {
     return NextResponse.json(
       { error: 'Validierungsfehler', details: parsed.error.flatten().fieldErrors },

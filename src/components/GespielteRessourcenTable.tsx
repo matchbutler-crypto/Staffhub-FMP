@@ -55,6 +55,7 @@ interface StatusChangeOptions {
 interface GespielteRessourcenTableProps {
   resources: PoolRessource[]
   vakanzId?: string
+  vakanzTitel?: string
   isManager?: boolean
   onWithdraw?: (resource: PoolRessource) => void
   onStatusChange?: (resource: PoolRessource, newStatus: string, options?: StatusChangeOptions) => Promise<void>
@@ -63,6 +64,7 @@ interface GespielteRessourcenTableProps {
 export function GespielteRessourcenTable({
   resources,
   vakanzId,
+  vakanzTitel,
   isManager,
   onWithdraw,
   onStatusChange,
@@ -80,6 +82,17 @@ export function GespielteRessourcenTable({
   const [feedbackModal, setFeedbackModal] = useState<{ resource: PoolRessource; targetStatus: string } | null>(null)
   const [feedbackText, setFeedbackText] = useState('')
   const [savingFeedback, setSavingFeedback] = useState(false)
+
+  // Beauftragt modal
+  const [beauftragtModal, setBeauftragtModal] = useState<{ resource: PoolRessource } | null>(null)
+  const [beauftragtForm, setBeauftragtForm] = useState({
+    startdatum: new Date().toISOString().split('T')[0],
+    stunden_woche: '40',
+    agentur_rohpreis: '',
+    marge_inkludiert: false,
+    margenaufschlag: '75',
+  })
+  const [savingBeauftragung, setSavingBeauftragung] = useState(false)
 
   const calculatedIds = useRef<Set<string>>(new Set())
 
@@ -129,6 +142,17 @@ export function GespielteRessourcenTable({
       setInterviewDatum('')
       return
     }
+    if (newStatus === 'Beauftragt') {
+      setBeauftragtModal({ resource })
+      setBeauftragtForm({
+        startdatum: new Date().toISOString().split('T')[0],
+        stunden_woche: '40',
+        agentur_rohpreis: '',
+        marge_inkludiert: false,
+        margenaufschlag: '75',
+      })
+      return
+    }
     if ((FEEDBACK_STATUSES as readonly string[]).includes(newStatus)) {
       setFeedbackModal({ resource, targetStatus: newStatus })
       setFeedbackText('')
@@ -164,6 +188,46 @@ export function GespielteRessourcenTable({
       setFeedbackText('')
     } finally {
       setSavingFeedback(false)
+    }
+  }
+
+  async function handleBeauftragtSave() {
+    if (!beauftragtModal) return
+    const { resource } = beauftragtModal
+    if (!resource.link_id || !resource.agentur_id) {
+      toast.error('Link-ID oder Agentur fehlt')
+      return
+    }
+    setSavingBeauftragung(true)
+    try {
+      const res = await fetch('/api/beauftragungen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ressource_link_id: resource.link_id,
+          agentur_id: resource.agentur_id,
+          ressource_name: resource.name,
+          vakanz_titel: vakanzTitel ?? '–',
+          erfahrungslevel_pool: resource.erfahrungslevel,
+          agentur_rohpreis: Number(beauftragtForm.agentur_rohpreis),
+          marge_inkludiert: beauftragtForm.marge_inkludiert,
+          margenaufschlag: Number(beauftragtForm.margenaufschlag),
+          startdatum: beauftragtForm.startdatum,
+          stunden_woche: Number(beauftragtForm.stunden_woche),
+        }),
+      })
+      const body = await res.json()
+      if (!res.ok) {
+        toast.error(body.error ?? 'Fehler beim Anlegen der Beauftragung')
+        return
+      }
+      await submitStatusChange(resource, 'Beauftragt', {})
+      setBeauftragtModal(null)
+      toast.success('Beauftragung angelegt')
+    } catch {
+      toast.error('Verbindungsfehler')
+    } finally {
+      setSavingBeauftragung(false)
     }
   }
 
@@ -377,6 +441,92 @@ export function GespielteRessourcenTable({
           })}
         </div>
       </div>
+
+      {/* Beauftragt Modal */}
+      <Dialog open={!!beauftragtModal} onOpenChange={(open) => { if (!open) setBeauftragtModal(null) }}>
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle>Beauftragung anlegen</DialogTitle>
+            <DialogDescription>
+              <span className="font-medium text-foreground">{beauftragtModal?.resource.name}</span> — Preise und Einsatzdaten eingeben.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Startdatum</label>
+                <input
+                  type="date"
+                  value={beauftragtForm.startdatum}
+                  onChange={(e) => setBeauftragtForm((f) => ({ ...f, startdatum: e.target.value }))}
+                  className="w-full h-8 rounded border border-border bg-background px-2 text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Stunden / Woche</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={168}
+                  value={beauftragtForm.stunden_woche}
+                  onChange={(e) => setBeauftragtForm((f) => ({ ...f, stunden_woche: e.target.value }))}
+                  className="w-full h-8 rounded border border-border bg-background px-2 text-sm"
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Rohpreis / Tag (€)</label>
+              <input
+                type="number"
+                min={0}
+                step={0.01}
+                placeholder="z.B. 750"
+                value={beauftragtForm.agentur_rohpreis}
+                onChange={(e) => setBeauftragtForm((f) => ({ ...f, agentur_rohpreis: e.target.value }))}
+                className="w-full h-8 rounded border border-border bg-background px-2 text-sm"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="marge-inkludiert"
+                checked={beauftragtForm.marge_inkludiert}
+                onChange={(e) => setBeauftragtForm((f) => ({ ...f, marge_inkludiert: e.target.checked }))}
+                className="h-4 w-4 rounded border-border"
+              />
+              <label htmlFor="marge-inkludiert" className="text-sm text-foreground cursor-pointer">
+                Marge bereits im Rohpreis enthalten
+              </label>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">
+                Margenaufschlag / Tag (€){beauftragtForm.marge_inkludiert ? ' — wird abgezogen' : ' — wird aufgeschlagen'}
+              </label>
+              <input
+                type="number"
+                min={0}
+                step={0.01}
+                value={beauftragtForm.margenaufschlag}
+                onChange={(e) => setBeauftragtForm((f) => ({ ...f, margenaufschlag: e.target.value }))}
+                className="w-full h-8 rounded border border-border bg-background px-2 text-sm"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBeauftragtModal(null)} disabled={savingBeauftragung}>
+              Abbrechen
+            </Button>
+            <Button
+              onClick={handleBeauftragtSave}
+              disabled={savingBeauftragung || !beauftragtForm.startdatum || !beauftragtForm.agentur_rohpreis || Number(beauftragtForm.stunden_woche) < 1}
+            >
+              {savingBeauftragung ? 'Speichert…' : 'Beauftragen'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Feedback Modal */}
       <Dialog open={!!feedbackModal} onOpenChange={(open) => { if (!open) { setFeedbackModal(null); setFeedbackText('') } }}>

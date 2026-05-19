@@ -543,6 +543,7 @@ export default function VakanzDetailPage() {
                   <GespielteRessourcenTable
                     resources={gespielt}
                     vakanzId={id}
+                    vakanzTitel={vakanz.rolle}
                     isManager
                     onWithdraw={(r) => { setRueckzugTarget(r); setRueckzugOpen(true) }}
                     onStatusChange={handleLinkStatusChange}

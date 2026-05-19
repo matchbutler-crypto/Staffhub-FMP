@@ -34,6 +34,7 @@ export interface PoolRessource {
   cv_pfad?: string | null
   link_feedback?: string | null
   agentur_name?: string | null
+  agentur_id?: string | null
 }
 
 export const VERFUEGBARKEIT_COLORS: Record<string, string> = {
