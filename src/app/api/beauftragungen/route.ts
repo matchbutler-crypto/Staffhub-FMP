@@ -23,6 +23,7 @@ const poolBeauftragungSchema = z.object({
   marge_inkludiert: z.boolean().default(false),
   margenaufschlag: z.number().min(0).default(75),
   startdatum: z.string().date('Ungültiges Datum (erwartet YYYY-MM-DD)'),
+  enddatum: z.string().date().nullable().optional(),
   stunden_woche: z.number().int().min(1).max(168),
 })
 
@@ -220,6 +221,13 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+    // Ressource-ID für Verfügbarkeits-Update holen
+    const { data: link } = await supabase
+      .from('ressource_vakanz_links')
+      .select('ressource_id')
+      .eq('id', parsed.data.ressource_link_id)
+      .single()
+
     const { data: neu, error } = await supabase
       .from('beauftragungen')
       .insert({
@@ -234,6 +242,7 @@ export async function POST(request: NextRequest) {
         margenaufschlag,
         verkaufspreis,
         startdatum: parsed.data.startdatum,
+        enddatum: parsed.data.enddatum ?? null,
         stunden_woche: parsed.data.stunden_woche,
       })
       .select('id, einkaufspreis, margenaufschlag, verkaufspreis, aktiv, created_at')
@@ -241,6 +250,15 @@ export async function POST(request: NextRequest) {
     if (error) {
       return NextResponse.json({ error: 'Fehler beim Anlegen der Beauftragung' }, { status: 500 })
     }
+
+    // Verfügbarkeit automatisch auf Enddatum setzen (wenn angegeben)
+    if (link?.ressource_id && parsed.data.enddatum) {
+      await supabase
+        .from('ressourcen')
+        .update({ verfuegbarkeit: 'Verfügbar ab', verfuegbar_ab: parsed.data.enddatum })
+        .eq('id', link.ressource_id)
+    }
+
     return NextResponse.json({ beauftragung: neu }, { status: 201 })
   }
 

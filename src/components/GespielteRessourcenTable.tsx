@@ -87,6 +87,7 @@ export function GespielteRessourcenTable({
   const [beauftragtModal, setBeauftragtModal] = useState<{ resource: PoolRessource } | null>(null)
   const [beauftragtForm, setBeauftragtForm] = useState({
     startdatum: new Date().toISOString().split('T')[0],
+    enddatum: '',
     stunden_woche: '40',
     agentur_rohpreis: '',
     marge_inkludiert: false,
@@ -146,6 +147,7 @@ export function GespielteRessourcenTable({
       setBeauftragtModal({ resource })
       setBeauftragtForm({
         startdatum: new Date().toISOString().split('T')[0],
+        enddatum: '',
         stunden_woche: '40',
         agentur_rohpreis: '',
         marge_inkludiert: false,
@@ -213,6 +215,7 @@ export function GespielteRessourcenTable({
           marge_inkludiert: beauftragtForm.marge_inkludiert,
           margenaufschlag: Number(beauftragtForm.margenaufschlag),
           startdatum: beauftragtForm.startdatum,
+          enddatum: beauftragtForm.enddatum || null,
           stunden_woche: Number(beauftragtForm.stunden_woche),
         }),
       })
@@ -464,16 +467,25 @@ export function GespielteRessourcenTable({
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Stunden / Woche</label>
+                <label className="text-xs font-medium text-muted-foreground">Enddatum</label>
                 <input
-                  type="number"
-                  min={1}
-                  max={168}
-                  value={beauftragtForm.stunden_woche}
-                  onChange={(e) => setBeauftragtForm((f) => ({ ...f, stunden_woche: e.target.value }))}
+                  type="date"
+                  value={beauftragtForm.enddatum}
+                  onChange={(e) => setBeauftragtForm((f) => ({ ...f, enddatum: e.target.value }))}
                   className="w-full h-8 rounded border border-border bg-background px-2 text-sm"
                 />
               </div>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Stunden / Woche</label>
+              <input
+                type="number"
+                min={1}
+                max={168}
+                value={beauftragtForm.stunden_woche}
+                onChange={(e) => setBeauftragtForm((f) => ({ ...f, stunden_woche: e.target.value }))}
+                className="w-full h-8 rounded border border-border bg-background px-2 text-sm"
+              />
             </div>
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Rohpreis / Tag (€)</label>
