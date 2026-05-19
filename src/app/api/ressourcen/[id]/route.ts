@@ -11,6 +11,17 @@ const updateRessourceSchema = z.object({
   verfuegbar_ab: z.string().nullable().optional(),
   ek_tagesrate: z.number().positive().nullable().optional(),
   notizen: z.string().max(2000).nullable().optional(),
+  // Stammdaten
+  nachname: z.string().min(1).max(200).nullable().optional(),
+  vorname: z.string().min(1).max(200).nullable().optional(),
+  geburtsdatum: z.string().date().nullable().optional(),
+  geschlecht: z.enum(['Männlich', 'Weiblich', 'Divers', 'Keine Angabe']).nullable().optional(),
+  firma: z.string().min(1).max(200).nullable().optional(),
+  email_geschaeftlich: z.string().email('Ungültige E-Mail').nullable().optional(),
+  telefon_geschaeftlich: z.string().max(50).nullable().optional(),
+  wohnort: z.string().min(1).max(200).nullable().optional(),
+  namenszusatz: z.string().max(100).nullable().optional(),
+  titel: z.string().max(100).nullable().optional(),
 }).refine(
   (d) => d.verfuegbarkeit !== 'Verfügbar ab' || !!d.verfuegbar_ab,
   { message: 'Datum erforderlich wenn "Verfügbar ab"', path: ['verfuegbar_ab'] }
@@ -105,6 +116,16 @@ export async function PUT(
       verfuegbar_ab: parsed.data.verfuegbar_ab || null,
       ek_tagesrate: parsed.data.ek_tagesrate ?? null,
       notizen: parsed.data.notizen ?? null,
+      nachname: parsed.data.nachname ?? null,
+      vorname: parsed.data.vorname ?? null,
+      geburtsdatum: parsed.data.geburtsdatum ?? null,
+      geschlecht: parsed.data.geschlecht ?? null,
+      firma: parsed.data.firma ?? null,
+      email_geschaeftlich: parsed.data.email_geschaeftlich ?? null,
+      telefon_geschaeftlich: parsed.data.telefon_geschaeftlich ?? null,
+      wohnort: parsed.data.wohnort ?? null,
+      namenszusatz: parsed.data.namenszusatz ?? null,
+      titel: parsed.data.titel ?? null,
     })
     .eq('id', id)
     .select('id, name, verfuegbarkeit, updated_at')
