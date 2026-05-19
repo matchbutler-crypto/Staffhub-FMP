@@ -171,5 +171,46 @@ export async function PATCH(
     }
   }
 
+  // Pfad 2 — Vakanz zurück auf "Offen" (Entwurf) wenn Beauftragung rückgängig
+  if (link.status === 'Beauftragt' && newStatus !== 'Beauftragt') {
+    const { data: vakanz, error: vakanzError } = await supabase
+      .from('vakanzen')
+      .select('status, fte_anzahl')
+      .eq('id', link.vakanz_id)
+      .single()
+
+    if (vakanzError) {
+      console.error('Pfad-2 vakanz query failed:', vakanzError)
+    } else if (vakanz?.status === 'Besetzt') {
+      const { count: beauftragtCount, error: countError } = await supabase
+        .from('ressource_vakanz_links')
+        .select('*', { count: 'exact', head: true })
+        .eq('vakanz_id', link.vakanz_id)
+        .eq('status', 'Beauftragt')
+
+      if (countError) {
+        console.error('Pfad-2 count query failed:', countError)
+      } else {
+        const fte = vakanz.fte_anzahl != null ? Number(vakanz.fte_anzahl) : null
+        const count = beauftragtCount ?? 0
+
+        if (fte !== null && count < fte) {
+          await supabase
+            .from('vakanzen')
+            .update({ status: 'Offen', published: false })
+            .eq('id', link.vakanz_id)
+
+          await supabase.from('ressource_historie').insert({
+            ressource_id: link.ressource_id,
+            link_id: id,
+            typ: 'system',
+            text: `Vakanz auf "Offen" (Entwurf) gesetzt — Beauftragung rückgängig gemacht (${count}/${fte} FTE)`,
+            erstellt_von: user.id,
+          })
+        }
+      }
+    }
+  }
+
   return NextResponse.json({ link: updated })
 }
