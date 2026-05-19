@@ -11,6 +11,8 @@ const createRessourceSchema = z.object({
   verfuegbar_ab: z.string().nullable().optional(),
   ek_tagesrate: z.number().positive().nullable().optional(),
   notizen: z.string().max(2000).nullable().optional(),
+  arbeitsmodell: z.enum(['Onshore', 'Nearshore', 'Offshore']).optional(),
+  location: z.string().max(200).nullable().optional(),
 }).refine(
   (d) => d.verfuegbarkeit !== 'Verfügbar ab' || !!d.verfuegbar_ab,
   { message: 'Datum erforderlich wenn "Verfügbar ab"', path: ['verfuegbar_ab'] }
@@ -51,6 +53,7 @@ export async function GET(request: NextRequest) {
       id, agentur_id, name, rolle, skills, erfahrungslevel,
       verfuegbarkeit, verfuegbar_ab, cv_pfad,
       ek_tagesrate, notizen, created_at, updated_at,
+      arbeitsmodell, location,
       nachname, vorname, geburtsdatum, geschlecht, firma,
       email_geschaeftlich, telefon_geschaeftlich, wohnort, namenszusatz, titel,
       agenturen(name)
@@ -199,6 +202,8 @@ export async function POST(request: NextRequest) {
       verfuegbar_ab: parsed.data.verfuegbar_ab || null,
       ek_tagesrate: parsed.data.ek_tagesrate ?? null,
       notizen: parsed.data.notizen ?? null,
+      arbeitsmodell: parsed.data.arbeitsmodell ?? 'Onshore',
+      location: parsed.data.location ?? null,
       agentur_id: agenturId,
     })
     .select('id, name, verfuegbarkeit, created_at')

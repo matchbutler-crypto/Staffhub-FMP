@@ -109,6 +109,8 @@ interface Ressource {
   notizen?: string | null
   link_count?: number
   hat_beauftragt_link?: boolean
+  arbeitsmodell?: string | null
+  location?: string | null
   // Stammdaten
   nachname?: string | null
   vorname?: string | null
@@ -2297,7 +2299,7 @@ export default function PoolPage() {
                         {isAdmin && <TableHead>Agentur</TableHead>}
                         <TableHead>Rolle</TableHead>
                         <TableHead>Verfügbar ab</TableHead>
-                        <TableHead>Level</TableHead>
+                        <TableHead>Location</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>EK-Rate</TableHead>
                         {vakanzFilter !== "keine" && (
@@ -2353,12 +2355,12 @@ export default function PoolPage() {
                                 : "—"}
                             </TableCell>
                             <TableCell>
-                              <Badge
-                                variant="outline"
-                                className={erfahrungsColors[r.erfahrungslevel]}
-                              >
-                                {r.erfahrungslevel}
-                              </Badge>
+                              <div className="flex flex-col gap-0.5 text-sm">
+                                {r.arbeitsmodell && r.arbeitsmodell !== 'Onshore' ? (
+                                  <span className="text-muted-foreground text-xs">{r.arbeitsmodell}</span>
+                                ) : null}
+                                <span>{r.location ?? '—'}</span>
+                              </div>
                             </TableCell>
                             <TableCell>
                               <div className="flex flex-col gap-1">

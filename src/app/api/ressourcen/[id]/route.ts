@@ -22,6 +22,8 @@ const updateRessourceSchema = z.object({
   wohnort: z.string().min(1).max(200).nullable().optional(),
   namenszusatz: z.string().max(100).nullable().optional(),
   titel: z.string().max(100).nullable().optional(),
+  arbeitsmodell: z.enum(['Onshore', 'Nearshore', 'Offshore']).optional(),
+  location: z.string().max(200).nullable().optional(),
 }).refine(
   (d) => d.verfuegbarkeit !== 'Verfügbar ab' || !!d.verfuegbar_ab,
   { message: 'Datum erforderlich wenn "Verfügbar ab"', path: ['verfuegbar_ab'] }
@@ -126,6 +128,8 @@ export async function PUT(
       wohnort: parsed.data.wohnort ?? null,
       namenszusatz: parsed.data.namenszusatz ?? null,
       titel: parsed.data.titel ?? null,
+      arbeitsmodell: parsed.data.arbeitsmodell ?? 'Onshore',
+      location: parsed.data.location ?? null,
     })
     .eq('id', id)
     .select('id, name, verfuegbarkeit, updated_at')

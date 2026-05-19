@@ -97,6 +97,8 @@ const resourcePoolSchema = z.object({
   availability: z.number().min(1, 'Verfügbarkeit muss mindestens 1 sein').max(168, 'Max 168 Stunden/Woche'),
   verfuegbar_ab: z.string().optional(),
   ek_tagesrate: z.number({ invalid_type_error: 'Muss eine Zahl sein' }).positive().optional(),
+  arbeitsmodell: z.enum(['Onshore', 'Nearshore', 'Offshore']).optional(),
+  location: z.string().max(200).optional(),
 })
 
 type ResourcePoolFormData = z.infer<typeof resourcePoolSchema>
@@ -190,6 +192,8 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess, isManager
   const [savedRolle, setSavedRolle] = React.useState<string | null>(null)
   const [savedVerfuegbarAb, setSavedVerfuegbarAb] = React.useState<string | null>(null)
   const [savedEkTagesrate, setSavedEkTagesrate] = React.useState<number | null>(null)
+  const [savedArbeitsmodell, setSavedArbeitsmodell] = React.useState<'Onshore' | 'Nearshore' | 'Offshore'>('Onshore')
+  const [savedLocation, setSavedLocation] = React.useState<string | null>(null)
   const [selectedAgenturId, setSelectedAgenturId] = React.useState('')
   const [extractionStep, setExtractionStep] = React.useState<'analyzing' | 'extracting' | null>(null)
 
@@ -197,6 +201,7 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess, isManager
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors },
   } = useForm<ResourcePoolFormData>({
     resolver: zodResolver(resourcePoolSchema),
@@ -204,6 +209,8 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess, isManager
       resourceName: '',
       rolle: '',
       availability: 40,
+      arbeitsmodell: 'Onshore',
+      location: '',
     },
   })
 
@@ -218,6 +225,8 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess, isManager
     setSavedRolle(null)
     setSavedVerfuegbarAb(null)
     setSavedEkTagesrate(null)
+    setSavedArbeitsmodell('Onshore')
+    setSavedLocation(null)
     setSelectedAgenturId('')
     setExtractionStep(null)
   }
@@ -278,6 +287,8 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess, isManager
       setSavedRolle(data.rolle || null)
       setSavedVerfuegbarAb(data.verfuegbar_ab ?? null)
       setSavedEkTagesrate(data.ek_tagesrate ?? null)
+      setSavedArbeitsmodell(data.arbeitsmodell ?? 'Onshore')
+      setSavedLocation(data.location ?? null)
       const rawSkills = result.profile?.extracted_skills ?? []
       setExtractedSkills(
         rawSkills.map((s: { name: string } | string) =>
@@ -314,6 +325,8 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess, isManager
           verfuegbarkeit: savedVerfuegbarAb ? 'Verfügbar ab' : 'Jetzt verfügbar',
           verfuegbar_ab: savedVerfuegbarAb ?? null,
           ek_tagesrate: savedEkTagesrate ?? null,
+          arbeitsmodell: savedArbeitsmodell,
+          location: savedLocation ?? null,
           ...(isManagerOrAdmin && selectedAgenturId ? { agentur_id: selectedAgenturId } : {}),
         }),
       })
@@ -432,6 +445,35 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess, isManager
                   disabled={isLoading}
                 />
                 {errors.ek_tagesrate && <p className="text-xs text-destructive">{errors.ek_tagesrate.message}</p>}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="arbeitsmodell">Arbeitsmodell</Label>
+                  <Select
+                    defaultValue="Onshore"
+                    onValueChange={(v) => setValue('arbeitsmodell', v as 'Onshore' | 'Nearshore' | 'Offshore')}
+                    disabled={isLoading}
+                  >
+                    <SelectTrigger id="arbeitsmodell">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Onshore">Onshore</SelectItem>
+                      <SelectItem value="Nearshore">Nearshore</SelectItem>
+                      <SelectItem value="Offshore">Offshore</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="location">Location</Label>
+                  <Input
+                    id="location"
+                    placeholder="z.B. München, Remote"
+                    {...register('location')}
+                    disabled={isLoading}
+                  />
+                </div>
               </div>
 
               <div className="space-y-2">
