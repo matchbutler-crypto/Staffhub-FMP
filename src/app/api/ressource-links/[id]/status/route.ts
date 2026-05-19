@@ -129,5 +129,43 @@ export async function PATCH(
     })
   }
 
+  // Pfad 1 — Vakanz automatisch auf "Besetzt" setzen wenn FTE-Ziel erreicht
+  if (newStatus === 'Beauftragt') {
+    const [{ count: beauftragtCount }, { data: vakanz }] = await Promise.all([
+      supabase
+        .from('ressource_vakanz_links')
+        .select('*', { count: 'exact', head: true })
+        .eq('vakanz_id', link.vakanz_id)
+        .eq('status', 'Beauftragt'),
+      supabase
+        .from('vakanzen')
+        .select('status, fte_anzahl')
+        .eq('id', link.vakanz_id)
+        .single(),
+    ])
+
+    const fte = vakanz?.fte_anzahl != null ? Number(vakanz.fte_anzahl) : null
+    const count = beauftragtCount ?? 0
+
+    if (fte !== null && count >= fte && vakanz?.status !== 'Besetzt') {
+      await supabase
+        .from('vakanzen')
+        .update({
+          status: 'Besetzt',
+          published: false,
+          besetzt_seit: new Date().toISOString(),
+        })
+        .eq('id', link.vakanz_id)
+
+      await supabase.from('ressource_historie').insert({
+        ressource_id: link.ressource_id,
+        link_id: id,
+        typ: 'system',
+        text: `Vakanz automatisch auf "Besetzt" gesetzt — FTE-Ziel erreicht (${count}/${fte})`,
+        erstellt_von: user.id,
+      })
+    }
+  }
+
   return NextResponse.json({ link: updated })
 }
