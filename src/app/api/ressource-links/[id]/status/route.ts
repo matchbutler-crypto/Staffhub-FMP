@@ -195,10 +195,14 @@ export async function PATCH(
         const count = beauftragtCount ?? 0
 
         if (fte !== null && count < fte) {
-          await supabase
+          const { error: revertError } = await supabase
             .from('vakanzen')
-            .update({ status: 'Offen', published: false })
+            .update({ status: 'Offen', published: false, besetzt_seit: null })
             .eq('id', link.vakanz_id)
+
+          if (revertError) {
+            console.error('Pfad-2 vakanz revert failed:', revertError)
+          }
 
           await supabase.from('ressource_historie').insert({
             ressource_id: link.ressource_id,
