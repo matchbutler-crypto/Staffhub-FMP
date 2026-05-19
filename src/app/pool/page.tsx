@@ -108,6 +108,18 @@ interface Ressource {
   ek_tagesrate?: number | null
   notizen?: string | null
   link_count?: number
+  hat_beauftragt_link?: boolean
+  // Stammdaten
+  nachname?: string | null
+  vorname?: string | null
+  geburtsdatum?: string | null
+  geschlecht?: string | null
+  firma?: string | null
+  email_geschaeftlich?: string | null
+  telefon_geschaeftlich?: string | null
+  wohnort?: string | null
+  namenszusatz?: string | null
+  titel?: string | null
   created_at: string
   updated_at: string
   agenturen?: { name: string } | null
@@ -754,6 +766,16 @@ const linkStatusColors: Record<LinkStatus, string> = {
 }
 
 const RUECKZUG_ERLAUBT: LinkStatus[] = ["Gespielt"]
+
+const PFLICHTFELDER_STAMMDATEN = [
+  'nachname', 'vorname', 'geburtsdatum', 'geschlecht',
+  'firma', 'email_geschaeftlich', 'telefon_geschaeftlich', 'wohnort',
+] as const
+
+function stammdatenAusstehend(r: Ressource): boolean {
+  if (!r.hat_beauftragt_link) return false
+  return PFLICHTFELDER_STAMMDATEN.some((f) => !r[f])
+}
 
 // ── KI-Score Types ─────────────────────────────────────────────────────────────
 
@@ -1818,6 +1840,164 @@ function TableSkeletonRows({ cols }: { cols: number }) {
   )
 }
 
+// ── StammdatenModal ────────────────────────────────────────────────────────────
+
+interface StammdatenModalProps {
+  ressource: Ressource
+  open: boolean
+  onClose: () => void
+  onSaved: (updated: Partial<Ressource>) => void
+}
+
+function StammdatenModal({ ressource, open, onClose, onSaved }: StammdatenModalProps) {
+  const [saving, setSaving] = React.useState(false)
+  const [form, setForm] = React.useState({
+    nachname: ressource.nachname ?? '',
+    vorname: ressource.vorname ?? '',
+    geburtsdatum: ressource.geburtsdatum ?? '',
+    geschlecht: ressource.geschlecht ?? '',
+    firma: ressource.firma ?? '',
+    email_geschaeftlich: ressource.email_geschaeftlich ?? '',
+    telefon_geschaeftlich: ressource.telefon_geschaeftlich ?? '',
+    wohnort: ressource.wohnort ?? '',
+    namenszusatz: ressource.namenszusatz ?? '',
+    titel: ressource.titel ?? '',
+  })
+
+  const set = (field: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setForm((f) => ({ ...f, [field]: e.target.value }))
+
+  async function handleSave() {
+    const required = ['nachname', 'vorname', 'geburtsdatum', 'geschlecht', 'firma', 'email_geschaeftlich', 'telefon_geschaeftlich', 'wohnort'] as const
+    if (required.some((f) => !form[f].trim())) {
+      toast.error('Bitte alle Pflichtfelder ausfüllen.')
+      return
+    }
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/ressourcen/${ressource.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: ressource.name,
+          rolle: ressource.rolle ?? null,
+          skills: ressource.skills,
+          erfahrungslevel: ressource.erfahrungslevel,
+          verfuegbarkeit: ressource.verfuegbarkeit,
+          verfuegbar_ab: ressource.verfuegbar_ab ?? null,
+          ek_tagesrate: ressource.ek_tagesrate ?? null,
+          notizen: ressource.notizen ?? null,
+          nachname: form.nachname.trim() || null,
+          vorname: form.vorname.trim() || null,
+          geburtsdatum: form.geburtsdatum || null,
+          geschlecht: form.geschlecht || null,
+          firma: form.firma.trim() || null,
+          email_geschaeftlich: form.email_geschaeftlich.trim() || null,
+          telefon_geschaeftlich: form.telefon_geschaeftlich.trim() || null,
+          wohnort: form.wohnort.trim() || null,
+          namenszusatz: form.namenszusatz.trim() || null,
+          titel: form.titel.trim() || null,
+        }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        toast.error(body.error ?? 'Fehler beim Speichern.')
+        return
+      }
+      onSaved({
+        nachname: form.nachname.trim() || null,
+        vorname: form.vorname.trim() || null,
+        geburtsdatum: form.geburtsdatum || null,
+        geschlecht: form.geschlecht || null,
+        firma: form.firma.trim() || null,
+        email_geschaeftlich: form.email_geschaeftlich.trim() || null,
+        telefon_geschaeftlich: form.telefon_geschaeftlich.trim() || null,
+        wohnort: form.wohnort.trim() || null,
+        namenszusatz: form.namenszusatz.trim() || null,
+        titel: form.titel.trim() || null,
+      })
+      toast.success('Stammdaten gespeichert.')
+      onClose()
+    } catch {
+      toast.error('Verbindungsfehler.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Stammdaten erfassen</DialogTitle>
+          <DialogDescription>
+            Pflichtfelder für <span className="font-medium">{ressource.name}</span> (Beauftragt).
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label htmlFor="sd-vorname">Vorname <span className="text-destructive">*</span></Label>
+            <Input id="sd-vorname" value={form.vorname} onChange={set('vorname')} />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="sd-nachname">Nachname <span className="text-destructive">*</span></Label>
+            <Input id="sd-nachname" value={form.nachname} onChange={set('nachname')} />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="sd-geburtsdatum">Geburtsdatum <span className="text-destructive">*</span></Label>
+            <Input id="sd-geburtsdatum" type="date" value={form.geburtsdatum} onChange={set('geburtsdatum')} />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="sd-geschlecht">Geschlecht <span className="text-destructive">*</span></Label>
+            <select
+              id="sd-geschlecht"
+              value={form.geschlecht}
+              onChange={set('geschlecht')}
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="">Bitte wählen</option>
+              <option value="Männlich">Männlich</option>
+              <option value="Weiblich">Weiblich</option>
+              <option value="Divers">Divers</option>
+              <option value="Keine Angabe">Keine Angabe</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="sd-namenszusatz">Namenszusatz</Label>
+            <Input id="sd-namenszusatz" value={form.namenszusatz} onChange={set('namenszusatz')} placeholder="optional" />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="sd-titel">Titel</Label>
+            <Input id="sd-titel" value={form.titel} onChange={set('titel')} placeholder="optional" />
+          </div>
+          <div className="col-span-2 space-y-1">
+            <Label htmlFor="sd-firma">Firma <span className="text-destructive">*</span></Label>
+            <Input id="sd-firma" value={form.firma} onChange={set('firma')} />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="sd-email">E-Mail geschäftlich <span className="text-destructive">*</span></Label>
+            <Input id="sd-email" type="email" value={form.email_geschaeftlich} onChange={set('email_geschaeftlich')} />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="sd-telefon">Telefon geschäftlich <span className="text-destructive">*</span></Label>
+            <Input id="sd-telefon" value={form.telefon_geschaeftlich} onChange={set('telefon_geschaeftlich')} />
+          </div>
+          <div className="col-span-2 space-y-1">
+            <Label htmlFor="sd-wohnort">Wohnort <span className="text-destructive">*</span></Label>
+            <Input id="sd-wohnort" value={form.wohnort} onChange={set('wohnort')} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={saving}>Abbrechen</Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? 'Speichern…' : 'Speichern'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── PoolPage ───────────────────────────────────────────────────────────────────
 
 export default function PoolPage() {
@@ -1860,6 +2040,8 @@ export default function PoolPage() {
   const [linksCache, setLinksCache] = React.useState<Record<string, VakanzLink[]>>({})
   const [loadingLinkIds, setLoadingLinkIds] = React.useState<Set<string>>(new Set())
 
+  const [stammdatenModal, setStammdatenModal] = React.useState<Ressource | null>(null)
+
   async function handleToggleExpand(id: string, e: React.MouseEvent) {
     e.stopPropagation()
     setExpandedIds((prev) => {
@@ -1879,6 +2061,12 @@ export default function PoolPage() {
     } finally {
       setLoadingLinkIds((prev) => { const next = new Set(prev); next.delete(id); return next })
     }
+  }
+
+  function handleStammdatenSaved(ressourceId: string, updated: Partial<Ressource>) {
+    setRessourcen((prev) =>
+      prev.map((r) => r.id === ressourceId ? { ...r, ...updated } : r)
+    )
   }
 
   async function fetchRessourcen() {
@@ -2088,6 +2276,17 @@ export default function PoolPage() {
                 </div>
               )}
 
+              {/* Stammdaten-Banner */}
+              {(() => {
+                const count = ressourcen.filter(stammdatenAusstehend).length
+                if (count === 0) return null
+                return (
+                  <div className="mx-4 mb-2 mt-4 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 lg:mx-6">
+                    <span className="font-medium">⚠ {count} Ressource{count !== 1 ? 'n' : ''} mit Status „Beauftragt" benötigt{count !== 1 ? 'en' : ''} noch Stammdaten.</span>
+                  </div>
+                )
+              })()}
+
               {/* Table */}
               <div className="px-4 lg:px-6">
                 <div className="rounded-lg border">
@@ -2162,15 +2361,22 @@ export default function PoolPage() {
                               </Badge>
                             </TableCell>
                             <TableCell>
-                              <Badge
-                                variant="outline"
-                                className={verfuegbarkeitColors[r.verfuegbarkeit]}
-                              >
-                                {r.verfuegbarkeit}
-                                {r.verfuegbarkeit === "Verfügbar ab" &&
-                                  r.verfuegbar_ab &&
-                                  ` ${new Date(r.verfuegbar_ab).toLocaleDateString("de-DE")}`}
-                              </Badge>
+                              <div className="flex flex-col gap-1">
+                                <Badge
+                                  variant="outline"
+                                  className={verfuegbarkeitColors[r.verfuegbarkeit]}
+                                >
+                                  {r.verfuegbarkeit}
+                                  {r.verfuegbarkeit === "Verfügbar ab" &&
+                                    r.verfuegbar_ab &&
+                                    ` ${new Date(r.verfuegbar_ab).toLocaleDateString("de-DE")}`}
+                                </Badge>
+                                {stammdatenAusstehend(r) && (
+                                  <span className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-700">
+                                    Stammdaten ausstehend
+                                  </span>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell>
                               {r.ek_tagesrate != null
@@ -2234,6 +2440,18 @@ export default function PoolPage() {
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
+                                  {stammdatenAusstehend(r) && (
+                                    <>
+                                      <DropdownMenuItem
+                                        onClick={() => setStammdatenModal(r)}
+                                        className="text-amber-700 focus:text-amber-700"
+                                      >
+                                        <IconPencil className="mr-2 size-4" />
+                                        Stammdaten erfassen
+                                      </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
+                                    </>
+                                  )}
                                   <DropdownMenuItem
                                     onClick={() => {
                                       setProfilEinreichenRessource(r)
@@ -2394,6 +2612,15 @@ export default function PoolPage() {
         isManagerOrAdmin={isManager}
         agenturen={agenturen}
       />
+
+      {stammdatenModal && (
+        <StammdatenModal
+          ressource={stammdatenModal}
+          open={true}
+          onClose={() => setStammdatenModal(null)}
+          onSaved={(updated) => handleStammdatenSaved(stammdatenModal.id, updated)}
+        />
+      )}
     </SidebarProvider>
   )
 }
