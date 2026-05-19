@@ -149,7 +149,7 @@ export function GespielteRessourcenTable({
         startdatum: new Date().toISOString().split('T')[0],
         enddatum: '',
         stunden_woche: '40',
-        agentur_rohpreis: '',
+        agentur_rohpreis: resource.ek_tagesrate ? String(resource.ek_tagesrate) : '',
         marge_inkludiert: false,
         margenaufschlag: '75',
       })

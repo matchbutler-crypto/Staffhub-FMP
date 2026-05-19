@@ -35,6 +35,7 @@ export interface PoolRessource {
   link_feedback?: string | null
   agentur_name?: string | null
   agentur_id?: string | null
+  ek_tagesrate?: number | null
 }
 
 export const VERFUEGBARKEIT_COLORS: Record<string, string> = {
