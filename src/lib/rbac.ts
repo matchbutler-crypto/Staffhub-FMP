@@ -33,7 +33,7 @@ export const ROLE_ROUTES: Record<string, string[]> = {
     '/settings',
     '/api',
   ],
-  Agentur: ['/dashboard', '/vakanzen', '/meine-profile', '/pool', '/abrechnung', '/ideen', '/settings', '/api'],
+  Agentur: ['/dashboard', '/vakanzen', '/meine-profile', '/pool', '/beauftragungen', '/abrechnung', '/ideen', '/settings', '/api'],
 }
 
 /** Returns true if the given pathname is accessible for the given role */
