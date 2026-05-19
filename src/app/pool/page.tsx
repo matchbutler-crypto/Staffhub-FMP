@@ -147,6 +147,8 @@ const ressourceSchema = z
       .nullable()
       .optional(),
     notizen: z.string().max(2000).nullable().optional(),
+    arbeitsmodell: z.enum(['Onshore', 'Nearshore', 'Offshore']).optional(),
+    location: z.string().max(200).optional(),
   })
   .refine(
     (d) => d.verfuegbarkeit !== "Verfügbar ab" || !!d.verfuegbar_ab,
@@ -264,6 +266,8 @@ function RessourceFormSheet({
           verfuegbar_ab: ressource.verfuegbar_ab ?? null,
           ek_tagesrate: ressource.ek_tagesrate ?? null,
           notizen: ressource.notizen ?? "",
+          arbeitsmodell: (ressource.arbeitsmodell as 'Onshore' | 'Nearshore' | 'Offshore') ?? 'Onshore',
+          location: ressource.location ?? "",
         })
         if (isAdmin) setAdminAgenturId(ressource.agentur_id)
       } else {
@@ -276,6 +280,8 @@ function RessourceFormSheet({
           verfuegbar_ab: null,
           ek_tagesrate: null,
           notizen: "",
+          arbeitsmodell: 'Onshore',
+          location: "",
         })
       }
     }
@@ -305,6 +311,8 @@ function RessourceFormSheet({
             data.verfuegbarkeit === "Verfügbar ab" ? data.verfuegbar_ab : null,
           ek_tagesrate: data.ek_tagesrate ?? null,
           notizen: data.notizen || null,
+          arbeitsmodell: data.arbeitsmodell ?? 'Onshore',
+          location: data.location || null,
           ...(isAdmin && mode === "create" ? { agentur_id: adminAgenturId } : {}),
         }),
       })
@@ -556,6 +564,37 @@ function RessourceFormSheet({
                     />
                   )}
                 />
+              </div>
+
+              {/* Arbeitsmodell + Location */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="r-arbeitsmodell">Arbeitsmodell</Label>
+                  <Controller
+                    control={control}
+                    name="arbeitsmodell"
+                    render={({ field }) => (
+                      <Select value={field.value ?? 'Onshore'} onValueChange={field.onChange}>
+                        <SelectTrigger id="r-arbeitsmodell">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Onshore">Onshore</SelectItem>
+                          <SelectItem value="Nearshore">Nearshore</SelectItem>
+                          <SelectItem value="Offshore">Offshore</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="r-location">Location</Label>
+                  <Input
+                    id="r-location"
+                    placeholder="z.B. München, Remote"
+                    {...register("location")}
+                  />
+                </div>
               </div>
 
               {/* CV Upload */}
