@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
       aktiv,
       created_at,
       updated_at,
-      kandidaten_profile(kandidatenname, erfahrungslevel, vakanz_id, vakanzen!inner(titel)),
+      kandidaten_profile(kandidatenname, erfahrungslevel, vakanz_id, vakanzen(titel)),
       agenturen!inner(name)
     `, { count: 'exact' })
     .order('created_at', { ascending: false })
@@ -240,7 +240,6 @@ export async function POST(request: NextRequest) {
         marge_inkludiert,
         einkaufspreis,
         margenaufschlag,
-        verkaufspreis,
         startdatum: parsed.data.startdatum,
         enddatum: parsed.data.enddatum ?? null,
         stunden_woche: parsed.data.stunden_woche,
@@ -304,7 +303,6 @@ export async function POST(request: NextRequest) {
       marge_inkludiert,
       einkaufspreis,
       margenaufschlag,
-      verkaufspreis,
       startdatum: parsed.data.startdatum,
       stunden_woche: parsed.data.stunden_woche,
     })
