@@ -159,9 +159,16 @@ type RessourceFormData = z.infer<typeof ressourceSchema>
 
 const verfuegbarkeitColors: Record<RessourceVerfuegbarkeit, string> = {
   "Jetzt verfügbar": "bg-green-100 text-green-700 border-green-200",
-  "Verfügbar ab": "bg-blue-100 text-blue-700 border-blue-200",
+  "Verfügbar ab": "bg-green-100 text-green-700 border-green-200",
   "Nicht verfügbar": "bg-orange-100 text-orange-700 border-orange-200",
   Deaktiviert: "bg-gray-100 text-gray-500 border-gray-200",
+}
+
+const verfuegbarkeitLabel: Record<RessourceVerfuegbarkeit, string> = {
+  "Jetzt verfügbar": "Verfügbar",
+  "Verfügbar ab": "Verfügbar",
+  "Nicht verfügbar": "Nicht verfügbar",
+  Deaktiviert: "Deaktiviert",
 }
 
 const erfahrungsColors: Record<Erfahrungslevel, string> = {
@@ -1487,12 +1494,7 @@ function AgenturDetailSheet({
                   variant="outline"
                   className={verfuegbarkeitColors[ressource.verfuegbarkeit]}
                 >
-                  {ressource.verfuegbarkeit}
-                  {ressource.verfuegbarkeit === "Verfügbar ab" &&
-                    ressource.verfuegbar_ab &&
-                    ` ${new Date(ressource.verfuegbar_ab).toLocaleDateString(
-                      "de-DE"
-                    )}`}
+                  {verfuegbarkeitLabel[ressource.verfuegbarkeit]}
                 </Badge>
                 <Badge
                   variant="outline"
@@ -2368,10 +2370,7 @@ export default function PoolPage() {
                                   variant="outline"
                                   className={verfuegbarkeitColors[r.verfuegbarkeit]}
                                 >
-                                  {r.verfuegbarkeit}
-                                  {r.verfuegbarkeit === "Verfügbar ab" &&
-                                    r.verfuegbar_ab &&
-                                    ` ${new Date(r.verfuegbar_ab).toLocaleDateString("de-DE")}`}
+                                  {verfuegbarkeitLabel[r.verfuegbarkeit]}
                                 </Badge>
                                 {stammdatenAusstehend(r) && (
                                   <span className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-700">
