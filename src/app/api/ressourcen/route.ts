@@ -51,6 +51,8 @@ export async function GET(request: NextRequest) {
       id, agentur_id, name, rolle, skills, erfahrungslevel,
       verfuegbarkeit, verfuegbar_ab, cv_pfad,
       ek_tagesrate, notizen, created_at, updated_at,
+      nachname, vorname, geburtsdatum, geschlecht, firma,
+      email_geschaeftlich, telefon_geschaeftlich, wohnort, namenszusatz, titel,
       agenturen(name)
     `)
     .order('updated_at', { ascending: false })
@@ -71,9 +73,10 @@ export async function GET(request: NextRequest) {
   }
 
   // Separate query for link counts — RLS filters to own resources for Agentur
-  const { data: linkCountRows } = await supabase
-    .from('ressource_vakanz_links')
-    .select('ressource_id')
+  const [{ data: linkCountRows }, { data: beauftragtLinkRows }] = await Promise.all([
+    supabase.from('ressource_vakanz_links').select('ressource_id'),
+    supabase.from('ressource_vakanz_links').select('ressource_id').eq('status', 'Beauftragt'),
+  ])
 
   const linkCountMap = new Map<string, number>()
   for (const l of (linkCountRows ?? [])) {
@@ -81,8 +84,12 @@ export async function GET(request: NextRequest) {
     linkCountMap.set(rid, (linkCountMap.get(rid) ?? 0) + 1)
   }
 
+  const beauftragtSet = new Set((beauftragtLinkRows ?? []).map((l) => (l as { ressource_id: string }).ressource_id))
+
   let result = (data ?? []).map((r) => {
-    const { ek_tagesrate, notizen, agenturen, ...rest } = r
+    const { ek_tagesrate, notizen, nachname, vorname, geburtsdatum, geschlecht,
+            firma, email_geschaeftlich, telefon_geschaeftlich, wohnort,
+            namenszusatz, titel, agenturen, ...rest } = r
     const canSeePrivate = isManager || r.agentur_id === profile.agentur_id
     const agenturEntry = agenturen as { name: string } | { name: string }[] | null
     const agentur_name = Array.isArray(agenturEntry) ? (agenturEntry[0]?.name ?? null) : (agenturEntry?.name ?? null)
@@ -90,7 +97,13 @@ export async function GET(request: NextRequest) {
       ...rest,
       agentur_name,
       link_count: linkCountMap.get(r.id) ?? 0,
-      ...(canSeePrivate ? { ek_tagesrate, notizen } : {}),
+      hat_beauftragt_link: beauftragtSet.has(r.id),
+      ...(canSeePrivate ? {
+        ek_tagesrate, notizen,
+        nachname, vorname, geburtsdatum, geschlecht, firma,
+        email_geschaeftlich, telefon_geschaeftlich, wohnort,
+        namenszusatz, titel,
+      } : {}),
     }
   })
 
