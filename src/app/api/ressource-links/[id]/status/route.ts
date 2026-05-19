@@ -131,7 +131,7 @@ export async function PATCH(
 
   // Pfad 1 — Vakanz automatisch auf "Besetzt" setzen wenn FTE-Ziel erreicht
   if (newStatus === 'Beauftragt') {
-    const [{ count: beauftragtCount }, { data: vakanz }] = await Promise.all([
+    const [countResult, vakanzResult] = await Promise.all([
       supabase
         .from('ressource_vakanz_links')
         .select('*', { count: 'exact', head: true })
@@ -144,26 +144,30 @@ export async function PATCH(
         .single(),
     ])
 
-    const fte = vakanz?.fte_anzahl != null ? Number(vakanz.fte_anzahl) : null
-    const count = beauftragtCount ?? 0
+    if (countResult.error || vakanzResult.error) {
+      console.error('FTE-check queries failed:', countResult.error ?? vakanzResult.error)
+    } else {
+      const fte = vakanzResult.data?.fte_anzahl != null ? Number(vakanzResult.data.fte_anzahl) : null
+      const count = countResult.count ?? 0
 
-    if (fte !== null && count >= fte && vakanz?.status !== 'Besetzt') {
-      await supabase
-        .from('vakanzen')
-        .update({
-          status: 'Besetzt',
-          published: false,
-          besetzt_seit: new Date().toISOString(),
+      if (fte !== null && count >= fte && vakanzResult.data?.status !== 'Besetzt') {
+        await supabase
+          .from('vakanzen')
+          .update({
+            status: 'Besetzt',
+            published: false,
+            besetzt_seit: new Date().toISOString(),
+          })
+          .eq('id', link.vakanz_id)
+
+        await supabase.from('ressource_historie').insert({
+          ressource_id: link.ressource_id,
+          link_id: id,
+          typ: 'system',
+          text: `Vakanz automatisch auf "Besetzt" gesetzt — FTE-Ziel erreicht (${count}/${fte})`,
+          erstellt_von: user.id,
         })
-        .eq('id', link.vakanz_id)
-
-      await supabase.from('ressource_historie').insert({
-        ressource_id: link.ressource_id,
-        link_id: id,
-        typ: 'system',
-        text: `Vakanz automatisch auf "Besetzt" gesetzt — FTE-Ziel erreicht (${count}/${fte})`,
-        erstellt_von: user.id,
-      })
+      }
     }
   }
 
