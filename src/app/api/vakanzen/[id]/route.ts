@@ -158,6 +158,14 @@ export async function PUT(
     updateData.besetzt_seit = null
   }
 
+  // Altes Enddatum vor dem Update laden (für Verfügbarkeits-Sync)
+  const { data: existing } = await supabase
+    .from('vakanzen_data')
+    .select('enddatum')
+    .eq('id', id)
+    .single()
+  const enddatumChanged = existing?.enddatum !== parsed.data.enddatum
+
   const { data: vakanz, error } = await supabase
     .from('vakanzen_data')
     .update(updateData)
@@ -170,6 +178,23 @@ export async function PUT(
       return NextResponse.json({ error: 'Vakanz nicht gefunden' }, { status: 404 })
     }
     return NextResponse.json({ error: 'Fehler beim Aktualisieren der Vakanz' }, { status: 500 })
+  }
+
+  // Bei Enddatum-Änderung: Verfügbarkeit aller beauftragten Pool-Ressourcen synchronisieren
+  if (enddatumChanged && parsed.data.enddatum) {
+    const { data: beauftragtLinks } = await supabase
+      .from('ressource_vakanz_links')
+      .select('id, ressource_id')
+      .eq('vakanz_id', id)
+      .eq('status', 'Beauftragt')
+
+    if (beauftragtLinks && beauftragtLinks.length > 0) {
+      const ressourceIds = beauftragtLinks.map((l) => l.ressource_id)
+      await supabase
+        .from('ressourcen')
+        .update({ verfuegbarkeit: 'Verfügbar ab', verfuegbar_ab: parsed.data.enddatum })
+        .in('id', ressourceIds)
+    }
   }
 
   return NextResponse.json({ vakanz })

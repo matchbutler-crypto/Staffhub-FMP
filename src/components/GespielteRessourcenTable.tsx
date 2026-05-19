@@ -244,7 +244,7 @@ export function GespielteRessourcenTable({
 
                   {/* Status */}
                   <div className="col-span-3">
-                    {isManager && currentStatus !== 'Zurückgezogen' ? (
+                    {isManager && currentStatus !== 'Zurückgezogen' && currentStatus !== 'Beauftragt' ? (
                       isUpdating ? (
                         <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
                           <Loader2 className="h-3 w-3 animate-spin" />
