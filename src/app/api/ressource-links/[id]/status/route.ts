@@ -55,7 +55,7 @@ export async function PATCH(
   // Aktuellen Link laden
   const { data: link } = await supabase
     .from('ressource_vakanz_links')
-    .select('id, ressource_id, vakanz_id, status, vakanzen_data(rolle, enddatum)')
+    .select('id, ressource_id, vakanz_id, status, vakanzen(rolle, enddatum)')
     .eq('id', id)
     .single()
 
@@ -96,7 +96,7 @@ export async function PATCH(
   }
 
   // Automatischer Historien-Eintrag
-  const vakanzenArray = Array.isArray(link.vakanzen_data) ? link.vakanzen_data : [link.vakanzen_data]
+  const vakanzenArray = Array.isArray(link.vakanzen) ? link.vakanzen : [link.vakanzen]
   const vakanzRolle = vakanzenArray[0]?.rolle ?? 'unbekannte Vakanz'
   const vakanzEnddatum = vakanzenArray[0]?.enddatum ?? null
   let histText = newStatus === 'Interview geplant' && interview_datum
