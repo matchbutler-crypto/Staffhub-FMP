@@ -1932,7 +1932,7 @@ function StammdatenModal({ ressource, open, onClose, onSaved }: StammdatenModalP
     setSaving(true)
     try {
       const res = await fetch(`/api/ressourcen/${ressource.id}`, {
-        method: 'PUT',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: ressource.name,
