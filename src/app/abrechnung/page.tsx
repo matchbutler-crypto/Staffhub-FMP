@@ -335,6 +335,84 @@ export default function AbrechnungPage() {
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }))
   }
 
+  // Filtered + sorted data calculation
+  const [monatJahr2, monatMonat2] = monat.split('-').map(Number)
+  const monatEnde2 = new Date(monatJahr2, monatMonat2, 0)
+  const monatLabel2 = new Date(monatJahr2, monatMonat2 - 1, 1).toLocaleDateString('de-DE', {
+    month: 'long',
+    year: 'numeric',
+  })
+
+  // Filter by date + agentur + status
+  let filtered = beauftragungen.filter(
+    (b) => new Date(b.startdatum) <= monatEnde2 && b.aktiv && (filterAgentur === 'Alle' || b.agentur_id === filterAgentur)
+  )
+
+  // Status filter
+  if (filterStatus !== 'Alle') {
+    filtered = filtered.filter((b) => {
+      const rech = rechnungen.get(b.id)
+      if (filterStatus === 'Kein Rechnung') return !rech
+      return rech?.status === filterStatus
+    })
+  }
+
+  // Sort
+  filtered.sort((a, b) => {
+    let aVal: string | number = ''
+    let bVal: string | number = ''
+
+    switch (sortColumn) {
+      case 'Ressource':
+        aVal = a.kandidatenname
+        bVal = b.kandidatenname
+        break
+      case 'Marge €':
+        aVal = calcMarge(a, zeitnachweise.get(a.id))
+        bVal = calcMarge(b, zeitnachweise.get(b.id))
+        break
+      case 'Gesamtbetrag':
+        aVal = calcGesamtbetrag(a, zeitnachweise.get(a.id))
+        bVal = calcGesamtbetrag(b, zeitnachweise.get(b.id))
+        break
+      case 'Status':
+        aVal = rechnungen.get(a.id)?.status ?? 'Zzz'
+        bVal = rechnungen.get(b.id)?.status ?? 'Zzz'
+        break
+      case 'Offene Beträge':
+        const aOffene = rechnungen.get(a.id)
+          ? rechnungen.get(a.id)!.status !== 'Bezahlt'
+            ? rechnungen.get(a.id)!.gesamtbetrag - rechnungen.get(a.id)!.betrag_bezahlt
+            : 0
+          : 0
+        const bOffene = rechnungen.get(b.id)
+          ? rechnungen.get(b.id)!.status !== 'Bezahlt'
+            ? rechnungen.get(b.id)!.gesamtbetrag - rechnungen.get(b.id)!.betrag_bezahlt
+            : 0
+          : 0
+        aVal = aOffene
+        bVal = bOffene
+        break
+      default:
+        aVal = a.kandidatenname
+        bVal = b.kandidatenname
+    }
+
+    if (typeof aVal === 'string' && typeof bVal === 'string') {
+      return sortDirection === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
+    }
+    return sortDirection === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number)
+  })
+
+  // Calculate KPI metrics
+  const gesamtStundenSoll = filtered.reduce((sum, b) => sum + b.stunden_woche * 4, 0)
+  const gesamtStundenIst = filtered.reduce((sum, b) => sum + effectiveStunden(b, zeitnachweise.get(b.id)), 0)
+  const gesamtUmsatz2 = filtered.reduce((sum, b) => sum + calcGesamtbetrag(b, zeitnachweise.get(b.id)), 0)
+  const aktivCount = filtered.length
+  const offeneBetraege = Array.from(rechnungen.values())
+    .filter((r) => r.status !== 'Bezahlt')
+    .reduce((sum, r) => sum + (r.gesamtbetrag - r.betrag_bezahlt), 0)
+
   async function saveMarge(beauftragungId: string, value: number) {
     setSavingMarge((prev) => ({ ...prev, [beauftragungId]: true }))
     try {
@@ -393,359 +471,263 @@ export default function AbrechnungPage() {
 
   return (
     <>
-      <input ref={fileInputRef} type="file" accept="application/pdf" className="hidden" onChange={handleFileSelect} />
-      <SidebarProvider
-      style={{ "--sidebar-width": "18rem", "--header-height": "3rem" } as React.CSSProperties}
-    >
-      <AppSidebar variant="inset" />
-      <SidebarInset>
-        <SiteHeader title="Abrechnung" />
-        <div className="flex flex-1 flex-col">
-          <div className="@container/main flex flex-1 flex-col gap-2">
-            <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/pdf"
+        className="hidden"
+        onChange={handleFileSelect}
+      />
+      <SidebarProvider>
+        <AppSidebar variant="inset" />
+        <SidebarInset>
+          <SiteHeader title="Abrechnung" />
+          <main className="flex-1 flex flex-col gap-6 p-6 overflow-auto">
+            {/* Header + Controls */}
+            <div className="flex items-center justify-between">
+              <h1 className="text-3xl font-bold">Abrechnung</h1>
+              <div className="flex items-center gap-3">
+                <select
+                  value={monat}
+                  onChange={(e) => setMonat(e.target.value)}
+                  className="rounded border border-input bg-background px-3 py-2 text-sm"
+                >
+                  {monate.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => exportCSV(filtered, zeitnachweise, rechnungen, monatLabel2)}
+                  className="rounded border border-input px-3 py-2 text-sm hover:bg-muted"
+                >
+                  📥 CSV
+                </button>
+              </div>
+            </div>
 
-              {/* Header + Controls */}
-              <div className="flex flex-col gap-3 px-4 lg:px-6 sm:flex-row sm:items-center sm:justify-between print:hidden">
-                <div>
-                  <h2 className="text-xl font-semibold">Monatliche Abrechnung</h2>
-                  <p className="text-sm text-muted-foreground">
-                    {loading ? "Lädt…" : `${gefiltert.length} aktive Beauftragungen · ${monatLabel}`}
-                  </p>
+            {/* KPI Cards */}
+            {!loading && (
+              <div className="grid grid-cols-4 gap-4">
+                <div className="rounded-lg border bg-card p-4">
+                  <div className="text-sm font-medium text-muted-foreground">Gesamtstunden</div>
+                  <div className="mt-2 text-2xl font-bold">
+                    {gesamtStundenSoll} <span className="text-base text-muted-foreground">/ {gesamtStundenIst}</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">Soll / Ist</div>
+                </div>
+                <div className="rounded-lg border bg-card p-4">
+                  <div className="text-sm font-medium text-muted-foreground">Gesamtumsatz</div>
+                  <div className="mt-2 text-2xl font-bold">{fmt(gesamtUmsatz2)}</div>
+                </div>
+                <div className="rounded-lg border bg-card p-4">
+                  <div className="text-sm font-medium text-muted-foreground">Aktive Beauftragungen</div>
+                  <div className="mt-2 text-2xl font-bold">{aktivCount}</div>
+                </div>
+                <div className="rounded-lg border bg-card p-4">
+                  <div className="text-sm font-medium text-muted-foreground">Offene Beträge</div>
+                  <div className="mt-2 text-2xl font-bold">{fmt(offeneBetraege)}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Filter Controls */}
+            {!loading && (
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium">Agentur:</label>
+                  <select
+                    value={filterAgentur}
+                    onChange={(e) => setFilterAgentur(e.target.value)}
+                    className="rounded border border-input bg-background px-2 py-1 text-sm"
+                  >
+                    <option value="Alle">Alle</option>
+                    {Array.from(new Set(beauftragungen.map((b) => b.agentur_id))).map((id) => {
+                      const name = beauftragungen.find((b) => b.agentur_id === id)?.agentur_name
+                      return (
+                        <option key={id} value={id}>
+                          {name}
+                        </option>
+                      )
+                    })}
+                  </select>
                 </div>
                 <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium">Zahlungsstatus:</label>
                   <select
-                    value={monat}
-                    onChange={(e) => setMonat(e.target.value)}
-                    className="rounded-md border border-input bg-background px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value)}
+                    className="rounded border border-input bg-background px-2 py-1 text-sm"
                   >
-                    {monate.map((m) => (
-                      <option key={m.value} value={m.value}>{m.label}</option>
-                    ))}
+                    <option value="Alle">Alle</option>
+                    <option value="Entwurf">Entwurf</option>
+                    <option value="Versendet">Versendet</option>
+                    <option value="Bezahlt">Bezahlt</option>
+                    <option value="Kein Rechnung">Kein Rechnung</option>
                   </select>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={loading || gefiltert.length === 0}
-                    onClick={() => exportCSV(beauftragungen, zeitnachweise, rechnungen, monatLabel)}
-                    className="gap-1.5"
-                  >
-                    <IconDownload className="size-4" />
-                    CSV
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={loading || gefiltert.length === 0}
-                    onClick={() => window.print()}
-                    className="gap-1.5"
-                  >
-                    <IconPrinter className="size-4" />
-                    PDF / Drucken
-                  </Button>
                 </div>
               </div>
+            )}
 
-              {/* Print-only header */}
-              <div className="hidden print:block px-4 pb-4">
-                <h1 className="text-2xl font-bold">Staffhub FMP — Monatsabrechnung</h1>
-                <p className="text-lg">{monatLabel}</p>
-                <p className="text-sm text-muted-foreground">
-                  Erstellt am {new Date().toLocaleDateString("de-DE")} · {gefiltert.length} Beauftragungen
-                </p>
-              </div>
+            {/* Table */}
+            {error && <div className="rounded border border-destructive bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
 
-              {/* Summary Cards */}
-              <div className="grid grid-cols-1 gap-4 px-4 lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
-                {summaryCards.map((c) => (
-                  <Card key={c.title} className="@container/card">
-                    <CardHeader>
-                      <CardDescription>{c.title}</CardDescription>
-                      <div className="flex items-end justify-between gap-2">
-                        <CardTitle
-                          className={`text-2xl font-semibold tabular-nums ${
-                            c.title.startsWith("Gesamt-Marge") ? "text-green-700" : ""
-                          }`}
-                        >
-                          {c.value}
-                        </CardTitle>
-                        <c.icon className="mb-1 size-5 text-muted-foreground" />
-                      </div>
-                    </CardHeader>
-                  </Card>
-                ))}
-              </div>
-
-              {/* Error */}
-              {error && (
-                <div className="mx-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive lg:mx-6">
-                  Fehler beim Laden: {error}
-                </div>
-              )}
-
-              {/* Table */}
-              <div className="px-4 lg:px-6">
-                <div className="overflow-x-auto rounded-lg border">
-                  <Table>
-                    <TableHeader className="bg-muted sticky top-0 z-10">
-                      <TableRow>
-                        <TableHead className="w-8"></TableHead>
-                        <TableHead>Kandidat / Agentur</TableHead>
-                        <TableHead>Vakanz</TableHead>
-                        {(isFinancial || isAgentur) && (
-                          <TableHead className="text-right">h/Woche</TableHead>
-                        )}
-                        {isFinancial && (
-                          <>
-                            <TableHead className="text-right">
-                              <span className="inline-flex items-center gap-1"><IconLock className="size-3 text-muted-foreground" />EK €/Tag</span>
-                            </TableHead>
-                            <TableHead className="text-right">VK €/Tag</TableHead>
-                            <TableHead className="text-right">
-                              <span className="inline-flex items-center gap-1"><IconLock className="size-3 text-muted-foreground" />Marge%</span>
-                            </TableHead>
-                            <TableHead className="text-right">Umsatz/Mo</TableHead>
-                            <TableHead className="text-right">
-                              <span className="inline-flex items-center gap-1"><IconLock className="size-3 text-muted-foreground" />Kosten/Mo</span>
-                            </TableHead>
-                            <TableHead className="text-right">
-                              <span className="inline-flex items-center gap-1"><IconLock className="size-3 text-muted-foreground" />Marge/Mo</span>
-                            </TableHead>
-                          </>
-                        )}
-                        {canEditMarge && (
-                          <TableHead className="text-right">Marge €/Std</TableHead>
-                        )}
-                        {isController && (
-                          <>
-                            <TableHead className="text-right">
-                              <span className="inline-flex items-center gap-1"><IconLock className="size-3 text-muted-foreground" />EK €/Tag</span>
-                            </TableHead>
-                            <TableHead className="text-right">VK €/Tag</TableHead>
-                            <TableHead className="text-right">
-                              <span className="inline-flex items-center gap-1"><IconLock className="size-3 text-muted-foreground" />Marge €/Tag</span>
-                            </TableHead>
-                            <TableHead className="text-right">Std/Mo (Ist)</TableHead>
-                            <TableHead className="text-right">
-                              <span className="inline-flex items-center gap-1"><IconLock className="size-3 text-muted-foreground" />Marge/Mo</span>
-                            </TableHead>
-                          </>
-                        )}
-                        {!isController && (
-                          <TableHead className="text-right print:hidden">Zeitnachweis</TableHead>
-                        )}
+            {loading && (
+              <div className="rounded border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {Array.from({ length: 7 }).map((_, i) => (
+                        <TableCell key={i}>
+                          <Skeleton className="h-4 w-full" />
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <TableRow key={i}>
+                        {Array.from({ length: 7 }).map((_, j) => (
+                          <TableCell key={j}>
+                            <Skeleton className="h-4 w-full" />
+                          </TableCell>
+                        ))}
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {loading ? (
-                        <TableSkeletonRows cols={colCount} />
-                      ) : gefiltert.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={colCount} className="h-32 text-center text-muted-foreground">
-                            Keine aktiven Beauftragungen für {monatLabel}.
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+
+            {!loading && filtered.length > 0 && (
+              <div className="rounded border">
+                <Table>
+                  <TableHeader className="bg-muted sticky top-0 z-10">
+                    <TableRow>
+                      <TableHead
+                        className="cursor-pointer hover:bg-muted/80 select-none"
+                        onClick={() => handleSort('Ressource')}
+                      >
+                        <div className="flex items-center gap-1">
+                          Ressource
+                          <SortIcon
+                            column="Ressource"
+                            active={sortColumn === 'Ressource'}
+                            direction={sortDirection}
+                          />
+                        </div>
+                      </TableHead>
+                      <TableHead className="select-none">Vakanz</TableHead>
+                      <TableHead
+                        className="cursor-pointer hover:bg-muted/80 select-none text-right"
+                        onClick={() => handleSort('Marge €')}
+                      >
+                        <div className="flex items-center justify-end gap-1">
+                          Marge €<SortIcon column="Marge €" active={sortColumn === 'Marge €'} direction={sortDirection} />
+                        </div>
+                      </TableHead>
+                      <TableHead
+                        className="cursor-pointer hover:bg-muted/80 select-none text-right"
+                        onClick={() => handleSort('Gesamtbetrag')}
+                      >
+                        <div className="flex items-center justify-end gap-1">
+                          Gesamtbetrag
+                          <SortIcon
+                            column="Gesamtbetrag"
+                            active={sortColumn === 'Gesamtbetrag'}
+                            direction={sortDirection}
+                          />
+                        </div>
+                      </TableHead>
+                      <TableHead
+                        className="cursor-pointer hover:bg-muted/80 select-none text-right"
+                        onClick={() => handleSort('Status')}
+                      >
+                        <div className="flex items-center justify-end gap-1">
+                          Status<SortIcon column="Status" active={sortColumn === 'Status'} direction={sortDirection} />
+                        </div>
+                      </TableHead>
+                      <TableHead
+                        className="cursor-pointer hover:bg-muted/80 select-none text-right"
+                        onClick={() => handleSort('Offene Beträge')}
+                      >
+                        <div className="flex items-center justify-end gap-1">
+                          Offene Beträge
+                          <SortIcon
+                            column="Offene Beträge"
+                            active={sortColumn === 'Offene Beträge'}
+                            direction={sortDirection}
+                          />
+                        </div>
+                      </TableHead>
+                      <TableHead className="text-right print:hidden">Zeitnachweis</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filtered.map((b) => {
+                      const zn = zeitnachweise.get(b.id)
+                      const rech = rechnungen.get(b.id)
+                      const offene =
+                        rech && rech.status !== 'Bezahlt' ? rech.gesamtbetrag - rech.betrag_bezahlt : 0
+                      return (
+                        <TableRow key={b.id}>
+                          <TableCell className="font-medium">{b.kandidatenname}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
+                            {b.vakanz_titel}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {fmt(calcMarge(b, zn))}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {fmt(calcGesamtbetrag(b, zn))}
+                          </TableCell>
+                          <TableCell className="text-right text-sm">{rech?.status ?? '—'}</TableCell>
+                          <TableCell className="text-right tabular-nums">{offene > 0 ? fmt(offene) : '—'}</TableCell>
+                          <TableCell className="text-right print:hidden">
+                            {uploadErrors[b.id] && (
+                              <p className="text-[10px] text-destructive mb-1">{uploadErrors[b.id]}</p>
+                            )}
+                            {zn ? (
+                              <div className="flex flex-col items-end gap-0.5">
+                                <span className="text-[10px] text-green-700 font-medium">
+                                  {zn.stunden_ist != null ? `${zn.stunden_ist} Std.` : 'Parsing fehlgeschlagen'}
+                                </span>
+                                <button
+                                  className="text-[10px] text-muted-foreground hover:underline disabled:opacity-50"
+                                  onClick={() => triggerUpload(b.id)}
+                                  disabled={uploadingId === b.id}
+                                >
+                                  {uploadingId === b.id ? 'Lädt…' : 'Ersetzen'}
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                className="inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[11px] text-muted-foreground hover:border-foreground hover:text-foreground disabled:opacity-50"
+                                onClick={() => triggerUpload(b.id)}
+                                disabled={uploadingId === b.id}
+                              >
+                                <IconUpload className="size-3" />
+                                {uploadingId === b.id ? 'Lädt…' : 'Upload'}
+                              </button>
+                            )}
                           </TableCell>
                         </TableRow>
-                      ) : (
-                        gruppen.map((g) => {
-                          const isOpen = expanded[g.agentur_id] ?? true
-                          return (
-                            <React.Fragment key={g.agentur_id}>
-                              {/* Agentur-Header-Zeile */}
-                              <TableRow
-                                className="bg-muted/40 cursor-pointer hover:bg-muted/60 font-medium"
-                                onClick={() => toggleAgentur(g.agentur_id)}
-                              >
-                                <TableCell className="py-2">
-                                  {isOpen ? <IconChevronDown className="size-4 text-muted-foreground" /> : <IconChevronRight className="size-4 text-muted-foreground" />}
-                                </TableCell>
-                                <TableCell colSpan={2} className="font-semibold">
-                                  {g.agentur_name}{" "}
-                                  <span className="text-xs font-normal text-muted-foreground">({g.zeilen.length} Beauftragungen)</span>
-                                </TableCell>
-                                {isFinancial && (
-                                  <>
-                                    <TableCell></TableCell>
-                                    <TableCell></TableCell>
-                                    <TableCell></TableCell>
-                                    <TableCell></TableCell>
-                                    <TableCell className="text-right tabular-nums font-semibold">{fmt(g.umsatz)}</TableCell>
-                                    <TableCell className="text-right tabular-nums text-muted-foreground">{fmt(g.kosten)}</TableCell>
-                                    <TableCell className="text-right tabular-nums text-green-700 font-semibold">{fmt(g.marge)}</TableCell>
-                                    {canEditMarge && <TableCell></TableCell>}
-                                  </>
-                                )}
-                                {isController && (
-                                  <>
-                                    <TableCell></TableCell>
-                                    <TableCell></TableCell>
-                                    <TableCell></TableCell>
-                                    <TableCell></TableCell>
-                                    <TableCell className="text-right tabular-nums text-green-700 font-semibold">
-                                      {fmt(g.zeilen.reduce((sum, b) => {
-                                        const zn = zeitnachweise.get(b.id)
-                                        const marge = margenOverrides[b.id] ?? b.margenaufschlag ?? 0
-                                        return sum + marge * effectiveStunden(b, zn)
-                                      }, 0))}
-                                    </TableCell>
-                                  </>
-                                )}
-                                {isAgentur && (
-                                  <>
-                                    <TableCell></TableCell>
-                                  </>
-                                )}
-                                {!isController && <TableCell className="print:hidden"></TableCell>}
-                              </TableRow>
-
-                              {/* Kandidaten-Zeilen */}
-                              {isOpen && g.zeilen.map((b) => {
-                                return (
-                                  <TableRow key={b.id}>
-                                    <TableCell></TableCell>
-                                    <TableCell className="pl-6 text-sm">{b.kandidatenname}</TableCell>
-                                    <TableCell className="text-sm text-muted-foreground max-w-[160px] truncate">{b.vakanz_titel}</TableCell>
-                                    {(isFinancial || isAgentur) && (
-                                      <TableCell className="text-right tabular-nums text-sm">{b.stunden_woche}</TableCell>
-                                    )}
-                                    {isFinancial && (
-                                      <>
-                                        <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
-                                          {(b.einkaufspreis ?? 0).toLocaleString("de-DE")} €
-                                        </TableCell>
-                                        <TableCell className="text-right tabular-nums text-sm font-medium">
-                                          {(b.verkaufspreis ?? 0).toLocaleString("de-DE")} €
-                                        </TableCell>
-                                        <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
-                                          {b.marge_prozent ?? 0}%
-                                        </TableCell>
-                                        <TableCell className="text-right tabular-nums text-sm">{fmt(calcUmsatz(b, zeitnachweise.get(b.id)))}</TableCell>
-                                        <TableCell className="text-right tabular-nums text-sm text-muted-foreground">{fmt(calcKosten(b, zeitnachweise.get(b.id)))}</TableCell>
-                                        <TableCell className="text-right tabular-nums text-sm text-green-700">
-                                          {fmt(calcUmsatz(b, zeitnachweise.get(b.id)) - calcKosten(b, zeitnachweise.get(b.id)))}
-                                        </TableCell>
-                                      </>
-                                    )}
-                                    {canEditMarge && (
-                                      <TableCell className="text-right tabular-nums text-sm">
-                                        <input
-                                          type="number"
-                                          min="0"
-                                          step="0.01"
-                                          value={margenOverrides[b.id] ?? b.margenaufschlag ?? 0}
-                                          onChange={(e) => setMargenOverrides((prev) => ({ ...prev, [b.id]: parseFloat(e.target.value) || 0 }))}
-                                          onBlur={(e) => saveMarge(b.id, parseFloat(e.target.value) || 0)}
-                                          disabled={savingMarge[b.id]}
-                                          className="w-20 rounded border border-input bg-background px-2 py-0.5 text-right text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
-                                        />
-                                      </TableCell>
-                                    )}
-                                    {isController && (() => {
-                                      const zn = zeitnachweise.get(b.id)
-                                      const stunden = effectiveStunden(b, zn)
-                                      const marge = margenOverrides[b.id] ?? b.margenaufschlag ?? 0
-                                      return (
-                                        <>
-                                          <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
-                                            {(b.einkaufspreis ?? 0).toLocaleString("de-DE")} €
-                                          </TableCell>
-                                          <TableCell className="text-right tabular-nums text-sm font-medium">
-                                            {(b.verkaufspreis ?? 0).toLocaleString("de-DE")} €
-                                          </TableCell>
-                                          <TableCell className="text-right tabular-nums text-sm">
-                                            <input
-                                              type="number"
-                                              min="0"
-                                              step="0.01"
-                                              value={margenOverrides[b.id] ?? b.margenaufschlag ?? 0}
-                                              onChange={(e) => setMargenOverrides((prev) => ({ ...prev, [b.id]: parseFloat(e.target.value) || 0 }))}
-                                              onBlur={(e) => saveMarge(b.id, parseFloat(e.target.value) || 0)}
-                                              disabled={savingMarge[b.id]}
-                                              className="w-20 rounded border border-input bg-background px-2 py-0.5 text-right text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
-                                            />
-                                          </TableCell>
-                                          <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
-                                            {stunden}{zn?.stunden_ist != null ? "" : <span className="ml-1 text-[10px] text-muted-foreground/60">est.</span>}
-                                          </TableCell>
-                                          <TableCell className="text-right tabular-nums text-sm text-green-700">
-                                            {fmt(marge * stunden)}
-                                          </TableCell>
-                                        </>
-                                      )
-                                    })()}
-                                    {!isController && (
-                                      <TableCell className="text-right print:hidden">
-                                        {uploadErrors[b.id] && (
-                                          <p className="text-[10px] text-destructive mb-1">{uploadErrors[b.id]}</p>
-                                        )}
-                                        {zeitnachweise.has(b.id) ? (
-                                          <div className="flex flex-col items-end gap-0.5">
-                                            <span className="text-[10px] text-green-700 font-medium">
-                                              {zeitnachweise.get(b.id)!.stunden_ist != null ? `${zeitnachweise.get(b.id)!.stunden_ist} Std.` : "Parsing fehlgeschlagen"}
-                                            </span>
-                                            <button
-                                              className="text-[10px] text-muted-foreground hover:underline disabled:opacity-50"
-                                              onClick={() => triggerUpload(b.id)}
-                                              disabled={uploadingId === b.id}
-                                            >
-                                              {uploadingId === b.id ? "Lädt…" : "Ersetzen"}
-                                            </button>
-                                          </div>
-                                        ) : (
-                                          <button
-                                            className="inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[11px] text-muted-foreground hover:border-foreground hover:text-foreground disabled:opacity-50"
-                                            onClick={() => triggerUpload(b.id)}
-                                            disabled={uploadingId === b.id}
-                                          >
-                                            <IconUpload className="size-3" />
-                                            {uploadingId === b.id ? "Lädt…" : "Upload"}
-                                          </button>
-                                        )}
-                                      </TableCell>
-                                    )}
-                                  </TableRow>
-                                )
-                              })}
-                            </React.Fragment>
-                          )
-                        })
-                      )}
-                    </TableBody>
-                    {!loading && gefiltert.length > 0 && (isFinancial || isController) && (
-                      <TableFooter>
-                        <TableRow className="bg-muted/80 font-bold">
-                          {isFinancial && (
-                            <>
-                              <TableCell colSpan={8} className="text-right">Gesamt {monatLabel}</TableCell>
-                              <TableCell className="text-right tabular-nums">{fmt(totalUmsatz)}</TableCell>
-                              <TableCell className="text-right tabular-nums text-muted-foreground">{fmt(totalKosten)}</TableCell>
-                              <TableCell className="text-right tabular-nums text-green-700">{fmt(totalMarge)}</TableCell>
-                              {canEditMarge && <TableCell></TableCell>}
-                              <TableCell className="print:hidden"></TableCell>
-                            </>
-                          )}
-                          {isController && (
-                            <>
-                              <TableCell colSpan={7} className="text-right">Gesamt {monatLabel}</TableCell>
-                              <TableCell className="text-right tabular-nums text-green-700">
-                                {fmt(gefiltert.reduce((sum, b) => {
-                                  const zn = zeitnachweise.get(b.id)
-                                  const marge = margenOverrides[b.id] ?? b.margenaufschlag ?? 0
-                                  return sum + marge * effectiveStunden(b, zn)
-                                }, 0))}
-                              </TableCell>
-                            </>
-                          )}
-                        </TableRow>
-                      </TableFooter>
-                    )}
-                  </Table>
-                </div>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
               </div>
+            )}
 
-            </div>
-          </div>
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
+            {!loading && filtered.length === 0 && (
+              <div className="rounded border border-dashed p-6 text-center text-muted-foreground">
+                Keine Beauftragungen für diese Filters gefunden.
+              </div>
+            )}
+          </main>
+        </SidebarInset>
+      </SidebarProvider>
     </>
   )
 }
