@@ -2,6 +2,9 @@
 
 import * as React from "react"
 import {
+  IconArrowDown,
+  IconArrowUp,
+  IconArrowsUpDown,
   IconChevronDown,
   IconChevronRight,
   IconCurrencyEuro,
@@ -39,16 +42,14 @@ interface Beauftragung {
   id: string
   profil_id: string
   agentur_id: string
+  agentur_name: string
   kandidatenname: string
   erfahrungslevel: string
   vakanz_titel: string
-  agentur_name: string
   einkaufspreis?: number
   margenaufschlag?: number
   verkaufspreis?: number
   marge_prozent?: number
-  agentur_rohpreis?: number
-  marge_inkludiert?: boolean
   startdatum: string
   stunden_woche: number
   aktiv: boolean
@@ -62,13 +63,16 @@ interface Zeitnachweis {
   uploaded_at: string
 }
 
-interface AgenturGruppe {
-  agentur_name: string
-  agentur_id: string
-  zeilen: Beauftragung[]
-  umsatz: number
-  kosten: number
-  marge: number
+interface Rechnung {
+  id: string
+  beauftragung_id: string
+  monat: string
+  gesamtbetrag: number
+  status: 'Entwurf' | 'Versendet' | 'Bezahlt'
+  betrag_bezahlt: number
+  created_at: string
+  sent_at: string | null
+  paid_at: string | null
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -81,12 +85,30 @@ function effectiveStunden(b: Beauftragung, zn: Zeitnachweis | undefined): number
   return zn?.stunden_ist ?? (b.stunden_woche * 4)
 }
 
+function calcMarge(b: Beauftragung, zn?: Zeitnachweis): number {
+  return ((b.verkaufspreis ?? 0) - (b.einkaufspreis ?? 0)) * effectiveStunden(b, zn)
+}
+
+function calcGesamtbetrag(b: Beauftragung, zn?: Zeitnachweis): number {
+  return (b.verkaufspreis ?? 0) * effectiveStunden(b, zn)
+}
+
+// Legacy helpers for backward compatibility with existing JSX
 function calcUmsatz(b: Beauftragung, zn?: Zeitnachweis) {
   return (b.verkaufspreis ?? 0) * effectiveStunden(b, zn)
 }
 
 function calcKosten(b: Beauftragung, zn?: Zeitnachweis) {
   return (b.einkaufspreis ?? 0) * effectiveStunden(b, zn)
+}
+
+interface AgenturGruppe {
+  agentur_name: string
+  agentur_id: string
+  zeilen: Beauftragung[]
+  umsatz: number
+  kosten: number
+  marge: number
 }
 
 function gruppiereNachAgentur(
@@ -127,33 +149,53 @@ function aktuellerMonat() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
 }
 
-function exportCSV(gruppen: AgenturGruppe[], monatLabel: string, zeitnachweise: Map<string, Zeitnachweis>) {
+function exportCSV(
+  beauftragungen: Beauftragung[],
+  zeitnachweise: Map<string, Zeitnachweis>,
+  rechnungen: Map<string, Rechnung>,
+  monatLabel: string
+) {
   const BOM = "\uFEFF"
   const sep = ";"
-  const header = ["Agentur", "Kandidat", "Vakanz", "h/Woche", "h/Mo (Ist)", "EK €/Tag", "VK €/Tag", "Marge%", "Umsatz/Mo", "Kosten/Mo", "Marge/Mo"].join(sep)
+  const header = [
+    "Ressource",
+    "Vakanz",
+    "h/Woche",
+    "Stunden (Ist)",
+    "EK €/Tag",
+    "VK €/Tag",
+    "Marge%",
+    "Umsatz",
+    "Kosten",
+    "Marge €",
+    "Status",
+    "Offene Beträge",
+  ].join(sep)
   const zeilen: string[] = [BOM + header]
-  for (const g of gruppen) {
-    for (const b of g.zeilen) {
-      const zn = zeitnachweise.get(b.id)
-      const stunden = effectiveStunden(b, zn)
-      const u = calcUmsatz(b, zn)
-      const k = calcKosten(b, zn)
-      zeilen.push([
-        b.agentur_name, b.kandidatenname, b.vakanz_titel, b.stunden_woche, stunden,
+  for (const b of beauftragungen) {
+    const zn = zeitnachweise.get(b.id)
+    const rech = rechnungen.get(b.id)
+    const stunden = effectiveStunden(b, zn)
+    const umsatz = calcGesamtbetrag(b, zn)
+    const kosten = (b.einkaufspreis ?? 0) * stunden
+    const marge = calcMarge(b, zn)
+    const offene = rech && rech.status !== "Bezahlt" ? rech.gesamtbetrag - rech.betrag_bezahlt : 0
+    zeilen.push(
+      [
+        b.kandidatenname,
+        b.vakanz_titel,
+        b.stunden_woche,
+        stunden,
         (b.einkaufspreis ?? 0).toFixed(2).replace(".", ","),
         (b.verkaufspreis ?? 0).toFixed(2).replace(".", ","),
         `${b.marge_prozent ?? 0}%`,
-        u.toFixed(2).replace(".", ","),
-        k.toFixed(2).replace(".", ","),
-        (u - k).toFixed(2).replace(".", ","),
-      ].join(sep))
-    }
-    zeilen.push([`GESAMT ${g.agentur_name}`, "", "", "", "", "", "", "",
-      g.umsatz.toFixed(2).replace(".", ","),
-      g.kosten.toFixed(2).replace(".", ","),
-      g.marge.toFixed(2).replace(".", ","),
-    ].join(sep))
-    zeilen.push("")
+        umsatz.toFixed(2).replace(".", ","),
+        kosten.toFixed(2).replace(".", ","),
+        marge.toFixed(2).replace(".", ","),
+        rech?.status ?? "—",
+        offene.toFixed(2).replace(".", ","),
+      ].join(sep)
+    )
   }
   const blob = new Blob([zeilen.join("\r\n")], { type: "text/csv;charset=utf-8;" })
   const url = URL.createObjectURL(blob)
@@ -162,6 +204,15 @@ function exportCSV(gruppen: AgenturGruppe[], monatLabel: string, zeitnachweise: 
   a.download = `Abrechnung_${monatLabel.replace(/\s/g, "_")}.csv`
   a.click()
   URL.revokeObjectURL(url)
+}
+
+function SortIcon({ column, active, direction }: { column: string; active: boolean; direction?: "asc" | "desc" }) {
+  if (!active) return <IconArrowsUpDown className="h-4 w-4 text-muted-foreground" />
+  return direction === "asc" ? (
+    <IconArrowUp className="h-4 w-4" />
+  ) : (
+    <IconArrowDown className="h-4 w-4" />
+  )
 }
 
 function TableSkeletonRows({ cols, rows = 5 }: { cols: number; rows?: number }) {
@@ -182,55 +233,65 @@ function TableSkeletonRows({ cols, rows = 5 }: { cols: number; rows?: number }) 
 
 export default function AbrechnungPage() {
   const [beauftragungen, setBeauftragungen] = React.useState<Beauftragung[]>([])
+  const [zeitnachweise, setZeitnachweise] = React.useState<Map<string, Zeitnachweis>>(new Map())
+  const [rechnungen, setRechnungen] = React.useState<Map<string, Rechnung>>(new Map())
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [monat, setMonat] = React.useState(aktuellerMonat())
-  const [expanded, setExpanded] = React.useState<Record<string, boolean>>({})
   const [rolle, setRolle] = React.useState<string>("")
-  const [zeitnachweise, setZeitnachweise] = React.useState<Map<string, Zeitnachweis>>(new Map())
+
+  // Filtering & Sorting
+  const [filterAgentur, setFilterAgentur] = React.useState<string>("Alle")
+  const [filterStatus, setFilterStatus] = React.useState<string>("Alle")
+  const [sortColumn, setSortColumn] = React.useState<string>("Ressource")
+  const [sortDirection, setSortDirection] = React.useState<"asc" | "desc">("asc")
+
+  // Upload state
   const [uploadingId, setUploadingId] = React.useState<string | null>(null)
   const [uploadErrors, setUploadErrors] = React.useState<Record<string, string>>({})
-  const [margenOverrides, setMargenOverrides] = React.useState<Record<string, number>>({})
-  const [savingMarge, setSavingMarge] = React.useState<Record<string, boolean>>({})
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const uploadTargetRef = React.useRef<{ beauftragungId: string; monat: string } | null>(null)
+
+  // Legacy state for backward compatibility with existing JSX
+  const [expanded, setExpanded] = React.useState<Record<string, boolean>>({})
+  const [margenOverrides, setMargenOverrides] = React.useState<Record<string, number>>({})
+  const [savingMarge, setSavingMarge] = React.useState<Record<string, boolean>>({})
 
   const monate = React.useMemo(() => monateListe(), [])
 
   React.useEffect(() => {
-    fetch("/api/beauftragungen")
-      .then(async (r) => {
-        if (!r.ok) {
-          const body = await r.json().catch(() => ({}))
-          throw new Error(`HTTP ${r.status}: ${body.error ?? ''}`)
-        }
-        return r.json()
-      })
-      .then((body) => {
-        const data: Beauftragung[] = Array.isArray(body) ? body : (body.data ?? [])
-        setBeauftragungen(data)
-        if (body.rolle) setRolle(body.rolle)
-        const ids = [...new Set(data.map((b) => b.agentur_id))]
+    const [year, month] = monat.split("-").map(Number)
+    const monatDate = `${year}-${String(month).padStart(2, "0")}-01`
+
+    Promise.all([
+      fetch("/api/beauftragungen").then((r) => (r.ok ? r.json() : { data: [], rolle: "" })),
+      fetch(`/api/zeitnachweise?beauftragung_ids=all&monat=${monatDate}`).then((r) =>
+        r.ok ? r.json() : { zeitnachweise: [] }
+      ),
+      fetch(`/api/rechnungen?beauftragung_ids=all&monat=${monatDate}`).then((r) =>
+        r.ok ? r.json() : { rechnungen: [] }
+      ),
+    ])
+      .then(([beauftragungen, { zeitnachweise: znList }, { rechnungen: rechnungList }]) => {
+        const filtered: Beauftragung[] = Array.isArray(beauftragungen) ? beauftragungen : (beauftragungen.data ?? [])
+        setBeauftragungen(filtered)
+        if (beauftragungen.rolle) setRolle(beauftragungen.rolle)
+
+        // Initialize expanded state for agencies
+        const ids = [...new Set(filtered.map((b: Beauftragung) => b.agentur_id))]
         setExpanded(Object.fromEntries(ids.map((id) => [id, true])))
+
+        const znMap = new Map<string, Zeitnachweis>()
+        for (const zn of (znList ?? [])) znMap.set(zn.beauftragung_id, zn)
+        setZeitnachweise(znMap)
+
+        const rMap = new Map<string, Rechnung>()
+        for (const r of (rechnungList ?? [])) rMap.set(r.beauftragung_id, r)
+        setRechnungen(rMap)
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
-  }, [])
-
-  React.useEffect(() => {
-    if (beauftragungen.length === 0) return
-    const [year, month] = monat.split("-").map(Number)
-    const monatDate = `${year}-${String(month).padStart(2, "0")}-01`
-    const ids = beauftragungen.map((b) => b.id).join(",")
-    fetch(`/api/zeitnachweise?beauftragung_ids=${ids}&monat=${monatDate}`)
-      .then((r) => r.ok ? r.json() : { zeitnachweise: [] })
-      .then((body) => {
-        const map = new Map<string, Zeitnachweis>()
-        for (const zn of (body.zeitnachweise ?? [])) map.set(zn.beauftragung_id, zn)
-        setZeitnachweise(map)
-      })
-      .catch(() => {})
-  }, [monat, beauftragungen])
+  }, [monat])
 
   const [monatJahr, monatMonat] = monat.split("-").map(Number)
   const monatEnde = new Date(monatJahr, monatMonat, 0)
@@ -261,17 +322,17 @@ export default function AbrechnungPage() {
     { title: "Aktive Beauftragungen",        value: loading ? "–" : String(gefiltert.length), icon: IconUserCheck },
   ]
 
-  function toggleAgentur(id: string) {
-    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }))
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortColumn(column)
+      setSortDirection('asc')
+    }
   }
 
-  function triggerUpload(beauftragungId: string) {
-    const [year, month] = monat.split("-").map(Number)
-    uploadTargetRef.current = {
-      beauftragungId,
-      monat: `${year}-${String(month).padStart(2, "0")}-01`,
-    }
-    fileInputRef.current?.click()
+  function toggleAgentur(id: string) {
+    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }))
   }
 
   async function saveMarge(beauftragungId: string, value: number) {
@@ -291,6 +352,15 @@ export default function AbrechnungPage() {
     } finally {
       setSavingMarge((prev) => ({ ...prev, [beauftragungId]: false }))
     }
+  }
+
+  function triggerUpload(beauftragungId: string) {
+    const [year, month] = monat.split("-").map(Number)
+    uploadTargetRef.current = {
+      beauftragungId,
+      monat: `${year}-${String(month).padStart(2, "0")}-01`,
+    }
+    fileInputRef.current?.click()
   }
 
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -356,7 +426,7 @@ export default function AbrechnungPage() {
                     variant="outline"
                     size="sm"
                     disabled={loading || gefiltert.length === 0}
-                    onClick={() => exportCSV(gruppen, monatLabel, zeitnachweise)}
+                    onClick={() => exportCSV(beauftragungen, zeitnachweise, rechnungen, monatLabel)}
                     className="gap-1.5"
                   >
                     <IconDownload className="size-4" />
