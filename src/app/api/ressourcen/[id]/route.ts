@@ -144,3 +144,72 @@ export async function PUT(
 
   return NextResponse.json({ ressource })
 }
+
+// ── PATCH /api/ressourcen/[id] ───────────────────────────────────────────────────
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const supabase = await createClient()
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 })
+  }
+
+  const profile = await getUserProfile(supabase, user.id)
+  if (!profile?.aktiv) {
+    return NextResponse.json({ error: 'Account deaktiviert' }, { status: 403 })
+  }
+  if (profile.rolle !== 'Agentur') {
+    return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
+  }
+
+  const body = await request.json().catch(() => null)
+  const parsed = updateRessourceSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: 'Validierungsfehler', details: parsed.error.flatten().fieldErrors },
+      { status: 400 }
+    )
+  }
+
+  const { data: ressource, error } = await supabase
+    .from('ressourcen')
+    .update({
+      name: parsed.data.name,
+      rolle: parsed.data.rolle ?? null,
+      skills: parsed.data.skills,
+      erfahrungslevel: parsed.data.erfahrungslevel,
+      verfuegbarkeit: parsed.data.verfuegbarkeit,
+      verfuegbar_ab: parsed.data.verfuegbar_ab || null,
+      ek_tagesrate: parsed.data.ek_tagesrate ?? null,
+      notizen: parsed.data.notizen ?? null,
+      nachname: parsed.data.nachname ?? null,
+      vorname: parsed.data.vorname ?? null,
+      geburtsdatum: parsed.data.geburtsdatum ?? null,
+      geschlecht: parsed.data.geschlecht ?? null,
+      firma: parsed.data.firma ?? null,
+      email_geschaeftlich: parsed.data.email_geschaeftlich ?? null,
+      telefon_geschaeftlich: parsed.data.telefon_geschaeftlich ?? null,
+      wohnort: parsed.data.wohnort ?? null,
+      namenszusatz: parsed.data.namenszusatz ?? null,
+      titel: parsed.data.titel ?? null,
+      arbeitsmodell: parsed.data.arbeitsmodell ?? 'Onshore',
+      location: parsed.data.location ?? null,
+    })
+    .eq('id', id)
+    .select('id, name, verfuegbarkeit, updated_at')
+    .single()
+
+  if (error) {
+    if (error.code === 'PGRST116') {
+      return NextResponse.json({ error: 'Ressource nicht gefunden' }, { status: 404 })
+    }
+    return NextResponse.json({ error: 'Fehler beim Aktualisieren' }, { status: 500 })
+  }
+
+  return NextResponse.json({ ressource })
+}
