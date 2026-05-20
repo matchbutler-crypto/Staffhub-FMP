@@ -87,6 +87,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
+import { isResourceUnavailable, type Beauftragung } from "@/lib/resource-availability"
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -2050,6 +2051,7 @@ export default function PoolPage() {
   const isAdmin = user?.rolle === "Admin"
 
   const [ressourcen, setRessourcen] = React.useState<Ressource[]>([])
+  const [beauftragungen, setBeauftragungen] = React.useState<Beauftragung[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [agenturen, setAgenturen] = React.useState<Agentur[]>([])
@@ -2136,6 +2138,27 @@ export default function PoolPage() {
     fetchRessourcen()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showDeaktiviert])
+
+  React.useEffect(() => {
+    const fetchBeauftragungen = async () => {
+      if (ressourcen.length === 0) return
+
+      const resourceIds = ressourcen.map((r) => r.id).join(',')
+      try {
+        const res = await fetch(
+          `/api/beauftragungen?resource_ids=${encodeURIComponent(resourceIds)}`
+        )
+        if (res.ok) {
+          const data = await res.json()
+          setBeauftragungen(data.beauftragungen || [])
+        }
+      } catch (error) {
+        console.error('Failed to fetch beauftragungen:', error)
+      }
+    }
+
+    fetchBeauftragungen()
+  }, [ressourcen])
 
   // Agenturen für Admin/Manager-Dropdown laden
   React.useEffect(() => {
