@@ -1379,12 +1379,14 @@ interface AgenturDetailSheetProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   ressource: Ressource | null
+  beauftragungen: Beauftragung[]
 }
 
 function AgenturDetailSheet({
   open,
   onOpenChange,
   ressource,
+  beauftragungen,
 }: AgenturDetailSheetProps) {
   const { user } = useUser()
   const isAgentur = user?.rolle === "Agentur"
@@ -1616,29 +1618,39 @@ function AgenturDetailSheet({
                 </p>
                 <div className="flex flex-col gap-3">
                   <div className="flex gap-2">
-                    <Select value={kiVakanzId} onValueChange={setKiVakanzId}>
-                      <SelectTrigger className="flex-1">
-                        <SelectValue placeholder="Vakanz wählen…" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {kiVakanzen.length === 0 ? (
-                          <SelectItem value="__none__" disabled>
-                            Keine offenen Vakanzen
-                          </SelectItem>
-                        ) : (
-                          kiVakanzen.map((v) => (
-                            <SelectItem key={v.id} value={v.id}>
-                              {v.titel || v.rolle}
+                    {!isResourceUnavailable(ressource.id, beauftragungen, null) ? (
+                      <Select value={kiVakanzId} onValueChange={setKiVakanzId}>
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Vakanz wählen…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {kiVakanzen.length === 0 ? (
+                            <SelectItem value="__none__" disabled>
+                              Keine offenen Vakanzen
                             </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
+                          ) : (
+                            kiVakanzen.map((v) => (
+                              <SelectItem key={v.id} value={v.id}>
+                                {v.titel || v.rolle}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="flex flex-1 items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground">
+                        <span>Diese Ressource ist derzeit vergeben</span>
+                      </div>
+                    )}
                     <Button
                       size="sm"
                       variant="outline"
                       className="shrink-0 gap-1.5"
-                      disabled={!kiVakanzId || kiBerechnend}
+                      disabled={
+                        !kiVakanzId ||
+                        kiBerechnend ||
+                        isResourceUnavailable(ressource.id, beauftragungen, null)
+                      }
                       onClick={handleKiMatch}
                     >
                       <IconBrain className="size-4" />
@@ -2672,6 +2684,7 @@ export default function PoolPage() {
         open={detailOpen}
         onOpenChange={setDetailOpen}
         ressource={detailRessource}
+        beauftragungen={beauftragungen}
       />
 
       <ProfilEinreichenDialog
