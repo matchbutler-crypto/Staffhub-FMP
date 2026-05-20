@@ -1,0 +1,57 @@
+<h2>Wie sollen deaktivierte Optionen aussehen?</h2>
+<p class="subtitle">Wenn ein Agent versucht, eine Ressource einzureichen, die beauftragt oder nicht verfügbar ist</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">Option A: Vollständig versteckt</div>
+        <div class="mockup-body" style="padding: 20px;">
+          <p style="margin-bottom: 12px;"><strong>Kontextmenü der Ressource:</strong></p>
+          <div style="background: #1f2937; padding: 12px; border-radius: 6px; font-size: 13px;">
+            <div style="padding: 8px; cursor: pointer; color: #9ca3af;">🖊️ Bearbeiten</div>
+            <div style="padding: 8px; cursor: pointer; color: #9ca3af;">🗑️ CV löschen</div>
+            <div style="padding: 8px; cursor: pointer; color: #9ca3af;">🚫 Deaktivieren</div>
+          </div>
+          <p style="margin-top: 16px; margin-bottom: 12px; font-size: 12px; color: #9ca3af;"><em>→ "Profil einreichen" ist nicht im Menü</em></p>
+          <p style="margin-bottom: 12px;"><strong>KI-Match Panel:</strong></p>
+          <div style="background: #1f2937; padding: 12px; border-radius: 6px;">
+            <div style="color: #9ca3af; font-size: 13px; opacity: 0.5;">Vakanz wählen...</div>
+            <div style="margin-top: 8px; font-size: 12px; color: #ef4444;">⚠️ Nicht verfügbar für Einreichung</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A: Verstecken</h3>
+      <p>Option verschwindet komplett → sauberer, aber User könnte verwirrt sein</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">Option B: Ausgegraut + Tooltip</div>
+        <div class="mockup-body" style="padding: 20px;">
+          <p style="margin-bottom: 12px;"><strong>Kontextmenü der Ressource:</strong></p>
+          <div style="background: #1f2937; padding: 12px; border-radius: 6px; font-size: 13px;">
+            <div style="padding: 8px; cursor: pointer;">🖊️ Bearbeiten</div>
+            <div style="padding: 8px; cursor: pointer;">🗑️ CV löschen</div>
+            <div style="padding: 8px; cursor: pointer; color: #6b7280; opacity: 0.5;">📤 Profil einreichen</div>
+            <div style="padding: 8px; cursor: pointer;">🚫 Deaktivieren</div>
+          </div>
+          <p style="margin-top: 8px; font-size: 11px; color: #9ca3af;"><em>Hover zeigt: "Ressource ist beauftragt bis 31.05.2026"</em></p>
+          <p style="margin-top: 16px; margin-bottom: 12px;"><strong>KI-Match Panel:</strong></p>
+          <div style="background: #1f2937; padding: 12px; border-radius: 6px;">
+            <div style="color: #6b7280; opacity: 0.5; font-size: 13px;">Vakanz wählen...</div>
+            <div style="margin-top: 8px; font-size: 12px; color: #ef4444;">⚠️ Ressource ist beauftragt bis 31.05.2026</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B: Ausgegraut + Grund anzeigen</h3>
+      <p>Option sichtbar aber deaktiviert, mit Tooltip warum → mehr Transparenz</p>
+    </div>
+  </div>
+</div>

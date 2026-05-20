@@ -63,6 +63,59 @@ export async function GET(request: NextRequest) {
   if (authErr === 'auth') return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 })
   if (authErr === 'inactive') return NextResponse.json({ error: 'Account deaktiviert' }, { status: 403 })
 
+  const { searchParams } = new URL(request.url)
+
+  // ── Handle resource_ids query parameter (for availability checking) ──
+  const resourceIdsParam = searchParams.get('resource_ids')
+  if (resourceIdsParam) {
+    const resourceIds = resourceIdsParam.split(',').filter(Boolean)
+    if (resourceIds.length === 0) {
+      return NextResponse.json({ beauftragungen: [] })
+    }
+
+    // Get ressource_vakanz_link IDs for these resources
+    const { data: links, error: linksError } = await supabase
+      .from('ressource_vakanz_links')
+      .select('id, ressource_id')
+      .in('ressource_id', resourceIds)
+
+    if (linksError || !links) {
+      return NextResponse.json({ beauftragungen: [] })
+    }
+
+    const linkIds = links.map((l) => l.id)
+    if (linkIds.length === 0) {
+      return NextResponse.json({ beauftragungen: [] })
+    }
+
+    // Get beauftragungen for these links
+    // Note: SELECT with aliases to map startdatum → start_date and enddatum → end_date
+    const { data: beauftragungen, error: baufError } = await supabase
+      .from('beauftragungen')
+      .select('id, ressource_link_id, startdatum, enddatum')
+      .in('ressource_link_id', linkIds)
+
+    if (baufError || !beauftragungen) {
+      return NextResponse.json({ beauftragungen: [] })
+    }
+
+    // Map beauftragungen to include ressource_id and map date columns
+    const result = (beauftragungen as Array<{ id: string; ressource_link_id: string; startdatum: string; enddatum: string | null }>).map((b) => {
+      const link = links.find((l) => l.id === b.ressource_link_id)
+      return {
+        id: b.id,
+        ressource_id: link?.ressource_id || '',
+        ressource_link_id: b.ressource_link_id,
+        start_date: b.startdatum,
+        end_date: b.enddatum || b.startdatum,  // Fall back to start date if end date is null
+      }
+    })
+
+    return NextResponse.json({ beauftragungen: result })
+  }
+
+  // ── Handle management dashboard query (no resource_ids parameter) ──
+
   const isAgentur = profile?.rolle === 'Agentur'
   const isManager = profile?.rolle === 'Staffhub Manager' || profile?.rolle === 'Admin' || profile?.rolle === 'Controller'
 
@@ -74,7 +127,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Kein Agentur-Profil gefunden' }, { status: 403 })
   }
 
-  const { searchParams } = new URL(request.url)
   const nurAktive = searchParams.get('aktiv') !== 'false'
   const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10))
   const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get('pageSize') ?? '100', 10)))
