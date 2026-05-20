@@ -26,10 +26,23 @@ vi.mock('@/lib/supabase/server', () => ({
       if (table === 'vakanzen') {
         return {
           select: vi.fn().mockReturnValue({
-            order: vi.fn().mockReturnValue({
-              limit: mockVakanzenSelect,
+            or: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({
+                limit: vi.fn(() => ({
+                  then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
+                    mockVakanzenSelect().then(resolve, reject),
+                  eq: vi.fn(() => ({
+                    then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
+                      mockVakanzenSelect().then(resolve, reject),
+                  })),
+                })),
+              }),
             }),
           }),
+        }
+      }
+      if (table === 'vakanzen_data') {
+        return {
           insert: vi.fn().mockReturnValue({
             select: vi.fn().mockReturnValue({
               single: mockInsert,

@@ -99,6 +99,7 @@ export function GespielteRessourcenTable({
 
   useEffect(() => {
     if (!vakanzId) return
+    const controller = new AbortController()
     for (const resource of resources) {
       if (
         resource.link_status === 'Gespielt' &&
@@ -111,6 +112,7 @@ export function GespielteRessourcenTable({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ vakanz_id: vakanzId }),
+          signal: controller.signal,
         })
           .then((res) => res.json())
           .then((body) => {
@@ -118,10 +120,11 @@ export function GespielteRessourcenTable({
               setScores((prev) => ({ ...prev, [resource.id]: body.score.score }))
             }
           })
-          .catch(() => {})
+          .catch((err) => { if (err?.name !== 'AbortError') console.error('KI-Score fetch failed', err) })
           .finally(() => setCalculating((prev) => ({ ...prev, [resource.id]: false })))
       }
     }
+    return () => controller.abort()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vakanzId, resources])
 

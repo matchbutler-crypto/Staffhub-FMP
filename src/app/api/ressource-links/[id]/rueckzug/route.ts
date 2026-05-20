@@ -32,16 +32,12 @@ export async function PATCH(
     return NextResponse.json({ error: 'Account deaktiviert' }, { status: 403 })
   }
 
-  const isManager = profile.rolle === 'Admin' || profile.rolle === 'Staffhub Manager'
-  const isAgentur = profile.rolle === 'Agentur'
-
-  if (!isManager && !isAgentur) {
-    return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
+  if (profile.rolle !== 'Agentur') {
+    return NextResponse.json({ error: 'Nur Agenturen können Einreichungen zurückziehen' }, { status: 403 })
   }
-  if (isAgentur && !profile.agentur_id) {
+  if (!profile.agentur_id) {
     return NextResponse.json({ error: 'Keine Agentur-Zuordnung' }, { status: 403 })
   }
-
   const body = await request.json().catch(() => null)
   const parsed = rueckzugSchema.safeParse(body ?? {})
   if (!parsed.success) {
@@ -62,8 +58,8 @@ export async function PATCH(
     return NextResponse.json({ error: 'Verknüpfung nicht gefunden' }, { status: 404 })
   }
 
-  // Ownership-Check nur für Agenturen
-  if (isAgentur) {
+  // Ownership-Check
+  {
     const ressourcenArray = Array.isArray(link.ressourcen) ? link.ressourcen : [link.ressourcen]
     const ressourceAgenturId = ressourcenArray[0]?.agentur_id
     if (ressourceAgenturId !== profile.agentur_id) {

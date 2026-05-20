@@ -134,9 +134,10 @@ export async function POST(
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'OpenAI-Fehler'
     console.error('KI-Bewertung error:', msg)
+    const isConnectionError = msg.includes('ECONNREFUSED') || msg.includes('fetch failed') || msg.includes('ENOTFOUND')
     return NextResponse.json(
       { error: msg },
-      { status: 500 }
+      { status: isConnectionError ? 503 : 500 }
     )
   }
 

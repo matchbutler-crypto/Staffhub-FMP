@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
 // ── Mocks ──────────────────────────────────────────────────────────────────────
@@ -52,8 +52,8 @@ vi.mock('@/lib/supabase/server', () => ({
   }),
 }))
 
-vi.mock('@/lib/ollama', () => ({
-  bewerteProfilMitOllama: mockOllama,
+vi.mock('@/lib/openai', () => ({
+  bewerteProfilMitOpenAI: mockOllama,
 }))
 
 import { GET, POST } from './route'
@@ -96,6 +96,11 @@ const mockScore = { id: 'score-1', ...mockKiResult, berechnet_am: '2026-04-19T10
 
 beforeEach(() => {
   vi.clearAllMocks()
+  process.env.OPENAI_API_KEY = 'test-key'
+})
+
+afterEach(() => {
+  delete process.env.OPENAI_API_KEY
 })
 
 // ── GET Tests ──────────────────────────────────────────────────────────────────

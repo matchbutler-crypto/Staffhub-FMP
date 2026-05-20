@@ -101,10 +101,12 @@ export async function POST(request: NextRequest) {
 
   let stundenIst: number | null = null
   let parsedRaw: unknown = null
+  let parseWarning: string | null = null
   try {
     stundenIst = await extractStundenFromPDF(pdfBuffer)
   } catch (err) {
-    parsedRaw = { error: err instanceof Error ? err.message : String(err) }
+    parseWarning = err instanceof Error ? err.message : String(err)
+    parsedRaw = { error: parseWarning }
   }
 
   const { data: record, error: dbError } = await supabase
@@ -128,5 +130,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Fehler beim Speichern' }, { status: 500 })
   }
 
-  return NextResponse.json({ zeitnachweis: record })
+  return NextResponse.json({
+    zeitnachweis: record,
+    ...(parseWarning ? { parse_warning: 'PDF konnte nicht automatisch ausgelesen werden. Bitte Stunden manuell eintragen.' } : {}),
+  })
 }

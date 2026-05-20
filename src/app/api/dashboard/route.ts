@@ -129,7 +129,7 @@ export async function GET() {
 
   const vakanzenCount = vakanzenRes.status === 'fulfilled' && !vakanzenRes.value.error ? (vakanzenRes.value.count ?? 0) : 0
   const beauftragungen = beauftragungRes.status === 'fulfilled' && !beauftragungRes.value.error ? (beauftragungRes.value.data ?? []) : []
-  const monatsMarge = beauftragungen.reduce((sum, b) => sum + Number(b.margenaufschlag) * b.stunden_woche * 4, 0)
+  const monatsMarge = beauftragungen.reduce((sum, b) => sum + Number(b.margenaufschlag) * b.stunden_woche * 4.33, 0)
 
   // Vakanzen ohne Profile
   type VakanzWithProfiles = { id: string; rolle: string; created_at: string; kandidaten_profile: { id: string }[]; ressource_vakanz_links: { id: string }[] }

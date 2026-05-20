@@ -19,6 +19,10 @@ const {
   mockFetch: vi.fn(),
 }))
 
+vi.mock('@/lib/slack-webhooks', () => ({
+  getWebhookUrl: vi.fn().mockReturnValue('https://hooks.slack.com/test-webhook'),
+}))
+
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn().mockResolvedValue({
     auth: { getUser: mockGetUser },
@@ -35,6 +39,10 @@ vi.mock('@/lib/supabase/server', () => ({
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({ single: mockVakanzSelect }),
           }),
+        }
+      }
+      if (table === 'vakanzen_data') {
+        return {
           update: vi.fn().mockReturnValue({
             eq: mockUpdate,
           }),

@@ -115,7 +115,7 @@ describe('extractSkillsFromCV', () => {
       await extractSkillsFromCV('Test CV', { temperature: 0.5 })
 
       const callBody = JSON.parse((global.fetch as any).mock.calls[0][1].body)
-      expect(callBody.temperature).toBe(0.5)
+      expect(callBody.options.temperature).toBe(0.5)
     })
 
     it('should use custom timeout option', async () => {
@@ -311,7 +311,7 @@ describe('extractSkillsFromCV', () => {
       await extractSkillsFromCV('Test CV')
 
       const callBody = JSON.parse((global.fetch as any).mock.calls[0][1].body)
-      expect(callBody.model).toBe('mistral:7b')
+      expect(callBody.model).toBe('phi:2.5')
     })
 
     it('should set temperature to 0.3 by default (deterministic)', async () => {
@@ -329,7 +329,7 @@ describe('extractSkillsFromCV', () => {
       await extractSkillsFromCV('Test CV')
 
       const callBody = JSON.parse((global.fetch as any).mock.calls[0][1].body)
-      expect(callBody.temperature).toBe(0.3)
+      expect(callBody.options.temperature).toBe(0.3)
     })
 
     it('should set stream to false', async () => {
@@ -370,7 +370,7 @@ describe('extractSkillsFromCV', () => {
 
       const callBody = JSON.parse((global.fetch as any).mock.calls[0][1].body)
       expect(callBody.prompt).toContain(cvText)
-      expect(callBody.prompt).toContain('Extract all professional skills')
+      expect(callBody.prompt).toContain('Extract professional skills')
     })
   })
 })

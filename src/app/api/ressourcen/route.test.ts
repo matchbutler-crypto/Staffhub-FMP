@@ -8,12 +8,14 @@ const {
   mockProfileSelect,
   mockRessourcenSelect,
   mockInsert,
+  mockLinkCountSelect,
   mockLinkSelect,
 } = vi.hoisted(() => ({
   mockGetUser: vi.fn(),
   mockProfileSelect: vi.fn(),
   mockRessourcenSelect: vi.fn(),
   mockInsert: vi.fn(),
+  mockLinkCountSelect: vi.fn(),
   mockLinkSelect: vi.fn(),
 }))
 
@@ -56,11 +58,25 @@ vi.mock('@/lib/supabase/server', () => ({
       }
       if (table === 'ressource_vakanz_links') {
         return {
-          select: vi.fn().mockReturnValue({
+          select: vi.fn(() => ({
+            // Direct await (no .eq) — used for the link-count parallel query
+            then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
+              mockLinkCountSelect().then(resolve, reject),
+            // .eq().then() — used for beauftragt query and vakanz-specific links query
             eq: vi.fn(() => ({
               then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
                 mockLinkSelect().then(resolve, reject),
             })),
+          })),
+        }
+      }
+      if (table === 'ressource_ki_scores') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
+                Promise.resolve({ data: [], error: null }).then(resolve, reject),
+            }),
           }),
         }
       }
@@ -114,7 +130,11 @@ const foreignRessourceRow = { ...mockRessourceRow, id: 'res-2', agentur_id: 'ag-
 // ── GET /api/ressourcen ────────────────────────────────────────────────────────
 
 describe('GET /api/ressourcen', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockLinkCountSelect.mockResolvedValue({ data: [], error: null })
+    mockLinkSelect.mockResolvedValue({ data: [], error: null })
+  })
 
   it('gibt 401 zurück wenn nicht authentifiziert', async () => {
     mockGetUser.mockResolvedValue({ data: { user: null }, error: null })
@@ -239,14 +259,14 @@ describe('POST /api/ressourcen', () => {
     expect(res.status).toBe(401)
   })
 
-  it('gibt 403 zurück für Staffhub Manager (kein Anlegen)', async () => {
+  it('gibt 400 zurück für Staffhub Manager ohne agentur_id', async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: 'u2' } }, error: null })
     mockProfileSelect.mockResolvedValue({
       data: { rolle: 'Staffhub Manager', aktiv: true, agentur_id: null },
       error: null,
     })
     const res = await POST(makeRequest(validRessource))
-    expect(res.status).toBe(403)
+    expect(res.status).toBe(400)
   })
 
   it('gibt 400 zurück bei fehlendem Pflichtfeld', async () => {

@@ -8,11 +8,18 @@ type LinkStatus = typeof LINK_STATUS[number]
 // 'Zurückgezogen' ist ein terminaler Status (nur via /rueckzug Endpunkt erreichbar)
 const TERMINAL_STATUSES = ['Zurückgezogen']
 
+// Ordered forward-progression statuses — transitions must move forward in this list
+const STATUS_ORDER: LinkStatus[] = ['Gespielt', 'Interview geplant', 'Zugesagt', 'Beauftragt']
+const REJECTION_STATUSES: LinkStatus[] = ['Abgesagt', 'Abgelehnt']
+
 const statusSchema = z.object({
   status: z.enum(LINK_STATUS),
   interview_datum: z.string().nullable().optional(),
   feedback: z.string().max(1000).nullable().optional(),
-})
+}).refine(
+  (d) => d.status !== 'Interview geplant' || !!d.interview_datum,
+  { message: 'interview_datum erforderlich bei Status "Interview geplant"', path: ['interview_datum'] }
+)
 
 // ── PATCH /api/ressource-links/[id]/status ────────────────────────────────────
 
@@ -64,11 +71,24 @@ export async function PATCH(
   }
 
   // Zurückgezogene Links können nicht weiter bearbeitet werden
-  if (TERMINAL_STATUSES.includes(link.status)) {
+  if (TERMINAL_STATUSES.includes(link.status as string)) {
     return NextResponse.json(
       { error: `Verknüpfung mit Status "${link.status}" kann nicht weiter bearbeitet werden` },
       { status: 409 }
     )
+  }
+
+  // Transition-Validierung: kein Rückschritt, kein Verharren im gleichen Status
+  const currentOrderIdx = STATUS_ORDER.indexOf(link.status as LinkStatus)
+  const newOrderIdx = STATUS_ORDER.indexOf(newStatus)
+  const isRejection = REJECTION_STATUSES.includes(newStatus)
+  if (!isRejection) {
+    if (currentOrderIdx !== -1 && newOrderIdx !== -1 && newOrderIdx <= currentOrderIdx) {
+      return NextResponse.json(
+        { error: `Ungültiger Status-Übergang: "${link.status}" → "${newStatus}"` },
+        { status: 400 }
+      )
+    }
   }
 
   // Beauftragt kann nur vom Admin geändert werden

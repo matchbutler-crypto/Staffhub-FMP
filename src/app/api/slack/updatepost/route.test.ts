@@ -17,6 +17,10 @@ const {
   mockFetch: vi.fn(),
 }))
 
+vi.mock('@/lib/slack-webhooks', () => ({
+  getWebhookUrl: vi.fn().mockReturnValue('https://hooks.slack.com/test-webhook'),
+}))
+
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn().mockResolvedValue({
     auth: { getUser: mockGetUser },

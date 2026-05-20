@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { bewerteProfilMitOllama } from '@/lib/ollama'
+import { bewerteProfilMitOpenAI } from '@/lib/openai'
 
 // ── GET /api/profile/[id]/ki-bewertung ────────────────────────────────────────
 // Gibt die letzte KI-Bewertung für das Profil zurück.
@@ -36,7 +36,7 @@ export async function GET(
 }
 
 // ── POST /api/profile/[id]/ki-bewertung ───────────────────────────────────────
-// Triggert eine neue KI-Bewertung via Ollama und speichert das Ergebnis.
+// Triggert eine neue KI-Bewertung via OpenAI und speichert das Ergebnis.
 
 export async function POST(
   _request: NextRequest,
@@ -80,10 +80,10 @@ export async function POST(
     erfahrungslevel: string
   }
 
-  // Ollama-Bewertung
+  // OpenAI-Bewertung
   let result
   try {
-    result = await bewerteProfilMitOllama(
+    result = await bewerteProfilMitOpenAI(
       {
         titel: vakanz.titel,
         beschreibung: vakanz.beschreibung ?? '',
@@ -100,7 +100,7 @@ export async function POST(
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unbekannter Fehler'
     return NextResponse.json(
-      { error: `Ollama nicht erreichbar oder Fehler: ${msg}` },
+      { error: `OpenAI-Fehler: ${msg}` },
       { status: 503 }
     )
   }

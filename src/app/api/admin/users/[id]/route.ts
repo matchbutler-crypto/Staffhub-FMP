@@ -128,7 +128,11 @@ export async function DELETE(
   }
 
   // Delete profile row first (FK may not cascade automatically)
-  await supabase.from('profiles').delete().eq('id', id)
+  const { error: profileDeleteError } = await supabase.from('profiles').delete().eq('id', id)
+  if (profileDeleteError) {
+    console.error(`Failed to delete profile for user ${id}:`, profileDeleteError.message)
+    return NextResponse.json({ error: `Fehler beim Löschen des Profils: ${profileDeleteError.message}` }, { status: 500 })
+  }
 
   // Delete auth user
   const { error } = await supabaseAdmin.auth.admin.deleteUser(id)

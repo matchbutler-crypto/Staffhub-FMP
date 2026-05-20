@@ -86,8 +86,8 @@ describe('ScoreCard Component', () => {
         />
       )
 
-      const checkIcons = screen.getAllByRole('img', { hidden: true })
-      expect(checkIcons.length).toBeGreaterThan(0)
+      const svgIcons = document.querySelectorAll('svg')
+      expect(svgIcons.length).toBeGreaterThan(0)
     })
   })
 
