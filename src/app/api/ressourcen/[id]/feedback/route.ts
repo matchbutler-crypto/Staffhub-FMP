@@ -39,7 +39,7 @@ export async function GET(
     .select(`
       id, text, bewertung, created_at,
       vakanz_id,
-      vakanzen_data(id, rolle),
+      vakanzen(id, rolle),
       profiles!erstellt_von(id, name, rolle)
     `)
     .eq('ressource_id', ressourceId)
@@ -88,7 +88,7 @@ export async function POST(
     .select(`
       id, text, bewertung, created_at,
       vakanz_id,
-      vakanzen_data(id, rolle),
+      vakanzen(id, rolle),
       profiles!erstellt_von(id, name, rolle)
     `)
     .single()
