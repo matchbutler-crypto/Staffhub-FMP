@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { isResourceUnavailable, type Beauftragung } from '@/lib/resource-availability'
 
 const spielenSchema = z.object({
   vakanz_id: z.string().uuid('Ungültige Vakanz-ID'),
@@ -13,6 +14,51 @@ async function getUserProfile(supabase: Awaited<ReturnType<typeof createClient>>
     .eq('id', userId)
     .single()
   return data
+}
+
+async function validateResourceAvailability(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  ressourceId: string
+): Promise<{ available: boolean; reason?: string }> {
+  // Check resource status
+  const { data: ressource, error: resError } = await supabase
+    .from('ressourcen')
+    .select('status')
+    .eq('id', ressourceId)
+    .single()
+
+  if (resError || !ressource) {
+    return { available: false, reason: 'Ressource nicht gefunden' }
+  }
+
+  if (ressource.status === 'nicht_verfügbar') {
+    return { available: false, reason: 'Diese Ressource ist derzeit nicht verfügbar' }
+  }
+
+  // Check for active beauftragungen for this resource
+  const { data: beauftragungen, error: baufError } = await supabase
+    .from('beauftragungen')
+    .select('id, start_date, end_date')
+    .eq('ressource_id', ressourceId)
+
+  if (baufError) {
+    console.error('Error checking beauftragungen:', baufError)
+    return { available: false, reason: 'Fehler bei der Verfügbarkeitsprüfung' }
+  }
+
+  // Convert to Beauftragung type and check availability
+  const convertedBeauftragungen: Beauftragung[] = (beauftragungen || []).map((b) => ({
+    id: b.id,
+    ressource_id: ressourceId,
+    start_date: b.start_date,
+    end_date: b.end_date,
+  }))
+
+  if (isResourceUnavailable(ressourceId, convertedBeauftragungen, ressource.status)) {
+    return { available: false, reason: 'Diese Ressource ist derzeit beauftragt' }
+  }
+
+  return { available: true }
 }
 
 // ── POST /api/ressourcen/[id]/spielen ─────────────────────────────────────────
@@ -65,6 +111,15 @@ export async function POST(
   }
   if (ressource.verfuegbarkeit === 'Deaktiviert') {
     return NextResponse.json({ error: 'Deaktivierte Ressource kann nicht gespielt werden' }, { status: 400 })
+  }
+
+  // Validate resource availability
+  const validation = await validateResourceAvailability(supabase, ressourceId)
+  if (!validation.available) {
+    return NextResponse.json(
+      { error: validation.reason || 'Ressource nicht verfügbar' },
+      { status: 403 }
+    )
   }
 
   // Vakanz prüfen (existiert + offen)

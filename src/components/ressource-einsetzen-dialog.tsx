@@ -150,7 +150,17 @@ export function RessourceEinsetzenDialog({
             body: JSON.stringify({ vakanz_id: vakanzId }),
           })
           const body = await res.json().catch(() => ({}))
-          if (!res.ok) throw new Error(body.error ?? "Fehler beim Einreichen")
+
+          // Handle specific status codes with appropriate error messages
+          if (res.status === 403) {
+            throw new Error(body.error || 'Diese Ressource ist nicht verfügbar')
+          }
+          if (res.status === 409) {
+            throw new Error(body.error || 'Diese Ressource ist bereits auf diese Vakanz gespielt')
+          }
+          if (!res.ok) {
+            throw new Error(body.error ?? "Fehler beim Einreichen")
+          }
           return r
         })
       )
