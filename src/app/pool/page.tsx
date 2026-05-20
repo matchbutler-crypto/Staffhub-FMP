@@ -2530,7 +2530,10 @@ export default function PoolPage() {
                                       setProfilEinreichenRessource(r)
                                       setProfilEinreichenOpen(true)
                                     }}
-                                    disabled={r.verfuegbarkeit === "Deaktiviert"}
+                                    disabled={
+                                      r.verfuegbarkeit === "Deaktiviert" ||
+                                      isResourceUnavailable(r.id, beauftragungen, null)
+                                    }
                                   >
                                     <IconFileText className="mr-2 size-4" />
                                     Profil einreichen
