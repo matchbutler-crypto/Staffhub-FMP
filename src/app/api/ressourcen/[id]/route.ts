@@ -163,8 +163,23 @@ export async function PATCH(
   if (!profile?.aktiv) {
     return NextResponse.json({ error: 'Account deaktiviert' }, { status: 403 })
   }
-  if (profile.rolle !== 'Agentur') {
+
+  const isManager = profile.rolle === 'Admin' || profile.rolle === 'Staffhub Manager'
+  if (!isManager && profile.rolle !== 'Agentur') {
     return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
+  }
+
+  // For Agentur: verify they own this resource
+  if (!isManager && profile.rolle === 'Agentur') {
+    const { data: ressource } = await supabase
+      .from('ressourcen')
+      .select('agentur_id')
+      .eq('id', id)
+      .single()
+
+    if (!ressource || ressource.agentur_id !== profile.agentur_id) {
+      return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
+    }
   }
 
   const body = await request.json().catch(() => null)
