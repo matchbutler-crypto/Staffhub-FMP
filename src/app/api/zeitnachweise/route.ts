@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { extractStundenFromPDF } from '@/lib/openai'
+import { z } from 'zod'
 
 export const maxDuration = 30
 
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
 
   const file = formData.get('file') as File | null
   const beauftragungId = formData.get('beauftragung_id') as string | null
-  const monat = formData.get('monat') as string | null // YYYY-MM-DD
+  const monat = formData.get('monat') as string | null
 
   if (!file || !beauftragungId || !monat) {
     return NextResponse.json({ error: 'file, beauftragung_id und monat sind erforderlich' }, { status: 400 })
@@ -76,6 +77,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Ungültiges Monat-Format (erwartet YYYY-MM-DD)' }, { status: 400 })
   }
 
+  // Agentur ownership check
   if (isAgentur) {
     const { data: bauf } = await supabase
       .from('beauftragungen')
@@ -101,12 +103,10 @@ export async function POST(request: NextRequest) {
 
   let stundenIst: number | null = null
   let parsedRaw: unknown = null
-  let parseWarning: string | null = null
   try {
     stundenIst = await extractStundenFromPDF(pdfBuffer)
   } catch (err) {
-    parseWarning = err instanceof Error ? err.message : String(err)
-    parsedRaw = { error: parseWarning }
+    parsedRaw = { error: err instanceof Error ? err.message : String(err) }
   }
 
   const { data: record, error: dbError } = await supabase
@@ -130,8 +130,5 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Fehler beim Speichern' }, { status: 500 })
   }
 
-  return NextResponse.json({
-    zeitnachweis: record,
-    ...(parseWarning ? { parse_warning: 'PDF konnte nicht automatisch ausgelesen werden. Bitte Stunden manuell eintragen.' } : {}),
-  })
+  return NextResponse.json({ zeitnachweis: record })
 }
