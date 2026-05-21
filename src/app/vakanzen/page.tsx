@@ -517,13 +517,19 @@ function VakanzCard({
                 <p className="text-xs font-medium">{vakanz.standort}</p>
               </div>
             )}
+            {vakanz.published_at && (
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Veröffentlicht</p>
+                <p className="text-xs font-medium">{new Date(vakanz.published_at).toLocaleDateString("de-DE")}</p>
+              </div>
+            )}
             {vakanz.kunde && (
               <div>
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Kunde</p>
                 <p className="text-xs font-medium">{vakanz.kunde}</p>
               </div>
             )}
-            {isManagerOrAdmin && vakanz.budget_intern != null && (
+            {vakanz.budget_intern != null && (
               <div>
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">EK/Tag</p>
                 <p className="text-xs font-medium">{vakanz.budget_intern.toLocaleString("de-DE")} €</p>
@@ -537,29 +543,22 @@ function VakanzCard({
 
         {/* Right side: profile count + slack indicator + dropdown */}
         <div className="flex shrink-0 items-center gap-2" onClick={(e) => e.stopPropagation()}>
-          {/* Publish toggle pill + date */}
+          {/* Publish toggle pill */}
           {isManagerOrAdmin && (
-            <div className="flex shrink-0 items-center gap-1.5">
-              <button
-                onClick={() => onTogglePublished(vakanz)}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors shrink-0 ${
-                  vakanz.published
-                    ? "border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
-                    : "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                }`}
-              >
-                {vakanz.published ? (
-                  <><IconEye className="size-3.5" />Öffentlich</>
-                ) : (
-                  <><IconEyeOff className="size-3.5" />Entwurf</>
-                )}
-              </button>
-              {vakanz.published && vakanz.published_at && (
-                <span className="text-[10px] text-muted-foreground tabular-nums">
-                  {new Date(vakanz.published_at).toLocaleDateString("de-DE")}
-                </span>
+            <button
+              onClick={() => onTogglePublished(vakanz)}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors shrink-0 ${
+                vakanz.published
+                  ? "border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
+                  : "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+              }`}
+            >
+              {vakanz.published ? (
+                <><IconEye className="size-3.5" />Öffentlich</>
+              ) : (
+                <><IconEyeOff className="size-3.5" />Entwurf</>
               )}
-            </div>
+            </button>
           )}
 
           {/* Slack posted indicator */}

@@ -104,15 +104,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Fehler beim Laden der Vakanzen' }, { status: 500 })
   }
 
-  // budget_intern + slack_ts für Agentur-Rolle herausfiltern + profile_anzahl normalisieren
+  // slack_ts + weitere_kommentare nur für Manager/Admin; budget_intern auch für Agenturen
   const result = (vakanzen ?? []).map((v) => {
-    const { budget_intern, slack_ts, slack_detail_posted_at, weitere_kommentare, kandidaten_profile, ressource_vakanz_links, ...rest } = v
+    const { slack_ts, slack_detail_posted_at, weitere_kommentare, kandidaten_profile, ressource_vakanz_links, ...rest } = v
     const profilCount = (kandidaten_profile as { count: number }[])?.[0]?.count ?? 0
     const linkCount = (ressource_vakanz_links as { count: number }[])?.[0]?.count ?? 0
     return {
       ...rest,
       profile_anzahl: profilCount + linkCount,
-      ...(isAgentur ? {} : { budget_intern, slack_ts, slack_detail_posted_at, weitere_kommentare }),
+      ...(isAgentur ? {} : { slack_ts, slack_detail_posted_at, weitere_kommentare }),
     }
   })
   // published + published_at nicht an Agenturen weitergeben (sie sehen ohnehin nur published=true)
