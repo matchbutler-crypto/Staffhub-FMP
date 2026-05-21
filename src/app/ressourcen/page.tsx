@@ -557,10 +557,10 @@ function VerlaufTab({ ressourceId }: VerlaufTabProps) {
     )
   }
 
-  function getIcon(eintrag: HistorieEintrag): string {
-    if (eintrag.typ === 'manuell') return '📝'
-    if (eintrag.link_id) return '🔗'
-    return '⚙️'
+  function getDotColor(eintrag: HistorieEintrag): string {
+    if (eintrag.typ === 'manuell') return 'bg-primary/70'
+    if (eintrag.link_id) return 'bg-blue-400/70'
+    return 'bg-muted-foreground/50'
   }
 
   function getAuthorLabel(eintrag: HistorieEintrag): string {
@@ -597,19 +597,22 @@ function VerlaufTab({ ressourceId }: VerlaufTabProps) {
 
       {!loading && eintraege.length === 0 && (
         <p className="py-6 text-center text-sm text-muted-foreground">
-          Noch keine Verlaufseinträge vorhanden.
+          Keine Einträge vorhanden.
         </p>
       )}
 
       {!loading && eintraege.length > 0 && (
-        <div className="flex flex-col gap-3">
-          {eintraege.map((eintrag) => (
-            <div key={eintrag.id} className="flex gap-3 text-sm">
-              <span className="mt-0.5 shrink-0 text-base leading-none">
-                {getIcon(eintrag)}
-              </span>
+        <div className="flex flex-col gap-0">
+          {eintraege.map((eintrag, idx) => (
+            <div
+              key={eintrag.id}
+              className={`flex gap-3 py-2.5 ${idx < eintraege.length - 1 ? 'border-b border-dashed border-border/60' : ''}`}
+            >
+              <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-muted">
+                <div className={`h-1.5 w-1.5 rounded-full ${getDotColor(eintrag)}`} />
+              </div>
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <p className="break-words leading-snug">{eintrag.text}</p>
+                <p className="break-words text-sm leading-snug">{eintrag.text}</p>
                 <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
                   <span>{getAuthorLabel(eintrag)}</span>
                   <span className="shrink-0">{formatDateTime(eintrag.created_at)}</span>
@@ -916,16 +919,8 @@ function RessourceDetailSheet({
           >
             <TabsList className="mx-6 mt-3 self-start">
               <TabsTrigger value="details">Details</TabsTrigger>
-              <TabsTrigger value="verknuepfungen">
-                Verknüpfungen
-                {links.length > 0 && (
-                  <span className="ml-1.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">
-                    {links.length}
-                  </span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="feedback">Feedback</TabsTrigger>
               <TabsTrigger value="verlauf">Verlauf</TabsTrigger>
+              <TabsTrigger value="feedback">Feedback</TabsTrigger>
             </TabsList>
 
             {/* ── Tab 1: Details ── */}
@@ -1040,88 +1035,12 @@ function RessourceDetailSheet({
               </div>
             </TabsContent>
 
-            {/* ── Tab 2: Verknüpfungen ── */}
+            {/* ── Tab 2: Verlauf ── */}
             <TabsContent
-              value="verknuepfungen"
+              value="verlauf"
               className="mt-0 flex-1 overflow-y-auto px-6 py-4"
             >
-              <div className="flex flex-col gap-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Vakanz-Verknüpfungen
-                  </p>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5"
-                    disabled={ressource.verfuegbarkeit === "Deaktiviert"}
-                    onClick={() => setSpielenOpen(true)}
-                  >
-                    <IconPlus className="size-3.5" />
-                    Auf Vakanz spielen
-                  </Button>
-                </div>
-
-                {linksLoading ? (
-                  <div className="flex flex-col gap-2">
-                    {[1, 2, 3].map((i) => (
-                      <Skeleton key={i} className="h-16 w-full rounded-lg" />
-                    ))}
-                  </div>
-                ) : links.length === 0 ? (
-                  <div className="flex flex-col items-center gap-2 py-10 text-center">
-                    <IconLink className="size-8 text-muted-foreground/30" />
-                    <p className="text-sm text-muted-foreground">
-                      Noch keine Vakanz-Verknüpfungen.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="flex flex-col divide-y rounded-lg border">
-                    {links.map((link) => (
-                      <div
-                        key={link.id}
-                        className="flex items-start justify-between gap-2 px-4 py-3"
-                      >
-                        <div className="flex min-w-0 flex-col gap-1.5">
-                          <p className="truncate text-sm font-medium">
-                            {link.vakanzen_data?.rolle ?? "Unbekannte Vakanz"}
-                          </p>
-                          <div className="flex items-center gap-2">
-                            <Badge
-                              variant="outline"
-                              className={linkStatusColors[link.status]}
-                            >
-                              {link.status}
-                            </Badge>
-                            {link.interview_datum && (
-                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                <IconClock className="size-3" />
-                                {new Date(
-                                  link.interview_datum
-                                ).toLocaleDateString("de-DE")}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        {VALID_TRANSITIONS[link.status].length > 0 && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="shrink-0 gap-1 text-xs"
-                            onClick={() => {
-                              setActiveLink(link)
-                              setStatusDialogOpen(true)
-                            }}
-                          >
-                            <IconArrowRight className="size-3.5" />
-                            Status
-                          </Button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <VerlaufTab ressourceId={ressource.id} />
             </TabsContent>
 
             {/* ── Tab 3: Feedback ── */}
@@ -1130,14 +1049,6 @@ function RessourceDetailSheet({
               className="mt-0 flex-1 overflow-y-auto px-6 py-4"
             >
               <FeedbackTab ressourceId={ressource.id} isManager={isManager} />
-            </TabsContent>
-
-            {/* ── Tab 4: Verlauf ── */}
-            <TabsContent
-              value="verlauf"
-              className="mt-0 flex-1 overflow-y-auto px-6 py-4"
-            >
-              <VerlaufTab ressourceId={ressource.id} />
             </TabsContent>
           </Tabs>
         </SheetContent>
