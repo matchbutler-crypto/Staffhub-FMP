@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { logHistorie } from '@/lib/log-historie'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 
@@ -126,6 +127,13 @@ export async function POST(
 
   await supabase.from('ressourcen').update({ cv_pfad: cvPfad }).eq('id', id)
 
+  await logHistorie({
+    ressourceId: id,
+    text: 'CV hochgeladen',
+    erstelltVon: user.id,
+    supabase,
+  })
+
   return NextResponse.json({ cv_pfad: cvPfad }, { status: 201 })
 }
 
@@ -169,6 +177,13 @@ export async function DELETE(
 
   await supabase.storage.from('ressourcen-cvs').remove([ressource.cv_pfad])
   await supabase.from('ressourcen').update({ cv_pfad: null }).eq('id', id)
+
+  await logHistorie({
+    ressourceId: id,
+    text: 'CV gelöscht',
+    erstelltVon: user.id,
+    supabase,
+  })
 
   return NextResponse.json({ success: true })
 }
