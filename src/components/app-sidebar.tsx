@@ -12,6 +12,7 @@ import {
   IconReceipt,
   IconSettings,
   IconSettingsCog,
+  IconSpeakerphone,
   IconUsers,
 } from '@tabler/icons-react'
 
@@ -20,6 +21,7 @@ import { NavMain } from '@/components/nav-main'
 import { NavSecondary } from '@/components/nav-secondary'
 import { NavUser } from '@/components/nav-user'
 import { useUser } from '@/context/user-context'
+import { useUnreadNotes } from '@/hooks/use-unread-notes'
 import {
   Sidebar,
   SidebarContent,
@@ -89,6 +91,12 @@ const ALL_NAV_MAIN = [
 
 const ALL_NAV_SECONDARY = [
   {
+    title: 'Release Notes',
+    url: '/release-notes',
+    icon: IconSpeakerphone,
+    roles: ['Admin', 'Staffhub Manager', 'Agentur', 'Controller'],
+  },
+  {
     title: 'Einstellungen',
     url: '/settings',
     icon: IconSettingsCog,
@@ -105,10 +113,13 @@ const ALL_NAV_SECONDARY = [
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { user } = useUser()
   const rolle = user?.rolle ?? 'Agentur'
+  const unreadNotes = useUnreadNotes()
 
   const navMain = ALL_NAV_MAIN.filter((item) => item.roles.includes(rolle))
   const navSecondary = ALL_NAV_SECONDARY.filter((item) =>
     item.roles.includes(rolle)
+  ).map((item) =>
+    item.url === '/release-notes' ? { ...item, badge: unreadNotes } : item
   )
 
   const initials = user?.name

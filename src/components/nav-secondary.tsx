@@ -21,6 +21,7 @@ export function NavSecondary({
     title: string
     url: string
     icon: Icon
+    badge?: number
   }[]
 } & React.ComponentPropsWithoutRef<typeof SidebarGroup>) {
   const pathname = usePathname()
@@ -38,6 +39,11 @@ export function NavSecondary({
                 <Link href={item.url}>
                   <item.icon />
                   <span>{item.title}</span>
+                  {item.badge != null && item.badge > 0 && (
+                    <span className="ml-auto flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium text-white">
+                      {item.badge}
+                    </span>
+                  )}
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>

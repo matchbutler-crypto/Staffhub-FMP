@@ -12,6 +12,7 @@ export const ROLE_ROUTES: Record<string, string[]> = {
     '/slack-log',
     '/ressourcen',
     '/ideen',
+    '/release-notes',
     '/settings',
     '/api',
   ],
@@ -24,16 +25,18 @@ export const ROLE_ROUTES: Record<string, string[]> = {
     '/slack-log',
     '/ressourcen',
     '/ideen',
+    '/release-notes',
     '/settings',
     '/api',
   ],
   Controller: [
     '/dashboard',
     '/abrechnung',
+    '/release-notes',
     '/settings',
     '/api',
   ],
-  Agentur: ['/dashboard', '/vakanzen', '/meine-profile', '/pool', '/beauftragungen', '/abrechnung', '/ideen', '/settings', '/api'],
+  Agentur: ['/dashboard', '/vakanzen', '/meine-profile', '/pool', '/beauftragungen', '/abrechnung', '/ideen', '/release-notes', '/settings', '/api'],
 }
 
 /** Returns true if the given pathname is accessible for the given role */
