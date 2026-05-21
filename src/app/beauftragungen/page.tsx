@@ -329,11 +329,8 @@ export default function BeauftragungPage() {
                             )}
                           </TableCell>
                           {isManager && <TableCell className="text-sm">{b.agentur_name}</TableCell>}
-                          <TableCell className="text-sm max-w-[160px]">
-                            {b.vakanz_nr && (
-                              <span className="font-mono text-[11px] text-muted-foreground mr-1.5">{b.vakanz_nr}</span>
-                            )}
-                            <span className="text-muted-foreground truncate">{b.vakanz_titel}</span>
+                          <TableCell className="text-sm">
+                            <span className="font-medium">{b.vakanz_nr ?? b.vakanz_titel}</span>
                           </TableCell>
                           <TableCell className="text-right tabular-nums text-sm whitespace-nowrap">{fmtEur(ek)}</TableCell>
                           {isManager && <TableCell className="text-right tabular-nums text-sm whitespace-nowrap">{fmtEur(marge)}</TableCell>}
