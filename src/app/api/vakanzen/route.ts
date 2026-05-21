@@ -106,14 +106,12 @@ export async function GET(request: NextRequest) {
 
   // budget_intern + slack_ts für Agentur-Rolle herausfiltern + profile_anzahl normalisieren
   const result = (vakanzen ?? []).map((v) => {
-    const { budget_intern, slack_ts, slack_detail_posted_at, weitere_kommentare, kandidaten_profile, ressource_vakanz_links, published, published_at, ...rest } = v
+    const { budget_intern, slack_ts, slack_detail_posted_at, weitere_kommentare, kandidaten_profile, ressource_vakanz_links, ...rest } = v
     const profilCount = (kandidaten_profile as { count: number }[])?.[0]?.count ?? 0
     const linkCount = (ressource_vakanz_links as { count: number }[])?.[0]?.count ?? 0
     return {
       ...rest,
       profile_anzahl: profilCount + linkCount,
-      published,
-      published_at,
       ...(isAgentur ? {} : { budget_intern, slack_ts, slack_detail_posted_at, weitere_kommentare }),
     }
   })
