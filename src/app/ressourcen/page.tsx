@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -484,6 +485,144 @@ function StarRating({
   )
 }
 
+// ── VerlaufTab ─────────────────────────────────────────────────────────────────
+
+interface HistorieEintrag {
+  id: string
+  typ: 'system' | 'manuell'
+  text: string
+  link_id: string | null
+  created_at: string
+  profiles: { id: string; name: string; rolle: string } | null
+}
+
+interface VerlaufTabProps {
+  ressourceId: string
+}
+
+function VerlaufTab({ ressourceId }: VerlaufTabProps) {
+  const [eintraege, setEintraege] = React.useState<HistorieEintrag[]>([])
+  const [loading, setLoading] = React.useState(true)
+  const [notiz, setNotiz] = React.useState('')
+  const [saving, setSaving] = React.useState(false)
+
+  async function loadHistorie() {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/ressourcen/${ressourceId}/historie`)
+      if (res.ok) {
+        const d = await res.json()
+        setEintraege(d.historie ?? [])
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  React.useEffect(() => {
+    loadHistorie()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ressourceId])
+
+  async function handleNotizSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!notiz.trim()) return
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/ressourcen/${ressourceId}/historie`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: notiz.trim() }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error((err as { error?: string }).error ?? 'Fehler')
+      }
+      setNotiz('')
+      await loadHistorie()
+      toast.success('Notiz gespeichert')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Fehler beim Speichern')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function formatDateTime(dateStr: string) {
+    const d = new Date(dateStr)
+    return (
+      d.toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }) +
+      ', ' +
+      d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+    )
+  }
+
+  function getIcon(eintrag: HistorieEintrag): string {
+    if (eintrag.typ === 'manuell') return '📝'
+    if (eintrag.link_id) return '🔗'
+    return '⚙️'
+  }
+
+  function getAuthorLabel(eintrag: HistorieEintrag): string {
+    if (!eintrag.profiles) return 'System'
+    const { name, rolle } = eintrag.profiles
+    const parts = name.split(' ')
+    const short = parts.map((n, i) => (i === 0 ? n : n[0] + '.')).join(' ')
+    return `${short} (${rolle})`
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <form onSubmit={handleNotizSubmit} className="flex flex-col gap-2">
+        <Textarea
+          placeholder="Notiz hinzufügen… (max. 500 Zeichen)"
+          value={notiz}
+          onChange={(e) => setNotiz(e.target.value.slice(0, 500))}
+          rows={3}
+          className="resize-none text-sm"
+        />
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">{notiz.length}/500</span>
+          <Button type="submit" size="sm" disabled={!notiz.trim() || saving}>
+            {saving ? 'Speichern…' : 'Speichern'}
+          </Button>
+        </div>
+      </form>
+
+      <div className="border-t" />
+
+      {loading && (
+        <p className="py-6 text-center text-sm text-muted-foreground">Laden…</p>
+      )}
+
+      {!loading && eintraege.length === 0 && (
+        <p className="py-6 text-center text-sm text-muted-foreground">
+          Noch keine Verlaufseinträge vorhanden.
+        </p>
+      )}
+
+      {!loading && eintraege.length > 0 && (
+        <div className="flex flex-col gap-3">
+          {eintraege.map((eintrag) => (
+            <div key={eintrag.id} className="flex gap-3 text-sm">
+              <span className="mt-0.5 shrink-0 text-base leading-none">
+                {getIcon(eintrag)}
+              </span>
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <p className="break-words leading-snug">{eintrag.text}</p>
+                <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                  <span>{getAuthorLabel(eintrag)}</span>
+                  <span className="shrink-0">{formatDateTime(eintrag.created_at)}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── FeedbackTab ────────────────────────────────────────────────────────────────
 
 interface FeedbackTabProps {
@@ -786,6 +925,7 @@ function RessourceDetailSheet({
                 )}
               </TabsTrigger>
               <TabsTrigger value="feedback">Feedback</TabsTrigger>
+              <TabsTrigger value="verlauf">Verlauf</TabsTrigger>
             </TabsList>
 
             {/* ── Tab 1: Details ── */}
@@ -990,6 +1130,14 @@ function RessourceDetailSheet({
               className="mt-0 flex-1 overflow-y-auto px-6 py-4"
             >
               <FeedbackTab ressourceId={ressource.id} isManager={isManager} />
+            </TabsContent>
+
+            {/* ── Tab 4: Verlauf ── */}
+            <TabsContent
+              value="verlauf"
+              className="mt-0 flex-1 overflow-y-auto px-6 py-4"
+            >
+              <VerlaufTab ressourceId={ressource.id} />
             </TabsContent>
           </Tabs>
         </SheetContent>
