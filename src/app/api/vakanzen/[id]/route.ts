@@ -34,7 +34,7 @@ export async function GET(
       id, titel, branche, kunde, rolle, beschreibung, skills, skills_nice_have,
       erfahrungslevel, startdatum, enddatum, teamgroesse, fte_anzahl, auslastung,
       arbeitsmodell, onsite_anteil, ansprechpartner, status, standort, published, published_at,
-      budget_intern, slack_ts, slack_detail_posted_at, weitere_kommentare, created_at,
+      budget_intern, slack_ts, slack_detail_posted_at, weitere_kommentare, created_at, vakanz_nr,
       kandidaten_profile(count)
     `)
     .eq('id', id)

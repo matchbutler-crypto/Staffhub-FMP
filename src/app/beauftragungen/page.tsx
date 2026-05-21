@@ -71,6 +71,7 @@ interface Beauftragung {
   kandidatenname: string
   erfahrungslevel: string
   vakanz_titel: string
+  vakanz_nr?: string | null
   agentur_name: string
   einkaufspreis?: number
   agentur_rohpreis?: number
@@ -79,6 +80,7 @@ interface Beauftragung {
   verkaufspreis?: number
   marge_prozent?: number
   startdatum: string
+  enddatum?: string | null
   stunden_woche: number
   aktiv: boolean
 }
@@ -288,24 +290,35 @@ export default function BeauftragungPage() {
                       <TableHead>Kandidat</TableHead>
                       {isManager && <TableHead>Agentur</TableHead>}
                       <TableHead>Vakanz</TableHead>
+                      <TableHead className="text-right">EK/Tag</TableHead>
+                      {isManager && <TableHead className="text-right">Marge</TableHead>}
+                      {isManager && <TableHead className="text-right">Hays Fee</TableHead>}
+                      {isManager && <TableHead className="text-right">Gesamt</TableHead>}
                       <TableHead className="text-right">h/Woche</TableHead>
                       <TableHead>Start</TableHead>
+                      <TableHead>Ende</TableHead>
                       <TableHead>Status</TableHead>
                       {isManager && <TableHead className="w-10"></TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {loading ? (
-                      <TableSkeletonRows cols={isManager ? 7 : 5} />
+                      <TableSkeletonRows cols={isManager ? 12 : 7} />
                     ) : items.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={isManager ? 7 : 5} className="h-32 text-center text-muted-foreground">
+                        <TableCell colSpan={isManager ? 12 : 7} className="h-32 text-center text-muted-foreground">
                           <IconUserCheck className="mx-auto mb-2 size-8 opacity-30" />
                           Keine Beauftragungen gefunden.
                         </TableCell>
                       </TableRow>
                     ) : (
-                      items.map((b) => (
+                      items.map((b) => {
+                        const ek = b.einkaufspreis ?? 0
+                        const marge = b.margenaufschlag ?? 0
+                        const haysFee = Math.round((ek + marge) * 0.0134 * 100) / 100
+                        const gesamt = ek + marge + haysFee
+                        const fmtEur = (v: number) => v > 0 ? `${v.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} €` : '–'
+                        return (
                         <TableRow key={b.id} className={b.aktiv ? "" : "opacity-50"}>
                           <TableCell className="font-medium">
                             <div className="flex items-center gap-1.5">
@@ -323,12 +336,22 @@ export default function BeauftragungPage() {
                             <p className="text-xs text-muted-foreground">{b.erfahrungslevel}</p>
                           </TableCell>
                           {isManager && <TableCell className="text-sm">{b.agentur_name}</TableCell>}
-                          <TableCell className="text-sm text-muted-foreground max-w-[150px] truncate">
-                            {b.vakanz_titel}
+                          <TableCell className="text-sm max-w-[160px]">
+                            {b.vakanz_nr && (
+                              <span className="font-mono text-[11px] text-muted-foreground mr-1.5">{b.vakanz_nr}</span>
+                            )}
+                            <span className="text-muted-foreground truncate">{b.vakanz_titel}</span>
                           </TableCell>
+                          <TableCell className="text-right tabular-nums text-sm whitespace-nowrap">{fmtEur(ek)}</TableCell>
+                          {isManager && <TableCell className="text-right tabular-nums text-sm whitespace-nowrap">{fmtEur(marge)}</TableCell>}
+                          {isManager && <TableCell className="text-right tabular-nums text-sm whitespace-nowrap">{fmtEur(haysFee)}</TableCell>}
+                          {isManager && <TableCell className="text-right tabular-nums text-sm whitespace-nowrap font-medium">{fmtEur(gesamt)}</TableCell>}
                           <TableCell className="text-right tabular-nums text-sm">{b.stunden_woche}</TableCell>
                           <TableCell className="text-sm whitespace-nowrap">
                             {fmtDate(b.startdatum)}
+                          </TableCell>
+                          <TableCell className="text-sm whitespace-nowrap">
+                            {fmtDate(b.enddatum)}
                           </TableCell>
                           <TableCell>
                             <Badge variant={b.aktiv ? "default" : "secondary"} className="text-xs">
@@ -363,7 +386,8 @@ export default function BeauftragungPage() {
                             </TableCell>
                           )}
                         </TableRow>
-                      ))
+                      )
+                      })
                     )}
                   </TableBody>
                 </Table>

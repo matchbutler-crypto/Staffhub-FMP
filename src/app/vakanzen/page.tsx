@@ -102,6 +102,7 @@ interface Vakanz {
   slack_detail_posted_at?: string | null
   published?: boolean
   published_at?: string | null
+  vakanz_nr?: string | null
 }
 
 type ProfilStatus =
@@ -474,6 +475,9 @@ function VakanzCard({
         <div className="flex flex-1 flex-col gap-2.5 min-w-0">
           {/* Row 1: Title + Badges (same line, like detail view) */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            {vakanz.vakanz_nr && (
+              <span className="font-mono text-[11px] text-muted-foreground bg-muted border rounded px-1.5 py-0.5 shrink-0">{vakanz.vakanz_nr}</span>
+            )}
             <span className="font-semibold text-sm text-foreground leading-tight">{vakanz.rolle}</span>
             <div className="flex flex-wrap items-center gap-1.5">
               <span className={`inline-flex shrink-0 items-center rounded border px-1.5 py-0.5 text-xs font-medium ${statusColors[vakanz.status]}`}>

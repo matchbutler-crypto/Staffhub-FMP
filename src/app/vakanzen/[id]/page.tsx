@@ -59,6 +59,7 @@ interface Vakanz {
   weitere_kommentare?: string | null
   published?: boolean
   published_at?: string | null
+  vakanz_nr?: string | null
 }
 
 type ProfilStatus = "Eingereicht" | "In Prüfung" | "Präsentiert" | "Interview" | "Beauftragt" | "Abgelehnt" | "Archiviert"
@@ -363,6 +364,9 @@ export default function VakanzDetailPage() {
 
                   {/* Row 1: Title + Status-Badges */}
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    {vakanz.vakanz_nr && (
+                      <span className="font-mono text-xs text-muted-foreground bg-muted border rounded px-1.5 py-0.5 shrink-0">{vakanz.vakanz_nr}</span>
+                    )}
                     <h1 className="text-lg font-semibold leading-tight">{vakanz.rolle}</h1>
                     <div className="flex flex-wrap items-center gap-1.5">
                       <Badge variant="outline" className={`text-xs ${STATUS_COLORS[vakanzStatus] ?? ""}`}>{vakanzStatus}</Badge>

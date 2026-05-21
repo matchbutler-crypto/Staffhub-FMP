@@ -149,11 +149,12 @@ export async function GET(request: NextRequest) {
       margenaufschlag,
       verkaufspreis,
       startdatum,
+      enddatum,
       stunden_woche,
       aktiv,
       created_at,
       updated_at,
-      kandidaten_profile(kandidatenname, erfahrungslevel, vakanz_id, vakanzen(titel)),
+      kandidaten_profile(kandidatenname, erfahrungslevel, vakanz_id, vakanzen(titel, vakanz_nr)),
       agenturen!inner(name)
     `, { count: 'exact' })
     .order('created_at', { ascending: false })
@@ -171,12 +172,14 @@ export async function GET(request: NextRequest) {
 
   const result = (data ?? []).map((b) => {
     const { kandidaten_profile, agenturen, einkaufspreis, margenaufschlag, verkaufspreis, ...rest } = b as typeof b & {
-      kandidaten_profile: { kandidatenname: string; erfahrungslevel: string; vakanz_id: string; vakanzen: { titel: string } | null } | null
+      kandidaten_profile: { kandidatenname: string; erfahrungslevel: string; vakanz_id: string; vakanzen: { titel: string; vakanz_nr: string | null } | null } | null
       agenturen: { name: string } | null
     }
     const marge_euro = Number(margenaufschlag)
     const vk = Number(verkaufspreis)
     const isPool = !b.profil_id
+
+    const vakanzNr = isPool ? null : (kandidaten_profile?.vakanzen?.vakanz_nr ?? null)
 
     const base = {
       ...rest,
@@ -184,13 +187,14 @@ export async function GET(request: NextRequest) {
       kandidatenname: isPool ? (b.ressource_name ?? '–') : (kandidaten_profile?.kandidatenname ?? '–'),
       erfahrungslevel: isPool ? (b.erfahrungslevel_pool ?? '–') : (kandidaten_profile?.erfahrungslevel ?? '–'),
       vakanz_titel: isPool ? (b.vakanz_titel ?? '–') : (kandidaten_profile?.vakanzen?.titel ?? '–'),
+      vakanz_nr: vakanzNr,
       agentur_name: agenturen?.name ?? '–',
+      einkaufspreis: Number(einkaufspreis),
     }
 
     if (isManager) {
       return {
         ...base,
-        einkaufspreis: Number(einkaufspreis),
         margenaufschlag: Number(margenaufschlag),
         verkaufspreis: vk,
         marge_prozent: vk > 0 ? Math.round((marge_euro / vk) * 100) : 0,
