@@ -327,7 +327,7 @@ export default function BeauftragungPage() {
                       <TableHead>Kandidat</TableHead>
                       {isManager && <TableHead>Agentur</TableHead>}
                       <TableHead>Vakanz</TableHead>
-                      <TableHead className="text-right">h/Woche</TableHead>
+                      {!isManager && <TableHead className="text-right">h/Woche</TableHead>}
                       {isManager && (
                         <>
                           <TableHead className="text-right">
@@ -335,12 +335,9 @@ export default function BeauftragungPage() {
                               <IconLock className="size-3 text-muted-foreground" />EK €/Tag
                             </span>
                           </TableHead>
-                          <TableHead className="text-right">VK €/Tag</TableHead>
-                          <TableHead className="text-right">
-                            <span className="inline-flex items-center gap-1">
-                              <IconLock className="size-3 text-muted-foreground" />Marge%
-                            </span>
-                          </TableHead>
+                          <TableHead className="text-right">StaffHub Marge</TableHead>
+                          <TableHead className="text-right">Hays Fee</TableHead>
+                          <TableHead className="text-right">Gesamtrate/Tag</TableHead>
                         </>
                       )}
                       <TableHead>Start</TableHead>
@@ -363,7 +360,7 @@ export default function BeauftragungPage() {
                         <TableRow key={b.id} className={b.aktiv ? "" : "opacity-50"}>
                           <TableCell className="font-medium">
                             <div className="flex items-center gap-1.5">
-                              {b.is_pool && (
+                              {!isManager && b.is_pool && (
                                 <span className="inline-flex items-center rounded border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-teal-700">Pool</span>
                               )}
                               {b.is_pool ? (
@@ -374,26 +371,37 @@ export default function BeauftragungPage() {
                                 </Link>
                               )}
                             </div>
-                            <p className="text-xs text-muted-foreground">{b.erfahrungslevel}</p>
+                            {!isManager && <p className="text-xs text-muted-foreground">{b.erfahrungslevel}</p>}
                           </TableCell>
                           {isManager && <TableCell className="text-sm">{b.agentur_name}</TableCell>}
                           <TableCell className="text-sm text-muted-foreground max-w-[150px] truncate">
                             {b.vakanz_titel}
                           </TableCell>
-                          <TableCell className="text-right tabular-nums text-sm">{b.stunden_woche}</TableCell>
-                          {isManager && (
-                            <>
-                              <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
-                                {b.einkaufspreis != null ? Number(b.einkaufspreis).toLocaleString("de-DE") + " €" : "–"}
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums text-sm font-medium">
-                                {b.verkaufspreis != null ? Number(b.verkaufspreis).toLocaleString("de-DE") + " €" : "–"}
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
-                                {b.marge_prozent != null ? b.marge_prozent + "%" : "–"}
-                              </TableCell>
-                            </>
-                          )}
+                          {!isManager && <TableCell className="text-right tabular-nums text-sm">{b.stunden_woche}</TableCell>}
+                          {isManager && (() => {
+                            const ek = b.einkaufspreis ?? 0
+                            const marge = b.margenaufschlag ?? 0
+                            const haysFee = Math.round((ek + marge) * 0.0134 * 100) / 100
+                            const gesamtrate = ek + marge + haysFee
+                            const fmt = (n: number) => n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €"
+                            const hasData = b.einkaufspreis != null && b.margenaufschlag != null
+                            return (
+                              <>
+                                <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
+                                  {b.einkaufspreis != null ? fmt(ek) : "–"}
+                                </TableCell>
+                                <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
+                                  {b.margenaufschlag != null ? fmt(marge) : "–"}
+                                </TableCell>
+                                <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
+                                  {hasData ? fmt(haysFee) : "–"}
+                                </TableCell>
+                                <TableCell className="text-right tabular-nums text-sm font-medium">
+                                  {hasData ? fmt(gesamtrate) : "–"}
+                                </TableCell>
+                              </>
+                            )
+                          })()}
                           <TableCell className="text-sm whitespace-nowrap">
                             {fmtDate(b.startdatum)}
                           </TableCell>
