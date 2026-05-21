@@ -64,10 +64,6 @@ import {
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-interface Agentur {
-  name: string
-}
-
 interface Ressource {
   id: string
   agentur_id: string
@@ -83,9 +79,9 @@ interface Ressource {
   link_count?: number
   arbeitsmodell?: string | null
   location?: string | null
+  agentur_name?: string | null
   created_at: string
   updated_at: string
-  agenturen?: Agentur | null
 }
 
 type LinkStatus =
@@ -919,7 +915,7 @@ function RessourceDetailSheet({
           <SheetHeader className="flex-none border-b px-6 py-4">
             <SheetTitle>{ressource.name}</SheetTitle>
             <SheetDescription>
-              {ressource.agenturen?.name ?? "Unbekannte Agentur"}
+              {ressource.agentur_name ?? "Unbekannte Agentur"}
             </SheetDescription>
           </SheetHeader>
 
@@ -1027,7 +1023,7 @@ function RessourceDetailSheet({
                 <div className="rounded-lg border bg-muted/40 px-4 py-3">
                   <div className="grid grid-cols-2 gap-y-2 text-xs">
                     <span className="text-muted-foreground">Agentur</span>
-                    <span>{ressource.agenturen?.name ?? "—"}</span>
+                    <span>{ressource.agentur_name ?? "—"}</span>
                     <span className="text-muted-foreground">Angelegt</span>
                     <span>
                       {new Date(ressource.created_at).toLocaleDateString(
@@ -1190,8 +1186,8 @@ export default function RessourcenPage() {
   const agenturen = React.useMemo(() => {
     const seen = new Map<string, string>()
     for (const r of ressourcen) {
-      if (r.agentur_id && r.agenturen?.name) {
-        seen.set(r.agentur_id, r.agenturen.name)
+      if (r.agentur_id && r.agentur_name) {
+        seen.set(r.agentur_id, r.agentur_name)
       }
     }
     return Array.from(seen.entries()).sort((a, b) => a[1].localeCompare(b[1]))
@@ -1356,7 +1352,7 @@ export default function RessourcenPage() {
                                 onClick={() => { setSelectedRessource(r); setDetailOpen(true) }}
                               >
                                 <TableCell className="font-medium">{r.name}</TableCell>
-                                <TableCell className="text-sm text-muted-foreground">{r.agenturen?.name ?? "—"}</TableCell>
+                                <TableCell className="text-sm text-muted-foreground">{r.agentur_name ?? "—"}</TableCell>
                                 <TableCell className="text-sm text-muted-foreground">{r.rolle || "—"}</TableCell>
                                 <TableCell className="text-sm text-muted-foreground">
                                   {r.verfuegbar_ab
