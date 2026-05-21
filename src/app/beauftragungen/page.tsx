@@ -6,7 +6,6 @@ import { toast } from "sonner"
 import {
   IconBuilding,
   IconDotsVertical,
-  IconLock,
   IconPencil,
   IconPlayerStop,
   IconUserCheck,
@@ -327,19 +326,7 @@ export default function BeauftragungPage() {
                       <TableHead>Kandidat</TableHead>
                       {isManager && <TableHead>Agentur</TableHead>}
                       <TableHead>Vakanz</TableHead>
-                      {!isManager && <TableHead className="text-right">h/Woche</TableHead>}
-                      {isManager && (
-                        <>
-                          <TableHead className="text-right">
-                            <span className="inline-flex items-center gap-1">
-                              <IconLock className="size-3 text-muted-foreground" />EK €/Tag
-                            </span>
-                          </TableHead>
-                          <TableHead className="text-right">StaffHub Marge</TableHead>
-                          <TableHead className="text-right">Hays Fee</TableHead>
-                          <TableHead className="text-right">Gesamtrate/Tag</TableHead>
-                        </>
-                      )}
+                      <TableHead className="text-right">h/Woche</TableHead>
                       <TableHead>Start</TableHead>
                       <TableHead>Status</TableHead>
                       {isManager && <TableHead className="w-10"></TableHead>}
@@ -347,10 +334,10 @@ export default function BeauftragungPage() {
                   </TableHeader>
                   <TableBody>
                     {loading ? (
-                      <TableSkeletonRows cols={isManager ? 10 : 5} />
+                      <TableSkeletonRows cols={isManager ? 7 : 5} />
                     ) : items.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={isManager ? 10 : 5} className="h-32 text-center text-muted-foreground">
+                        <TableCell colSpan={isManager ? 7 : 5} className="h-32 text-center text-muted-foreground">
                           <IconUserCheck className="mx-auto mb-2 size-8 opacity-30" />
                           Keine Beauftragungen gefunden.
                         </TableCell>
@@ -360,7 +347,7 @@ export default function BeauftragungPage() {
                         <TableRow key={b.id} className={b.aktiv ? "" : "opacity-50"}>
                           <TableCell className="font-medium">
                             <div className="flex items-center gap-1.5">
-                              {!isManager && b.is_pool && (
+                              {b.is_pool && (
                                 <span className="inline-flex items-center rounded border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-teal-700">Pool</span>
                               )}
                               {b.is_pool ? (
@@ -371,37 +358,13 @@ export default function BeauftragungPage() {
                                 </Link>
                               )}
                             </div>
-                            {!isManager && <p className="text-xs text-muted-foreground">{b.erfahrungslevel}</p>}
+                            <p className="text-xs text-muted-foreground">{b.erfahrungslevel}</p>
                           </TableCell>
                           {isManager && <TableCell className="text-sm">{b.agentur_name}</TableCell>}
                           <TableCell className="text-sm text-muted-foreground max-w-[150px] truncate">
                             {b.vakanz_titel}
                           </TableCell>
-                          {!isManager && <TableCell className="text-right tabular-nums text-sm">{b.stunden_woche}</TableCell>}
-                          {isManager && (() => {
-                            const ek = b.einkaufspreis ?? 0
-                            const marge = b.margenaufschlag ?? 0
-                            const haysFee = Math.round((ek + marge) * 0.0134 * 100) / 100
-                            const gesamtrate = ek + marge + haysFee
-                            const fmt = (n: number) => n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €"
-                            const hasData = b.einkaufspreis != null && b.margenaufschlag != null
-                            return (
-                              <>
-                                <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
-                                  {b.einkaufspreis != null ? fmt(ek) : "–"}
-                                </TableCell>
-                                <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
-                                  {b.margenaufschlag != null ? fmt(marge) : "–"}
-                                </TableCell>
-                                <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
-                                  {hasData ? fmt(haysFee) : "–"}
-                                </TableCell>
-                                <TableCell className="text-right tabular-nums text-sm font-medium">
-                                  {hasData ? fmt(gesamtrate) : "–"}
-                                </TableCell>
-                              </>
-                            )
-                          })()}
+                          <TableCell className="text-right tabular-nums text-sm">{b.stunden_woche}</TableCell>
                           <TableCell className="text-sm whitespace-nowrap">
                             {fmtDate(b.startdatum)}
                           </TableCell>
