@@ -33,7 +33,7 @@ export async function GET(
     .select(`
       id, titel, branche, kunde, rolle, beschreibung, skills, skills_nice_have,
       erfahrungslevel, startdatum, enddatum, teamgroesse, fte_anzahl, auslastung,
-      arbeitsmodell, onsite_anteil, ansprechpartner, status, standort, published,
+      arbeitsmodell, onsite_anteil, ansprechpartner, status, standort, published, published_at,
       budget_intern, slack_ts, slack_detail_posted_at, weitere_kommentare, created_at,
       kandidaten_profile(count)
     `)
@@ -50,12 +50,12 @@ export async function GET(
     return NextResponse.json({ error: 'Vakanz nicht gefunden' }, { status: 404 })
   }
 
-  const { budget_intern, slack_ts, slack_detail_posted_at, weitere_kommentare, published, kandidaten_profile, ...rest } = vakanz
+  const { budget_intern, slack_ts, slack_detail_posted_at, weitere_kommentare, published, published_at, kandidaten_profile, ...rest } = vakanz
   return NextResponse.json({
     vakanz: {
       ...rest,
       profile_anzahl: (kandidaten_profile as { count: number }[])?.[0]?.count ?? 0,
-      ...(isAgentur ? {} : { budget_intern, slack_ts, slack_detail_posted_at, weitere_kommentare, published }),
+      ...(isAgentur ? {} : { budget_intern, slack_ts, slack_detail_posted_at, weitere_kommentare, published, published_at }),
     },
   })
 }

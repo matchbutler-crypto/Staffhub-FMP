@@ -48,6 +48,7 @@ export async function PATCH(
   const updatePayload: Record<string, unknown> = { status: parsed.data.status }
   if (parsed.data.status === 'Besetzt') {
     updatePayload.besetzt_seit = new Date().toISOString()
+    updatePayload.published = false
   } else {
     updatePayload.besetzt_seit = null
   }
@@ -56,7 +57,7 @@ export async function PATCH(
     .from('vakanzen_data')
     .update(updatePayload)
     .eq('id', id)
-    .select('id, titel, status, besetzt_seit, updated_at')
+    .select('id, titel, status, besetzt_seit, published, published_at, updated_at')
     .single()
 
   if (error) {

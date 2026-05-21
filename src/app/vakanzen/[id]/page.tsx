@@ -58,6 +58,7 @@ interface Vakanz {
   budget_intern?: number | null
   weitere_kommentare?: string | null
   published?: boolean
+  published_at?: string | null
 }
 
 type ProfilStatus = "Eingereicht" | "In Prüfung" | "Präsentiert" | "Interview" | "Beauftragt" | "Abgelehnt" | "Archiviert"
@@ -389,6 +390,12 @@ export default function VakanzDetailPage() {
                       <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Auslastung</p>
                       <p className="text-xs font-medium">{vakanz.auslastung}%</p>
                     </div>
+                    {vakanz.published && vakanz.published_at && (
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Veröffentlicht</p>
+                        <p className="text-xs font-medium">{fmt(vakanz.published_at)}</p>
+                      </div>
+                    )}
                     {vakanz.standort && (
                       <div>
                         <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Standort</p>

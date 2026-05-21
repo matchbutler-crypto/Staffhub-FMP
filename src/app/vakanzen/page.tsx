@@ -101,6 +101,7 @@ interface Vakanz {
   slack_ts?: string | null
   slack_detail_posted_at?: string | null
   published?: boolean
+  published_at?: string | null
 }
 
 type ProfilStatus =
@@ -510,6 +511,12 @@ function VakanzCard({
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Auslastung</p>
               <p className="text-xs font-medium">{vakanz.auslastung}%</p>
             </div>
+            {vakanz.published && vakanz.published_at && (
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Veröffentlicht</p>
+                <p className="text-xs font-medium">{new Date(vakanz.published_at).toLocaleDateString("de-DE")}</p>
+              </div>
+            )}
             {vakanz.standort && (
               <div>
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Standort</p>

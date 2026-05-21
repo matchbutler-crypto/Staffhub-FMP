@@ -37,6 +37,19 @@ export async function PATCH(
     return NextResponse.json({ error: 'Ungültige Eingabe' }, { status: 400 })
   }
 
+  // Wenn published=true, prüfe ob Vakanz Status Besetzt ist
+  if (parsed.data.published === true) {
+    const { data: vakanz } = await supabase
+      .from('vakanzen_data')
+      .select('status')
+      .eq('id', id)
+      .single()
+
+    if (vakanz?.status === 'Besetzt') {
+      return NextResponse.json({ error: 'Besetzte Vakanzen können nicht veröffentlicht werden' }, { status: 400 })
+    }
+  }
+
   const { error } = await supabase
     .from('vakanzen_data')
     .update({ published: parsed.data.published })
