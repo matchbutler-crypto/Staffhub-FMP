@@ -72,6 +72,7 @@ interface Ressource {
   id: string
   agentur_id: string
   name: string
+  rolle?: string | null
   skills: string[]
   erfahrungslevel: Erfahrungslevel
   verfuegbarkeit: RessourceVerfuegbarkeit
@@ -80,6 +81,8 @@ interface Ressource {
   ek_tagesrate?: number | null
   notizen?: string | null
   link_count?: number
+  arbeitsmodell?: string | null
+  location?: string | null
   created_at: string
   updated_at: string
   agenturen?: Agentur | null
@@ -156,6 +159,13 @@ const verfuegbarkeitColors: Record<RessourceVerfuegbarkeit, string> = {
   "Verfügbar ab": "bg-blue-100 text-blue-700 border-blue-200",
   "Nicht verfügbar": "bg-orange-100 text-orange-700 border-orange-200",
   Deaktiviert: "bg-gray-100 text-gray-500 border-gray-200",
+}
+
+const verfuegbarkeitLabel: Record<RessourceVerfuegbarkeit, string> = {
+  "Jetzt verfügbar": "Verfügbar",
+  "Verfügbar ab": "Verfügbar",
+  "Nicht verfügbar": "Nicht verfügbar",
+  Deaktiviert: "Deaktiviert",
 }
 
 const erfahrungsColors: Record<Erfahrungslevel, string> = {
@@ -1136,6 +1146,20 @@ export default function RessourcenPage() {
     }
   }
 
+  async function downloadCv(r: Ressource) {
+    try {
+      const res = await fetch(`/api/ressourcen/${r.id}/cv`)
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error ?? "Fehler")
+      }
+      const { url } = await res.json()
+      window.open(url, "_blank")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "CV-Download fehlgeschlagen")
+    }
+  }
+
   async function fetchRessourcen() {
     setLoading(true)
     setError(null)
@@ -1301,20 +1325,21 @@ export default function RessourcenPage() {
                       <TableRow>
                         <TableHead>Name</TableHead>
                         <TableHead>Agentur</TableHead>
-                        <TableHead>Skills</TableHead>
-                        <TableHead>Level</TableHead>
+                        <TableHead>Rolle</TableHead>
+                        <TableHead>Verfügbar ab</TableHead>
+                        <TableHead>Location</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>EK-Rate</TableHead>
-                        <TableHead>Vakanzen</TableHead>
-                        <TableHead>Aktualisiert</TableHead>
+                        <TableHead>Gespielt</TableHead>
+                        <TableHead>CV</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {loading ? (
-                        <TableSkeletonRows cols={8} />
+                        <TableSkeletonRows cols={9} />
                       ) : filtered.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={8} className="py-12 text-center text-muted-foreground">
+                          <TableCell colSpan={9} className="py-12 text-center text-muted-foreground">
                             {ressourcen.length === 0 ? "Noch keine Ressourcen vorhanden." : "Keine Ressourcen für diese Filter."}
                           </TableCell>
                         </TableRow>
@@ -1331,18 +1356,24 @@ export default function RessourcenPage() {
                                 onClick={() => { setSelectedRessource(r); setDetailOpen(true) }}
                               >
                                 <TableCell className="font-medium">{r.name}</TableCell>
-                                <TableCell className="text-muted-foreground">{r.agenturen?.name ?? "—"}</TableCell>
-                                <TableCell><SkillTags skills={r.skills} /></TableCell>
+                                <TableCell className="text-sm text-muted-foreground">{r.agenturen?.name ?? "—"}</TableCell>
+                                <TableCell className="text-sm text-muted-foreground">{r.rolle || "—"}</TableCell>
+                                <TableCell className="text-sm text-muted-foreground">
+                                  {r.verfuegbar_ab
+                                    ? new Date(r.verfuegbar_ab).toLocaleDateString("de-DE")
+                                    : "—"}
+                                </TableCell>
                                 <TableCell>
-                                  <Badge variant="outline" className={erfahrungsColors[r.erfahrungslevel]}>
-                                    {r.erfahrungslevel}
-                                  </Badge>
+                                  <div className="flex flex-col gap-0.5 text-sm">
+                                    {r.arbeitsmodell && r.arbeitsmodell !== "Onshore" ? (
+                                      <span className="text-muted-foreground text-xs">{r.arbeitsmodell}</span>
+                                    ) : null}
+                                    <span>{r.location ?? "—"}</span>
+                                  </div>
                                 </TableCell>
                                 <TableCell>
                                   <Badge variant="outline" className={verfuegbarkeitColors[r.verfuegbarkeit]}>
-                                    {r.verfuegbarkeit}
-                                    {r.verfuegbarkeit === "Verfügbar ab" && r.verfuegbar_ab &&
-                                      ` ${new Date(r.verfuegbar_ab).toLocaleDateString("de-DE")}`}
+                                    {verfuegbarkeitLabel[r.verfuegbarkeit]}
                                   </Badge>
                                 </TableCell>
                                 <TableCell>
@@ -1364,16 +1395,28 @@ export default function RessourcenPage() {
                                       />
                                     </button>
                                   ) : (
-                                    <span className="text-muted-foreground">—</span>
+                                    <span className="text-muted-foreground text-xs">—</span>
                                   )}
                                 </TableCell>
-                                <TableCell className="text-xs text-muted-foreground">
-                                  {new Date(r.updated_at).toLocaleDateString("de-DE")}
+                                <TableCell>
+                                  {r.cv_pfad ? (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="gap-1.5 text-xs"
+                                      onClick={(e) => { e.stopPropagation(); downloadCv(r) }}
+                                    >
+                                      <IconDownload className="size-3.5" />
+                                      CV
+                                    </Button>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground">Kein CV</span>
+                                  )}
                                 </TableCell>
                               </TableRow>
                               {isExpanded && (
                                 <TableRow className="bg-muted/30 hover:bg-muted/30">
-                                  <TableCell colSpan={8} className="px-6 py-0">
+                                  <TableCell colSpan={9} className="px-6 py-0">
                                     {isLoadingLinks ? (
                                       <div className="py-2">
                                         {[1, 2].map((i) => (
