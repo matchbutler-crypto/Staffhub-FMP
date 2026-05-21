@@ -154,6 +154,8 @@ export async function GET(request: NextRequest) {
       aktiv,
       created_at,
       updated_at,
+      vakanz_id,
+      vakanzen_data!vakanz_id(vakanz_nr),
       kandidaten_profile(kandidatenname, erfahrungslevel, vakanz_id, vakanzen(titel, vakanz_nr)),
       agenturen!inner(name)
     `, { count: 'exact' })
@@ -172,14 +174,17 @@ export async function GET(request: NextRequest) {
 
   const result = (data ?? []).map((b) => {
     const { kandidaten_profile, agenturen, einkaufspreis, margenaufschlag, verkaufspreis, ...rest } = b as typeof b & {
+      vakanzen_data: { vakanz_nr: string | null } | null
       kandidaten_profile: { kandidatenname: string; erfahrungslevel: string; vakanz_id: string; vakanzen: { titel: string; vakanz_nr: string | null } | null } | null
       agenturen: { name: string } | null
     }
+    const bTyped = b as typeof b & { vakanzen_data: { vakanz_nr: string | null } | null }
     const marge_euro = Number(margenaufschlag)
     const vk = Number(verkaufspreis)
     const isPool = !b.profil_id
 
-    const vakanzNr = isPool ? null : (kandidaten_profile?.vakanzen?.vakanz_nr ?? null)
+    // Use direct vakanz_id join first (works for pool entries), fall back to kandidaten_profile path
+    const vakanzNr = bTyped.vakanzen_data?.vakanz_nr ?? (kandidaten_profile?.vakanzen?.vakanz_nr ?? null)
 
     const base = {
       ...rest,
