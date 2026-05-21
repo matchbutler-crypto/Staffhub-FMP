@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await supabase
     .from('zeitnachweise')
-    .select('id, beauftragung_id, monat, stunden_ist, uploaded_at')
+    .select('id, beauftragung_id, monat, stunden_ist, tage_ist_override, uploaded_at')
     .in('beauftragung_id', ids)
     .eq('monat', monat)
 
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
       },
       { onConflict: 'beauftragung_id,monat' }
     )
-    .select('id, beauftragung_id, monat, stunden_ist, uploaded_at')
+    .select('id, beauftragung_id, monat, stunden_ist, tage_ist_override, uploaded_at')
     .single()
 
   if (dbError) {

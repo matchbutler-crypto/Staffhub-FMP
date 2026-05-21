@@ -13,7 +13,10 @@ import {
   IconPrinter,
   IconUpload,
   IconUserCheck,
+  IconDotsVertical,
+  IconCheck,
 } from "@tabler/icons-react"
+import { toast } from "sonner"
 
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
@@ -35,6 +38,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -46,6 +64,7 @@ interface Beauftragung {
   kandidatenname: string
   erfahrungslevel: string
   vakanz_titel: string
+  vakanz_nr?: string | null
   einkaufspreis?: number
   margenaufschlag?: number
   verkaufspreis?: number
@@ -60,6 +79,7 @@ interface Zeitnachweis {
   beauftragung_id: string
   monat: string
   stunden_ist: number | null
+  tage_ist_override?: number | null
   uploaded_at: string
 }
 
@@ -81,57 +101,6 @@ function fmt(n: number) {
   return n.toLocaleString("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })
 }
 
-function effectiveStunden(b: Beauftragung, zn: Zeitnachweis | undefined): number {
-  return zn?.stunden_ist ?? (b.stunden_woche * 4)
-}
-
-function calcMarge(b: Beauftragung, zn?: Zeitnachweis): number {
-  return ((b.verkaufspreis ?? 0) - (b.einkaufspreis ?? 0)) * effectiveStunden(b, zn)
-}
-
-function calcGesamtbetrag(b: Beauftragung, zn?: Zeitnachweis): number {
-  return (b.verkaufspreis ?? 0) * effectiveStunden(b, zn)
-}
-
-// Legacy helpers for backward compatibility with existing JSX
-function calcUmsatz(b: Beauftragung, zn?: Zeitnachweis) {
-  return (b.verkaufspreis ?? 0) * effectiveStunden(b, zn)
-}
-
-function calcKosten(b: Beauftragung, zn?: Zeitnachweis) {
-  return (b.einkaufspreis ?? 0) * effectiveStunden(b, zn)
-}
-
-interface AgenturGruppe {
-  agentur_name: string
-  agentur_id: string
-  zeilen: Beauftragung[]
-  umsatz: number
-  kosten: number
-  marge: number
-}
-
-function gruppiereNachAgentur(
-  daten: Beauftragung[],
-  zeitnachweise: Map<string, Zeitnachweis>
-): AgenturGruppe[] {
-  const map = new Map<string, AgenturGruppe>()
-  for (const b of daten) {
-    if (!map.has(b.agentur_id)) {
-      map.set(b.agentur_id, { agentur_name: b.agentur_name, agentur_id: b.agentur_id, zeilen: [], umsatz: 0, kosten: 0, marge: 0 })
-    }
-    const g = map.get(b.agentur_id)!
-    const zn = zeitnachweise.get(b.id)
-    const u = calcUmsatz(b, zn)
-    const k = calcKosten(b, zn)
-    g.zeilen.push(b)
-    g.umsatz += u
-    g.kosten += k
-    g.marge += u - k
-  }
-  return Array.from(map.values()).sort((a, b) => a.agentur_name.localeCompare(b.agentur_name, "de"))
-}
-
 function monateListe() {
   const heute = new Date()
   const monate: { value: string; label: string }[] = []
@@ -149,61 +118,11 @@ function aktuellerMonat() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
 }
 
-function exportCSV(
-  beauftragungen: Beauftragung[],
-  zeitnachweise: Map<string, Zeitnachweis>,
-  rechnungen: Map<string, Rechnung>,
-  monatLabel: string
-) {
-  const BOM = "\uFEFF"
-  const sep = ";"
-  const header = [
-    "Ressource",
-    "Vakanz",
-    "h/Woche",
-    "Stunden (Ist)",
-    "EK €/Tag",
-    "VK €/Tag",
-    "Marge%",
-    "Umsatz",
-    "Kosten",
-    "Marge €",
-    "Status",
-    "Offene Beträge",
-  ].join(sep)
-  const zeilen: string[] = [BOM + header]
-  for (const b of beauftragungen) {
-    const zn = zeitnachweise.get(b.id)
-    const rech = rechnungen.get(b.id)
-    const stunden = effectiveStunden(b, zn)
-    const umsatz = calcGesamtbetrag(b, zn)
-    const kosten = (b.einkaufspreis ?? 0) * stunden
-    const marge = calcMarge(b, zn)
-    const offene = rech && rech.status !== "Bezahlt" ? rech.gesamtbetrag - rech.betrag_bezahlt : 0
-    zeilen.push(
-      [
-        b.kandidatenname,
-        b.vakanz_titel,
-        b.stunden_woche,
-        stunden,
-        (b.einkaufspreis ?? 0).toFixed(2).replace(".", ","),
-        (b.verkaufspreis ?? 0).toFixed(2).replace(".", ","),
-        `${b.marge_prozent ?? 0}%`,
-        umsatz.toFixed(2).replace(".", ","),
-        kosten.toFixed(2).replace(".", ","),
-        marge.toFixed(2).replace(".", ","),
-        rech?.status ?? "—",
-        offene.toFixed(2).replace(".", ","),
-      ].join(sep)
-    )
-  }
-  const blob = new Blob([zeilen.join("\r\n")], { type: "text/csv;charset=utf-8;" })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement("a")
-  a.href = url
-  a.download = `Abrechnung_${monatLabel.replace(/\s/g, "_")}.csv`
-  a.click()
-  URL.revokeObjectURL(url)
+function calcTageIst(zn: Zeitnachweis | undefined): number {
+  if (!zn) return 0
+  if (zn.tage_ist_override !== null && zn.tage_ist_override !== undefined) return zn.tage_ist_override
+  if (zn.stunden_ist !== null && zn.stunden_ist !== undefined) return Math.round(zn.stunden_ist / 8)
+  return 0
 }
 
 function SortIcon({ column, active, direction }: { column: string; active: boolean; direction?: "asc" | "desc" }) {
@@ -242,7 +161,6 @@ export default function AbrechnungPage() {
 
   // Filtering & Sorting
   const [filterAgentur, setFilterAgentur] = React.useState<string>("Alle")
-  const [filterStatus, setFilterStatus] = React.useState<string>("Alle")
   const [sortColumn, setSortColumn] = React.useState<string>("Ressource")
   const [sortDirection, setSortDirection] = React.useState<"asc" | "desc">("asc")
 
@@ -252,10 +170,12 @@ export default function AbrechnungPage() {
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const uploadTargetRef = React.useRef<{ beauftragungId: string; monat: string } | null>(null)
 
-  // Legacy state for backward compatibility with existing JSX
-  const [expanded, setExpanded] = React.useState<Record<string, boolean>>({})
-  const [margenOverrides, setMargenOverrides] = React.useState<Record<string, number>>({})
-  const [savingMarge, setSavingMarge] = React.useState<Record<string, boolean>>({})
+  // IST-Tage Dialog state
+  const [editTageDialogOpen, setEditTageDialogOpen] = React.useState(false)
+  const [editTageZn, setEditTageZn] = React.useState<Zeitnachweis | null>(null)
+  const [editTageBeauf, setEditTageBeauf] = React.useState<Beauftragung | null>(null)
+  const [editTageValue, setEditTageValue] = React.useState<string>("")
+  const [savingTage, setSavingTage] = React.useState(false)
 
   const monate = React.useMemo(() => monateListe(), [])
 
@@ -277,10 +197,6 @@ export default function AbrechnungPage() {
         setBeauftragungen(filtered)
         if (beauftragungen.rolle) setRolle(beauftragungen.rolle)
 
-        // Initialize expanded state for agencies
-        const ids = [...new Set(filtered.map((b: Beauftragung) => b.agentur_id))]
-        setExpanded(Object.fromEntries(ids.map((id) => [id, true])))
-
         const znMap = new Map<string, Zeitnachweis>()
         for (const zn of (znList ?? [])) znMap.set(zn.beauftragung_id, zn)
         setZeitnachweise(znMap)
@@ -297,67 +213,14 @@ export default function AbrechnungPage() {
   const monatEnde = new Date(monatJahr, monatMonat, 0)
   const gefiltert = beauftragungen.filter((b) => new Date(b.startdatum) <= monatEnde && b.aktiv)
 
-  const gruppen = React.useMemo(
-    () => gruppiereNachAgentur(gefiltert, zeitnachweise),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [monat, beauftragungen, zeitnachweise]
-  )
-
   const isFinancial = rolle === 'Staffhub Manager' || rolle === 'Admin'
   const isController = rolle === 'Controller'
-  const isAgentur = rolle === 'Agentur'
-  const canEditMarge = rolle === 'Admin'
-  const colCount = loading || isFinancial ? (canEditMarge ? 12 : 11) : isController ? 8 : 5
-
-  const totalUmsatz = gruppen.reduce((s, g) => s + g.umsatz, 0)
-  const totalKosten = gruppen.reduce((s, g) => s + g.kosten, 0)
-  const totalMarge = totalUmsatz - totalKosten
 
   const monatLabel = monate.find((m) => m.value === monat)?.label ?? monat
 
-  const summaryCards = [
-    { title: `Gesamt-Umsatz ${monatLabel}`, value: loading ? "–" : fmt(totalUmsatz), icon: IconCurrencyEuro },
-    { title: `Gesamt-Kosten ${monatLabel}`, value: loading ? "–" : fmt(totalKosten), icon: IconLock },
-    { title: `Gesamt-Marge ${monatLabel}`,  value: loading ? "–" : fmt(totalMarge),  icon: IconLock },
-    { title: "Aktive Beauftragungen",        value: loading ? "–" : String(gefiltert.length), icon: IconUserCheck },
-  ]
+  // Filtered + sorted data
+  let filtered = gefiltert.filter((b) => filterAgentur === 'Alle' || b.agentur_id === filterAgentur)
 
-  const handleSort = (column: string) => {
-    if (sortColumn === column) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
-    } else {
-      setSortColumn(column)
-      setSortDirection('asc')
-    }
-  }
-
-  function toggleAgentur(id: string) {
-    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }))
-  }
-
-  // Filtered + sorted data calculation
-  const [monatJahr2, monatMonat2] = monat.split('-').map(Number)
-  const monatEnde2 = new Date(monatJahr2, monatMonat2, 0)
-  const monatLabel2 = new Date(monatJahr2, monatMonat2 - 1, 1).toLocaleDateString('de-DE', {
-    month: 'long',
-    year: 'numeric',
-  })
-
-  // Filter by date + agentur + status
-  let filtered = beauftragungen.filter(
-    (b) => new Date(b.startdatum) <= monatEnde2 && b.aktiv && (filterAgentur === 'Alle' || b.agentur_id === filterAgentur)
-  )
-
-  // Status filter
-  if (filterStatus !== 'Alle') {
-    filtered = filtered.filter((b) => {
-      const rech = rechnungen.get(b.id)
-      if (filterStatus === 'Kein Rechnung') return !rech
-      return rech?.status === filterStatus
-    })
-  }
-
-  // Sort
   filtered.sort((a, b) => {
     let aVal: string | number = ''
     let bVal: string | number = ''
@@ -367,31 +230,17 @@ export default function AbrechnungPage() {
         aVal = a.kandidatenname
         bVal = b.kandidatenname
         break
-      case 'Marge €':
-        aVal = calcMarge(a, zeitnachweise.get(a.id))
-        bVal = calcMarge(b, zeitnachweise.get(b.id))
+      case 'Marge/Tag':
+        aVal = a.margenaufschlag ?? 0
+        bVal = b.margenaufschlag ?? 0
         break
-      case 'Gesamtbetrag':
-        aVal = calcGesamtbetrag(a, zeitnachweise.get(a.id))
-        bVal = calcGesamtbetrag(b, zeitnachweise.get(b.id))
+      case 'Gesamtbetrag (Forecast)':
+        aVal = (a.margenaufschlag ?? 0) * 20
+        bVal = (b.margenaufschlag ?? 0) * 20
         break
-      case 'Status':
-        aVal = rechnungen.get(a.id)?.status ?? 'Zzz'
-        bVal = rechnungen.get(b.id)?.status ?? 'Zzz'
-        break
-      case 'Offene Beträge':
-        const aOffene = rechnungen.get(a.id)
-          ? rechnungen.get(a.id)!.status !== 'Bezahlt'
-            ? rechnungen.get(a.id)!.gesamtbetrag - rechnungen.get(a.id)!.betrag_bezahlt
-            : 0
-          : 0
-        const bOffene = rechnungen.get(b.id)
-          ? rechnungen.get(b.id)!.status !== 'Bezahlt'
-            ? rechnungen.get(b.id)!.gesamtbetrag - rechnungen.get(b.id)!.betrag_bezahlt
-            : 0
-          : 0
-        aVal = aOffene
-        bVal = bOffene
+      case 'Gesamtbetrag (IST)':
+        aVal = (a.margenaufschlag ?? 0) * calcTageIst(zeitnachweise.get(a.id))
+        bVal = (b.margenaufschlag ?? 0) * calcTageIst(zeitnachweise.get(b.id))
         break
       default:
         aVal = a.kandidatenname
@@ -404,31 +253,12 @@ export default function AbrechnungPage() {
     return sortDirection === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number)
   })
 
-  // Calculate KPI metrics
-  const gesamtStundenSoll = filtered.reduce((sum, b) => sum + b.stunden_woche * 4, 0)
-  const gesamtStundenIst = filtered.reduce((sum, b) => sum + effectiveStunden(b, zeitnachweise.get(b.id)), 0)
-  const gesamtUmsatz2 = filtered.reduce((sum, b) => sum + calcGesamtbetrag(b, zeitnachweise.get(b.id)), 0)
-  const aktivCount = filtered.length
-  const offeneBetraege = Array.from(rechnungen.values())
-    .filter((r) => r.status !== 'Bezahlt')
-    .reduce((sum, r) => sum + (r.gesamtbetrag - r.betrag_bezahlt), 0)
-
-  async function saveMarge(beauftragungId: string, value: number) {
-    setSavingMarge((prev) => ({ ...prev, [beauftragungId]: true }))
-    try {
-      const r = await fetch(`/api/beauftragungen/${beauftragungId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ margenaufschlag: value }),
-      })
-      if (!r.ok) throw new Error((await r.json()).error ?? "Fehler")
-      setBeauftragungen((prev) =>
-        prev.map((b) => b.id === beauftragungId ? { ...b, margenaufschlag: value } : b)
-      )
-    } catch {
-      setMargenOverrides((prev) => { const next = { ...prev }; delete next[beauftragungId]; return next })
-    } finally {
-      setSavingMarge((prev) => ({ ...prev, [beauftragungId]: false }))
+  function handleSort(column: string) {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortColumn(column)
+      setSortDirection('asc')
     }
   }
 
@@ -445,289 +275,292 @@ export default function AbrechnungPage() {
     const file = e.target.files?.[0]
     const target = uploadTargetRef.current
     if (!file || !target) return
-    e.target.value = ""
+
     setUploadingId(target.beauftragungId)
-    setUploadErrors((prev) => ({ ...prev, [target.beauftragungId]: "" }))
-    const fd = new FormData()
-    fd.append("file", file)
-    fd.append("beauftragung_id", target.beauftragungId)
-    fd.append("monat", target.monat)
+    setUploadErrors((prev) => ({ ...prev, [target.beauftragungId]: '' }))
+
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('beauftragung_id', target.beauftragungId)
+    formData.append('monat', target.monat)
+
     try {
-      const r = await fetch("/api/zeitnachweise", { method: "POST", body: fd })
-      const body = await r.json()
-      if (!r.ok) throw new Error(body.error ?? "Upload fehlgeschlagen")
-      const zn: Zeitnachweis = body.zeitnachweis
-      setZeitnachweise((prev) => { const next = new Map(prev); next.set(zn.beauftragung_id, zn); return next })
-      if (zn.stunden_ist === null) {
-        setUploadErrors((prev) => ({ ...prev, [target.beauftragungId]: "Stunden konnten nicht extrahiert werden." }))
+      const res = await fetch('/api/zeitnachweise', { method: 'POST', body: formData })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Unbekannter Fehler' }))
+        throw new Error(err.error ?? 'Fehler beim Upload')
       }
+      const { zeitnachweis } = await res.json()
+      setZeitnachweise((prev) => new Map(prev).set(target.beauftragungId, zeitnachweis))
+      toast.success('Zeitnachweis hochgeladen')
     } catch (err) {
-      setUploadErrors((prev) => ({ ...prev, [target.beauftragungId]: err instanceof Error ? err.message : "Upload fehlgeschlagen" }))
+      const msg = err instanceof Error ? err.message : 'Fehler beim Upload'
+      setUploadErrors((prev) => ({ ...prev, [target.beauftragungId]: msg }))
+      toast.error(msg)
     } finally {
       setUploadingId(null)
-      uploadTargetRef.current = null
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  function openEditTageDialog(beauftragung: Beauftragung, zeitnachweis: Zeitnachweis) {
+    setEditTageZn(zeitnachweis)
+    setEditTageBeauf(beauftragung)
+    setEditTageValue(String(calcTageIst(zeitnachweis)))
+    setEditTageDialogOpen(true)
+  }
+
+  async function saveEditTage() {
+    if (!editTageZn) return
+    const value = parseInt(editTageValue, 10)
+    if (isNaN(value) || value < 0) {
+      toast.error('Bitte geben Sie eine gültige Zahl ein')
+      return
+    }
+
+    setSavingTage(true)
+    try {
+      const res = await fetch(`/api/zeitnachweise/${editTageZn.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tage_ist_override: value }),
+      })
+      if (!res.ok) throw new Error('Fehler beim Speichern')
+      const { zeitnachweis } = await res.json()
+      setZeitnachweise((prev) => new Map(prev).set(editTageZn.beauftragung_id, zeitnachweis))
+      toast.success('Tage aktualisiert')
+      setEditTageDialogOpen(false)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Fehler beim Speichern')
+    } finally {
+      setSavingTage(false)
     }
   }
 
   return (
-    <>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="application/pdf"
-        className="hidden"
-        onChange={handleFileSelect}
-      />
-      <SidebarProvider>
-        <AppSidebar variant="inset" />
-        <SidebarInset>
-          <SiteHeader title="Abrechnung" />
-          <main className="flex-1 flex flex-col gap-6 p-6 overflow-auto">
-            {/* Header + Controls */}
-            <div className="flex items-center justify-between">
-              <h1 className="text-3xl font-bold">Abrechnung</h1>
-              <div className="flex items-center gap-3">
-                <select
-                  value={monat}
-                  onChange={(e) => setMonat(e.target.value)}
-                  className="rounded border border-input bg-background px-3 py-2 text-sm"
-                >
-                  {monate.map((m) => (
-                    <option key={m.value} value={m.value}>
-                      {m.label}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  onClick={() => exportCSV(filtered, zeitnachweise, rechnungen, monatLabel2)}
-                  className="rounded border border-input px-3 py-2 text-sm hover:bg-muted"
-                >
-                  📥 CSV
-                </button>
-              </div>
-            </div>
+    <SidebarProvider style={{ "--sidebar-width": "18rem", "--header-height": "3rem" } as React.CSSProperties}>
+      <AppSidebar variant="inset" />
+      <SidebarInset>
+        <SiteHeader title="Abrechnung" />
+        <div className="flex flex-1 flex-col">
+          <div className="@container/main flex flex-1 flex-col gap-2">
+            <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
 
-            {/* KPI Cards */}
-            {!loading && (
-              <div className="grid grid-cols-4 gap-4">
-                <div className="rounded-lg border bg-card p-4">
-                  <div className="text-sm font-medium text-muted-foreground">Gesamtstunden</div>
-                  <div className="mt-2 text-2xl font-bold">
-                    {gesamtStundenSoll} <span className="text-base text-muted-foreground">/ {gesamtStundenIst}</span>
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-1">Soll / Ist</div>
+              {/* ── Filter Bar ──────────────────────────────────────────────── */}
+              <div className="flex flex-wrap items-center gap-4 px-4 lg:px-6">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium">Monat:</label>
+                  <select
+                    value={monat}
+                    onChange={(e) => setMonat(e.target.value)}
+                    className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    {monate.map((m) => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
+                  </select>
                 </div>
-                <div className="rounded-lg border bg-card p-4">
-                  <div className="text-sm font-medium text-muted-foreground">Gesamtumsatz</div>
-                  <div className="mt-2 text-2xl font-bold">{fmt(gesamtUmsatz2)}</div>
-                </div>
-                <div className="rounded-lg border bg-card p-4">
-                  <div className="text-sm font-medium text-muted-foreground">Aktive Beauftragungen</div>
-                  <div className="mt-2 text-2xl font-bold">{aktivCount}</div>
-                </div>
-                <div className="rounded-lg border bg-card p-4">
-                  <div className="text-sm font-medium text-muted-foreground">Offene Beträge</div>
-                  <div className="mt-2 text-2xl font-bold">{fmt(offeneBetraege)}</div>
-                </div>
-              </div>
-            )}
-
-            {/* Filter Controls */}
-            {!loading && (
-              <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2">
                   <label className="text-sm font-medium">Agentur:</label>
                   <select
                     value={filterAgentur}
                     onChange={(e) => setFilterAgentur(e.target.value)}
-                    className="rounded border border-input bg-background px-2 py-1 text-sm"
+                    className="rounded-md border border-input bg-background px-3 py-2 text-sm"
                   >
                     <option value="Alle">Alle</option>
                     {Array.from(new Set(beauftragungen.map((b) => b.agentur_id))).map((id) => {
-                      const name = beauftragungen.find((b) => b.agentur_id === id)?.agentur_name
+                      const b = beauftragungen.find((x) => x.agentur_id === id)
                       return (
-                        <option key={id} value={id}>
-                          {name}
-                        </option>
+                        <option key={id} value={id}>{b?.agentur_name ?? '–'}</option>
                       )
                     })}
                   </select>
                 </div>
-                <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium">Zahlungsstatus:</label>
-                  <select
-                    value={filterStatus}
-                    onChange={(e) => setFilterStatus(e.target.value)}
-                    className="rounded border border-input bg-background px-2 py-1 text-sm"
-                  >
-                    <option value="Alle">Alle</option>
-                    <option value="Entwurf">Entwurf</option>
-                    <option value="Versendet">Versendet</option>
-                    <option value="Bezahlt">Bezahlt</option>
-                    <option value="Kein Rechnung">Kein Rechnung</option>
-                  </select>
-                </div>
               </div>
-            )}
 
-            {/* Table */}
-            {error && <div className="rounded border border-destructive bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
+              {/* ── Error ───────────────────────────────────────────────────── */}
+              {error && (
+                <div className="mx-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive lg:mx-6">
+                  Fehler beim Laden: {error}
+                </div>
+              )}
 
-            {loading && (
-              <div className="rounded border">
-                <Table>
+              {/* ── Table ───────────────────────────────────────────────────── */}
+              <div className="overflow-x-auto px-4 lg:px-6">
+                <Table className="min-w-full">
                   <TableHeader>
                     <TableRow>
-                      {Array.from({ length: 7 }).map((_, i) => (
-                        <TableCell key={i}>
-                          <Skeleton className="h-4 w-full" />
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <TableRow key={i}>
-                        {Array.from({ length: 7 }).map((_, j) => (
-                          <TableCell key={j}>
-                            <Skeleton className="h-4 w-full" />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-
-            {!loading && filtered.length > 0 && (
-              <div className="rounded border">
-                <Table>
-                  <TableHeader className="bg-muted sticky top-0 z-10">
-                    <TableRow>
-                      <TableHead
-                        className="cursor-pointer hover:bg-muted/80 select-none"
-                        onClick={() => handleSort('Ressource')}
-                      >
-                        <div className="flex items-center gap-1">
+                      <TableHead className="cursor-pointer" onClick={() => handleSort('Ressource')}>
+                        <div className="flex items-center gap-2">
                           Ressource
-                          <SortIcon
-                            column="Ressource"
-                            active={sortColumn === 'Ressource'}
-                            direction={sortDirection}
-                          />
+                          <SortIcon column="Ressource" active={sortColumn === 'Ressource'} direction={sortDirection} />
                         </div>
                       </TableHead>
-                      <TableHead className="select-none">Vakanz</TableHead>
-                      <TableHead
-                        className="cursor-pointer hover:bg-muted/80 select-none text-right"
-                        onClick={() => handleSort('Marge €')}
-                      >
-                        <div className="flex items-center justify-end gap-1">
-                          Marge €<SortIcon column="Marge €" active={sortColumn === 'Marge €'} direction={sortDirection} />
+                      <TableHead>Agentur</TableHead>
+                      <TableHead>Vakanz</TableHead>
+                      <TableHead className="text-right cursor-pointer" onClick={() => handleSort('Marge/Tag')}>
+                        <div className="flex items-center justify-end gap-2">
+                          Marge/Tag
+                          <SortIcon column="Marge/Tag" active={sortColumn === 'Marge/Tag'} direction={sortDirection} />
                         </div>
                       </TableHead>
-                      <TableHead
-                        className="cursor-pointer hover:bg-muted/80 select-none text-right"
-                        onClick={() => handleSort('Gesamtbetrag')}
-                      >
-                        <div className="flex items-center justify-end gap-1">
-                          Gesamtbetrag
-                          <SortIcon
-                            column="Gesamtbetrag"
-                            active={sortColumn === 'Gesamtbetrag'}
-                            direction={sortDirection}
-                          />
+                      <TableHead className="text-right">Tage (Forecast)</TableHead>
+                      <TableHead className="text-right cursor-pointer" onClick={() => handleSort('Gesamtbetrag (Forecast)')}>
+                        <div className="flex items-center justify-end gap-2">
+                          Gesamtbetrag (Forecast)
+                          <SortIcon column="Gesamtbetrag (Forecast)" active={sortColumn === 'Gesamtbetrag (Forecast)'} direction={sortDirection} />
                         </div>
                       </TableHead>
-                      <TableHead
-                        className="cursor-pointer hover:bg-muted/80 select-none text-right"
-                        onClick={() => handleSort('Status')}
-                      >
-                        <div className="flex items-center justify-end gap-1">
-                          Status<SortIcon column="Status" active={sortColumn === 'Status'} direction={sortDirection} />
+                      <TableHead className="text-right">Tage (IST)</TableHead>
+                      <TableHead className="text-right cursor-pointer" onClick={() => handleSort('Gesamtbetrag (IST)')}>
+                        <div className="flex items-center justify-end gap-2">
+                          Gesamtbetrag (IST)
+                          <SortIcon column="Gesamtbetrag (IST)" active={sortColumn === 'Gesamtbetrag (IST)'} direction={sortDirection} />
                         </div>
                       </TableHead>
-                      <TableHead
-                        className="cursor-pointer hover:bg-muted/80 select-none text-right"
-                        onClick={() => handleSort('Offene Beträge')}
-                      >
-                        <div className="flex items-center justify-end gap-1">
-                          Offene Beträge
-                          <SortIcon
-                            column="Offene Beträge"
-                            active={sortColumn === 'Offene Beträge'}
-                            direction={sortDirection}
-                          />
-                        </div>
-                      </TableHead>
-                      <TableHead className="text-right print:hidden">Zeitnachweis</TableHead>
+                      <TableHead>Zeitnachweis</TableHead>
+                      {isFinancial && <TableHead className="w-10"></TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filtered.map((b) => {
-                      const zn = zeitnachweise.get(b.id)
-                      const rech = rechnungen.get(b.id)
-                      const offene =
-                        rech && rech.status !== 'Bezahlt' ? rech.gesamtbetrag - rech.betrag_bezahlt : 0
-                      return (
-                        <TableRow key={b.id}>
-                          <TableCell className="font-medium">{b.kandidatenname}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
-                            {b.vakanz_titel}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {fmt(calcMarge(b, zn))}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {fmt(calcGesamtbetrag(b, zn))}
-                          </TableCell>
-                          <TableCell className="text-right text-sm">{rech?.status ?? '—'}</TableCell>
-                          <TableCell className="text-right tabular-nums">{offene > 0 ? fmt(offene) : '—'}</TableCell>
-                          <TableCell className="text-right print:hidden">
-                            {uploadErrors[b.id] && (
-                              <p className="text-[10px] text-destructive mb-1">{uploadErrors[b.id]}</p>
-                            )}
-                            {zn ? (
-                              <div className="flex flex-col items-end gap-0.5">
-                                <span className="text-[10px] text-green-700 font-medium">
-                                  {zn.stunden_ist != null ? `${zn.stunden_ist} Std.` : 'Parsing fehlgeschlagen'}
-                                </span>
-                                <button
-                                  className="text-[10px] text-muted-foreground hover:underline disabled:opacity-50"
+                    {loading ? (
+                      <TableSkeletonRows cols={isFinancial ? 10 : 9} />
+                    ) : filtered.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={isFinancial ? 10 : 9} className="h-32 text-center text-muted-foreground">
+                          Keine Beauftragungen für diesen Monat
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filtered.map((b) => {
+                        const zn = zeitnachweise.get(b.id)
+                        const tageIst = calcTageIst(zn)
+                        const margeTg = b.margenaufschlag ?? 0
+                        const gesamtForecast = margeTg * 20
+                        const gesamtIst = zn ? margeTg * tageIst : null
+
+                        return (
+                          <TableRow key={b.id}>
+                            <TableCell className="font-medium">{b.kandidatenname}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{b.agentur_name}</TableCell>
+                            <TableCell className="text-sm max-w-[180px]">
+                              {b.vakanz_nr && (
+                                <span className="font-mono text-[11px] text-muted-foreground mr-1.5">{b.vakanz_nr}</span>
+                              )}
+                              <span className="text-muted-foreground truncate">{b.vakanz_titel}</span>
+                            </TableCell>
+                            <TableCell className="text-right text-sm">{fmt(margeTg)}</TableCell>
+                            <TableCell className="text-right text-sm">20</TableCell>
+                            <TableCell className="text-right text-sm">{fmt(gesamtForecast)}</TableCell>
+                            <TableCell className="text-right text-sm">
+                              {zn ? tageIst : '–'}
+                            </TableCell>
+                            <TableCell className="text-right text-sm">
+                              {gesamtIst !== null ? fmt(gesamtIst) : '–'}
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {uploadErrors[b.id] && (
+                                <span className="text-xs text-destructive">{uploadErrors[b.id]}</span>
+                              )}
+                              {!zn ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
                                   onClick={() => triggerUpload(b.id)}
                                   disabled={uploadingId === b.id}
+                                  className="gap-1.5"
                                 >
-                                  {uploadingId === b.id ? 'Lädt…' : 'Ersetzen'}
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                className="inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[11px] text-muted-foreground hover:border-foreground hover:text-foreground disabled:opacity-50"
-                                onClick={() => triggerUpload(b.id)}
-                                disabled={uploadingId === b.id}
-                              >
-                                <IconUpload className="size-3" />
-                                {uploadingId === b.id ? 'Lädt…' : 'Upload'}
-                              </button>
+                                  <IconUpload className="h-3.5 w-3.5" />
+                                  {uploadingId === b.id ? '…' : 'Upload'}
+                                </Button>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">
+                                  {zn.stunden_ist} h
+                                </span>
+                              )}
+                            </TableCell>
+                            {isFinancial && (
+                              <TableCell>
+                                {zn ? (
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+                                        <IconDotsVertical className="h-4 w-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      <DropdownMenuItem onClick={() => openEditTageDialog(b, zn)}>
+                                        Tage anpassen
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                ) : null}
+                              </TableCell>
                             )}
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
+                          </TableRow>
+                        )
+                      })
+                    )}
                   </TableBody>
                 </Table>
               </div>
-            )}
 
-            {!loading && filtered.length === 0 && (
-              <div className="rounded border border-dashed p-6 text-center text-muted-foreground">
-                Keine Beauftragungen für diese Filters gefunden.
+            </div>
+          </div>
+        </div>
+      </SidebarInset>
+
+      {/* ── Tage (IST) Dialog ──────────────────────────────────────────────────── */}
+      <Dialog open={editTageDialogOpen} onOpenChange={setEditTageDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Tage (IST) anpassen</DialogTitle>
+          </DialogHeader>
+          {editTageBeauf && editTageZn && (
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">{editTageBeauf.kandidatenname}</span>
+                  {' '} – {editTageBeauf.vakanz_titel}
+                </p>
               </div>
-            )}
-          </main>
-        </SidebarInset>
-      </SidebarProvider>
-    </>
+              <div className="space-y-2">
+                <Label htmlFor="tage-input">Tage (IST)</Label>
+                <Input
+                  id="tage-input"
+                  type="number"
+                  min="0"
+                  value={editTageValue}
+                  onChange={(e) => setEditTageValue(e.target.value)}
+                  placeholder="z.B. 15"
+                  disabled={savingTage}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Automatisch berechnet: {Math.round((editTageZn.stunden_ist ?? 0) / 8)} Tage
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditTageDialogOpen(false)} disabled={savingTage}>
+              Abbrechen
+            </Button>
+            <Button onClick={saveEditTage} disabled={savingTage} className="gap-1.5">
+              {savingTage ? '…' : <IconCheck className="h-4 w-4" />}
+              Speichern
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Hidden File Input ──────────────────────────────────────────────────── */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf"
+        onChange={handleFileSelect}
+        style={{ display: 'none' }}
+      />
+    </SidebarProvider>
   )
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { z } from 'zod'
 
 async function getProfile(supabase: Awaited<ReturnType<typeof createClient>>) {
   const { data: { user }, error } = await supabase.auth.getUser()
@@ -81,4 +82,49 @@ export async function DELETE(
   if (error) return NextResponse.json({ error: 'Fehler beim Löschen' }, { status: 500 })
 
   return NextResponse.json({ success: true })
+}
+
+// ── PATCH /api/zeitnachweise/[id] ────────────────────────────────────────────
+
+const updateSchema = z.object({
+  tage_ist_override: z.number().int().nullable().optional(),
+})
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const supabase = await createClient()
+  const { profile } = await getProfile(supabase)
+  if (!profile?.aktiv) return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 })
+
+  const isManager = profile.rolle === 'Staffhub Manager' || profile.rolle === 'Admin'
+  if (!isManager) return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
+
+  const body = await request.json().catch(() => null)
+  const parsed = updateSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: 'Validierungsfehler', details: parsed.error.flatten().fieldErrors },
+      { status: 400 }
+    )
+  }
+
+  const { data: record, error } = await supabase
+    .from('zeitnachweise')
+    .update({ tage_ist_override: parsed.data.tage_ist_override ?? null })
+    .eq('id', id)
+    .select('id, beauftragung_id, monat, stunden_ist, tage_ist_override, uploaded_at')
+    .single()
+
+  if (error) {
+    return NextResponse.json({ error: 'Fehler beim Aktualisieren' }, { status: 500 })
+  }
+
+  if (!record) {
+    return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 })
+  }
+
+  return NextResponse.json({ zeitnachweis: record })
 }
