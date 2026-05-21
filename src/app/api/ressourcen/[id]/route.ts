@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { logHistorie } from '@/lib/log-historie'
 
 const updateRessourceSchema = z.object({
   name: z.string().min(1, 'Name ist erforderlich').max(200),
@@ -36,6 +37,74 @@ async function getUserProfile(supabase: Awaited<ReturnType<typeof createClient>>
     .eq('id', userId)
     .single()
   return data
+}
+
+function formatDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return '–'
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('de-DE')
+}
+
+function formatRate(rate: number | null | undefined): string {
+  if (rate == null) return '–'
+  return `${rate.toLocaleString('de-DE')} €/Tag`
+}
+
+async function buildProfileHistorieEntries(
+  oldData: Record<string, unknown>,
+  newData: Record<string, unknown>
+): Promise<string[]> {
+  const entries: string[] = []
+
+  if (oldData.ek_tagesrate !== newData.ek_tagesrate) {
+    entries.push(
+      `EK-Rate geändert: ${formatRate(oldData.ek_tagesrate as number | null)} → ${formatRate(newData.ek_tagesrate as number | null)}`
+    )
+  }
+
+  if (JSON.stringify(oldData.skills) !== JSON.stringify(newData.skills)) {
+    const oldSkills = (oldData.skills as string[]) ?? []
+    const newSkills = (newData.skills as string[]) ?? []
+    const added = newSkills.filter((s) => !oldSkills.includes(s)).map((s) => `+${s}`)
+    const removed = oldSkills.filter((s) => !newSkills.includes(s)).map((s) => `-${s}`)
+    const diff = [...added, ...removed].join(', ')
+    if (diff) entries.push(`Skills aktualisiert: ${diff}`)
+  }
+
+  if (oldData.verfuegbarkeit !== newData.verfuegbarkeit) {
+    entries.push(
+      `Verfügbarkeit geändert: ${oldData.verfuegbarkeit} → ${newData.verfuegbarkeit}`
+    )
+  }
+
+  if (oldData.verfuegbar_ab !== newData.verfuegbar_ab) {
+    entries.push(
+      `Verfügbar ab geändert: ${formatDate(oldData.verfuegbar_ab as string | null)} → ${formatDate(newData.verfuegbar_ab as string | null)}`
+    )
+  }
+
+  if (oldData.erfahrungslevel !== newData.erfahrungslevel) {
+    entries.push(
+      `Erfahrungslevel geändert: ${oldData.erfahrungslevel} → ${newData.erfahrungslevel}`
+    )
+  }
+
+  if (oldData.arbeitsmodell !== newData.arbeitsmodell) {
+    entries.push(
+      `Arbeitsmodell geändert: ${oldData.arbeitsmodell} → ${newData.arbeitsmodell}`
+    )
+  }
+
+  if (oldData.rolle !== newData.rolle) {
+    entries.push(
+      `Rolle geändert: ${oldData.rolle ?? '–'} → ${newData.rolle ?? '–'}`
+    )
+  }
+
+  if (oldData.notizen !== newData.notizen) {
+    entries.push('Notizen aktualisiert')
+  }
+
+  return entries
 }
 
 // ── GET /api/ressourcen/[id] ───────────────────────────────────────────────────
@@ -98,6 +167,17 @@ export async function PUT(
     return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
   }
 
+  // Load old record for diff + ownership check
+  const { data: oldRecord } = await supabase
+    .from('ressourcen')
+    .select('agentur_id, ek_tagesrate, skills, verfuegbarkeit, verfuegbar_ab, erfahrungslevel, arbeitsmodell, rolle, notizen')
+    .eq('id', id)
+    .single()
+
+  if (!oldRecord || oldRecord.agentur_id !== profile.agentur_id) {
+    return NextResponse.json({ error: 'Ressource nicht gefunden' }, { status: 404 })
+  }
+
   const body = await request.json().catch(() => null)
   const parsed = updateRessourceSchema.safeParse(body)
   if (!parsed.success) {
@@ -142,6 +222,14 @@ export async function PUT(
     return NextResponse.json({ error: 'Fehler beim Aktualisieren' }, { status: 500 })
   }
 
+  const histEntries = await buildProfileHistorieEntries(
+    oldRecord as Record<string, unknown>,
+    parsed.data as Record<string, unknown>
+  )
+  for (const text of histEntries) {
+    await logHistorie({ ressourceId: id, text, erstelltVon: user.id, supabase })
+  }
+
   return NextResponse.json({ ressource })
 }
 
@@ -169,15 +257,19 @@ export async function PATCH(
     return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
   }
 
-  // For Agentur: verify they own this resource
-  if (!isManager && profile.rolle === 'Agentur') {
-    const { data: ressource } = await supabase
-      .from('ressourcen')
-      .select('agentur_id')
-      .eq('id', id)
-      .single()
+  // Load old record for diff + Agentur ownership check
+  const { data: oldRecord } = await supabase
+    .from('ressourcen')
+    .select('agentur_id, ek_tagesrate, skills, verfuegbarkeit, verfuegbar_ab, erfahrungslevel, arbeitsmodell, rolle, notizen')
+    .eq('id', id)
+    .single()
 
-    if (!ressource || ressource.agentur_id !== profile.agentur_id) {
+  if (!oldRecord) {
+    return NextResponse.json({ error: 'Ressource nicht gefunden' }, { status: 404 })
+  }
+
+  if (!isManager && profile.rolle === 'Agentur') {
+    if (oldRecord.agentur_id !== profile.agentur_id) {
       return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
     }
   }
@@ -224,6 +316,14 @@ export async function PATCH(
       return NextResponse.json({ error: 'Ressource nicht gefunden' }, { status: 404 })
     }
     return NextResponse.json({ error: 'Fehler beim Aktualisieren' }, { status: 500 })
+  }
+
+  const histEntries = await buildProfileHistorieEntries(
+    oldRecord as Record<string, unknown>,
+    parsed.data as Record<string, unknown>
+  )
+  for (const text of histEntries) {
+    await logHistorie({ ressourceId: id, text, erstelltVon: user.id, supabase })
   }
 
   return NextResponse.json({ ressource })
