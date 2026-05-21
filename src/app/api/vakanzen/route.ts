@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
       skills_nice_have,
       erfahrungslevel,
       startdatum,
-      laufzeit,
+      enddatum,
       teamgroesse,
       fte_anzahl,
       auslastung,
