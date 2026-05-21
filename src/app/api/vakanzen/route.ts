@@ -115,9 +115,10 @@ export async function GET(request: NextRequest) {
       ...(isAgentur ? {} : { slack_ts, slack_detail_posted_at, weitere_kommentare }),
     }
   })
-  // published + published_at nicht an Agenturen weitergeben (sie sehen ohnehin nur published=true)
+  // published-Flag nicht an Agenturen weitergeben (sie sehen ohnehin nur published=true)
+  // published_at aber schon — Agenturen sollen das Datum sehen
   if (isAgentur) {
-    return NextResponse.json({ vakanzen: result.map(({ published: _p, published_at: _pa, ...r }) => r) })
+    return NextResponse.json({ vakanzen: result.map(({ published: _p, ...r }) => r) })
   }
 
   return NextResponse.json({ vakanzen: result })

@@ -826,6 +826,7 @@ export default function VakanzenPage() {
   const [error, setError] = React.useState<string | null>(null)
   const [statusFilter, setStatusFilter] = React.useState("alle")
   const [searchQuery, setSearchQuery] = React.useState("")
+  const [sortBy, setSortBy] = React.useState<"newest" | "oldest">("newest")
 
   const [sheetOpen, setSheetOpen] = React.useState(false)
   const [sheetMode, setSheetMode] = React.useState<"create" | "edit">("create")
@@ -854,11 +855,19 @@ export default function VakanzenPage() {
 
   React.useEffect(() => { fetchVakanzen() }, [])
 
-  const filtered = vakanzen.filter((v) => {
-    const matchesStatus = statusFilter === "alle" || v.status === statusFilter
-    const matchesSearch = searchQuery === "" || v.rolle.toLowerCase().includes(searchQuery.toLowerCase())
-    return matchesStatus && matchesSearch
-  })
+  const filtered = vakanzen
+    .filter((v) => {
+      const matchesStatus = statusFilter === "alle" || v.status === statusFilter
+      const matchesSearch = searchQuery === "" || v.rolle.toLowerCase().includes(searchQuery.toLowerCase())
+      return matchesStatus && matchesSearch
+    })
+    .sort((a, b) => {
+      const aDate = a.published_at ?? a.created_at
+      const bDate = b.published_at ?? b.created_at
+      return sortBy === "newest"
+        ? new Date(bDate).getTime() - new Date(aDate).getTime()
+        : new Date(aDate).getTime() - new Date(bDate).getTime()
+    })
 
   async function handleDetailpostConfirm(workspace: SlackWorkspace, channel: SlackChannel) {
     if (!detailpostVakanz) return
@@ -947,6 +956,13 @@ export default function VakanzenPage() {
                     <SelectItem value="Besetzt">Besetzt</SelectItem>
                     <SelectItem value="Pausiert">Pausiert</SelectItem>
                     <SelectItem value="Geschlossen">Geschlossen</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={sortBy} onValueChange={(v) => setSortBy(v as "newest" | "oldest")}>
+                  <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="newest">Neueste zuerst</SelectItem>
+                    <SelectItem value="oldest">Älteste zuerst</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
