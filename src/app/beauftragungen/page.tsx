@@ -290,11 +290,10 @@ export default function BeauftragungPage() {
                       <TableHead>Kandidat</TableHead>
                       {isManager && <TableHead>Agentur</TableHead>}
                       <TableHead>Vakanz</TableHead>
-                      <TableHead className="text-right">EK/Tag</TableHead>
+                      <TableHead className="text-right">{isManager ? "EK/Tag" : "Tagesrate"}</TableHead>
                       {isManager && <TableHead className="text-right">Marge</TableHead>}
                       {isManager && <TableHead className="text-right">Hays Fee</TableHead>}
                       {isManager && <TableHead className="text-right">Gesamt</TableHead>}
-                      <TableHead className="text-right">h/Woche</TableHead>
                       <TableHead>Start</TableHead>
                       <TableHead>Ende</TableHead>
                       <TableHead>Status</TableHead>
@@ -303,10 +302,10 @@ export default function BeauftragungPage() {
                   </TableHeader>
                   <TableBody>
                     {loading ? (
-                      <TableSkeletonRows cols={isManager ? 12 : 7} />
+                      <TableSkeletonRows cols={isManager ? 11 : 6} />
                     ) : items.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={isManager ? 12 : 7} className="h-32 text-center text-muted-foreground">
+                        <TableCell colSpan={isManager ? 11 : 6} className="h-32 text-center text-muted-foreground">
                           <IconUserCheck className="mx-auto mb-2 size-8 opacity-30" />
                           Keine Beauftragungen gefunden.
                         </TableCell>
@@ -321,19 +320,13 @@ export default function BeauftragungPage() {
                         return (
                         <TableRow key={b.id} className={b.aktiv ? "" : "opacity-50"}>
                           <TableCell className="font-medium">
-                            <div className="flex items-center gap-1.5">
-                              {b.is_pool && (
-                                <span className="inline-flex items-center rounded border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-teal-700">Pool</span>
-                              )}
-                              {b.is_pool ? (
-                                <span>{b.kandidatenname}</span>
-                              ) : (
-                                <Link href={`/profile/${b.profil_id}`} className="hover:underline">
-                                  {b.kandidatenname}
-                                </Link>
-                              )}
-                            </div>
-                            <p className="text-xs text-muted-foreground">{b.erfahrungslevel}</p>
+                            {b.is_pool ? (
+                              <span>{b.kandidatenname}</span>
+                            ) : (
+                              <Link href={`/profile/${b.profil_id}`} className="hover:underline">
+                                {b.kandidatenname}
+                              </Link>
+                            )}
                           </TableCell>
                           {isManager && <TableCell className="text-sm">{b.agentur_name}</TableCell>}
                           <TableCell className="text-sm max-w-[160px]">
@@ -346,7 +339,6 @@ export default function BeauftragungPage() {
                           {isManager && <TableCell className="text-right tabular-nums text-sm whitespace-nowrap">{fmtEur(marge)}</TableCell>}
                           {isManager && <TableCell className="text-right tabular-nums text-sm whitespace-nowrap">{fmtEur(haysFee)}</TableCell>}
                           {isManager && <TableCell className="text-right tabular-nums text-sm whitespace-nowrap font-medium">{fmtEur(gesamt)}</TableCell>}
-                          <TableCell className="text-right tabular-nums text-sm">{b.stunden_woche}</TableCell>
                           <TableCell className="text-sm whitespace-nowrap">
                             {fmtDate(b.startdatum)}
                           </TableCell>

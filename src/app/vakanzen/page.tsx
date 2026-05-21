@@ -475,9 +475,6 @@ function VakanzCard({
         <div className="flex flex-1 flex-col gap-2.5 min-w-0">
           {/* Row 1: Title + Badges (same line, like detail view) */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            {vakanz.vakanz_nr && (
-              <span className="font-mono text-[11px] text-muted-foreground bg-muted border rounded px-1.5 py-0.5 shrink-0">{vakanz.vakanz_nr}</span>
-            )}
             <span className="font-semibold text-sm text-foreground leading-tight">{vakanz.rolle}</span>
             <div className="flex flex-wrap items-center gap-1.5">
               <span className={`inline-flex shrink-0 items-center rounded border px-1.5 py-0.5 text-xs font-medium ${statusColors[vakanz.status]}`}>
@@ -499,6 +496,12 @@ function VakanzCard({
 
           {/* Row 2: Meta-Grid (CSS grid, like detail view) */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-6 gap-y-1">
+            {vakanz.vakanz_nr && (
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">ID</p>
+                <p className="text-xs font-medium">{vakanz.vakanz_nr}</p>
+              </div>
+            )}
             <div>
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Start</p>
               <p className="text-xs font-medium">{new Date(vakanz.startdatum).toLocaleDateString("de-DE")}</p>
