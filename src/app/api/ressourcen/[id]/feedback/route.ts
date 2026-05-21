@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { logHistorie } from '@/lib/log-historie'
 
 const feedbackSchema = z.object({
   text: z.string().min(1).max(2000),
@@ -96,6 +97,16 @@ export async function POST(
   if (error) {
     return NextResponse.json({ error: 'Fehler beim Speichern' }, { status: 500 })
   }
+
+  const stars = parsed.data.bewertung
+    ? '★'.repeat(parsed.data.bewertung) + '☆'.repeat(5 - parsed.data.bewertung)
+    : null
+  await logHistorie({
+    ressourceId,
+    text: stars ? `Feedback hinzugefügt (${stars})` : 'Feedback hinzugefügt',
+    erstelltVon: auth.user.id,
+    supabase,
+  })
 
   return NextResponse.json({ feedback: data }, { status: 201 })
 }

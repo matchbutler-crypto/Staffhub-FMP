@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { logHistorie } from '@/lib/log-historie'
 
 // ── DELETE /api/ressource-feedback/[id] ──────────────────────────────────────
 
@@ -15,21 +16,36 @@ export async function DELETE(
     return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 })
   }
 
-  // RLS enforces erstellt_von = auth.uid() on DELETE
-  // If the row doesn't exist or belongs to another user, delete returns 0 rows
-  const { data, error } = await supabase
+  // Fetch before delete to get ressource_id for history logging
+  const { data: existing } = await supabase
     .from('ressource_feedback')
-    .delete()
+    .select('id, ressource_id')
     .eq('id', id)
-    .select('id')
+    .eq('erstellt_von', user.id)
     .single()
 
-  if (error || !data) {
+  if (!existing) {
     return NextResponse.json(
       { error: 'Feedback nicht gefunden oder keine Berechtigung' },
       { status: 404 }
     )
   }
+
+  const { error } = await supabase
+    .from('ressource_feedback')
+    .delete()
+    .eq('id', id)
+
+  if (error) {
+    return NextResponse.json({ error: 'Fehler beim Löschen' }, { status: 500 })
+  }
+
+  await logHistorie({
+    ressourceId: existing.ressource_id,
+    text: 'Feedback gelöscht',
+    erstelltVon: user.id,
+    supabase,
+  })
 
   return NextResponse.json({ success: true })
 }
