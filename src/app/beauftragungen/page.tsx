@@ -4,7 +4,6 @@ import * as React from "react"
 import Link from "next/link"
 import { toast } from "sonner"
 import {
-  IconBuilding,
   IconDotsVertical,
   IconPencil,
   IconPlayerStop,
@@ -117,39 +116,6 @@ function TableSkeletonRows({ cols = 9, rows = 5 }: { cols?: number; rows?: numbe
   )
 }
 
-// ── KPI Helpers (Manager only) ─────────────────────────────────────────────────
-
-interface AgenturPerf {
-  name: string
-  count: number
-  avg_score: number | null
-}
-
-const PIPELINE_ORDER = ["Eingereicht", "In Prüfung", "Präsentiert", "Interview", "Beauftragt", "Abgelehnt"] as const
-
-const pipelineBarColors: Record<string, string> = {
-  Eingereicht: "bg-blue-400",
-  "In Prüfung": "bg-yellow-400",
-  Präsentiert: "bg-purple-400",
-  Interview: "bg-orange-400",
-  Beauftragt: "bg-green-500",
-  Abgelehnt: "bg-red-400",
-}
-
-function ScoreBadge({ score }: { score: number | null }) {
-  if (score === null) return <span className="text-xs text-muted-foreground">–</span>
-  const color = score >= 70
-    ? "bg-green-100 text-green-700 border-green-200"
-    : score >= 40
-    ? "bg-yellow-100 text-yellow-700 border-yellow-200"
-    : "bg-red-100 text-red-700 border-red-200"
-  return (
-    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${color}`}>
-      {score}
-    </span>
-  )
-}
-
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function BeauftragungPage() {
@@ -177,8 +143,6 @@ export default function BeauftragungPage() {
   const [beendenItem, setBeendenItem] = React.useState<Beauftragung | null>(null)
   const [beending, setBeending] = React.useState(false)
 
-  const [pipeline, setPipeline] = React.useState<Record<string, number>>({})
-  const [agenturPerf, setAgenturPerf] = React.useState<AgenturPerf[]>([])
 
   async function load() {
     setLoading(true)
@@ -194,8 +158,6 @@ export default function BeauftragungPage() {
       // API gibt jetzt { data, total, page, pageSize } zurück
       const data: Beauftragung[] = Array.isArray(body) ? body : (body.data ?? [])
       setItems(data)
-      if (body.pipeline) setPipeline(body.pipeline)
-      if (body.agentur_performance) setAgenturPerf(body.agentur_performance)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unbekannter Fehler")
     } finally {
