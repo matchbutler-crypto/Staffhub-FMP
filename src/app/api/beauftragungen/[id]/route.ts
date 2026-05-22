@@ -56,7 +56,6 @@ export async function PUT(
       marge_inkludiert,
       einkaufspreis,
       margenaufschlag,
-      verkaufspreis,
       startdatum: parsed.data.startdatum,
       stunden_woche: parsed.data.stunden_woche,
     })
@@ -120,7 +119,7 @@ export async function PATCH(
 
   const { data, error } = await supabase
     .from('beauftragungen')
-    .update({ margenaufschlag: parsed.data.margenaufschlag, einkaufspreis, verkaufspreis })
+    .update({ margenaufschlag: parsed.data.margenaufschlag, einkaufspreis })
     .eq('id', id)
     .select('id, margenaufschlag, einkaufspreis, verkaufspreis, updated_at')
     .single()
