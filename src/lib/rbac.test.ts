@@ -68,14 +68,20 @@ describe('isAllowedRoute', () => {
     it('blocks /agenturen', () => {
       expect(isAllowedRoute('/agenturen', 'Agentur')).toBe(false)
     })
-    it('blocks /abrechnung', () => {
-      expect(isAllowedRoute('/abrechnung', 'Agentur')).toBe(false)
+    it('allows /abrechnung', () => {
+      expect(isAllowedRoute('/abrechnung', 'Agentur')).toBe(true)
     })
     it('blocks /admin', () => {
       expect(isAllowedRoute('/admin', 'Agentur')).toBe(false)
     })
     it('allows /settings', () => {
       expect(isAllowedRoute('/settings', 'Agentur')).toBe(true)
+    })
+    it('allows /ressourcen', () => {
+      expect(isAllowedRoute('/ressourcen', 'Agentur')).toBe(true)
+    })
+    it('allows nested resource detail route', () => {
+      expect(isAllowedRoute('/ressourcen/123', 'Agentur')).toBe(true)
     })
   })
 
