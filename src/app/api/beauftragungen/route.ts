@@ -289,6 +289,13 @@ export async function POST(request: NextRequest) {
       .eq('id', parsed.data.ressource_link_id)
       .single()
 
+    // Get vakanz_id from ressource_vakanz_links
+    const { data: linkData } = await supabase
+      .from('ressource_vakanz_links')
+      .select('vakanz_id')
+      .eq('id', parsed.data.ressource_link_id)
+      .single()
+
     const { data: neu, error } = await supabase
       .from('beauftragungen')
       .insert({
@@ -304,6 +311,7 @@ export async function POST(request: NextRequest) {
         startdatum: parsed.data.startdatum,
         enddatum: parsed.data.enddatum ?? null,
         stunden_woche: parsed.data.stunden_woche,
+        vakanz_id: linkData?.vakanz_id ?? null,
       })
       .select('id, einkaufspreis, margenaufschlag, verkaufspreis, aktiv, created_at')
       .single()
@@ -355,6 +363,13 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  // Get vakanz_id from kandidaten_profile
+  const { data: profData } = await supabase
+    .from('kandidaten_profile')
+    .select('vakanz_id')
+    .eq('id', parsed.data.profil_id)
+    .single()
+
   const { data: neu, error } = await supabase
     .from('beauftragungen')
     .insert({
@@ -366,6 +381,7 @@ export async function POST(request: NextRequest) {
       margenaufschlag,
       startdatum: parsed.data.startdatum,
       stunden_woche: parsed.data.stunden_woche,
+      vakanz_id: profData?.vakanz_id ?? null,
     })
     .select('id, einkaufspreis, margenaufschlag, verkaufspreis, aktiv, created_at')
     .single()
