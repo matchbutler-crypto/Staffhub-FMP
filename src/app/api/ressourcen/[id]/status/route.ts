@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 const statusSchema = z.object({
   verfuegbarkeit: z.enum(['Jetzt verfügbar', 'Verfügbar ab', 'Nicht verfügbar', 'Deaktiviert']),
@@ -62,24 +63,31 @@ export async function PATCH(
     )
   }
 
-  const { data: links } = await supabase
+  let readClient: any = supabase
+  try {
+    readClient = createAdminClient()
+  } catch {
+    // Fallback to user-bound client if service role is unavailable
+  }
+
+  const { data: links } = await readClient
     .from('ressource_vakanz_links')
     .select('id, status')
     .eq('ressource_id', id)
     .eq('status', 'Beauftragt')
 
-  const linkIds = (links ?? []).map((l) => l.id)
+  const linkIds = (links ?? []).map((l: any) => l.id)
   let hasRunningBeauftragung = false
 
   if (linkIds.length > 0) {
-    const { data: beauftragungen } = await supabase
+    const { data: beauftragungen } = await readClient
       .from('beauftragungen')
       .select('id, status, startdatum, enddatum, aktiv')
       .in('ressource_link_id', linkIds)
       .eq('aktiv', true)
 
     const today = new Date().toISOString().slice(0, 10)
-    hasRunningBeauftragung = (beauftragungen ?? []).some((b) => {
+    hasRunningBeauftragung = (beauftragungen ?? []).some((b: any) => {
       const start = (b.startdatum ?? '').slice(0, 10)
       const end = b.enddatum ? b.enddatum.slice(0, 10) : null
       const activeWindow = start ? start <= today && (!end || end >= today) : true

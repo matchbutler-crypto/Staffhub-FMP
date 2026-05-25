@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 async function getUserProfile(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
   const { data } = await supabase
@@ -53,8 +54,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       ? (agenturEntry[0]?.name ?? null)
       : (agenturEntry?.name ?? null)
 
+    let readClient: any = supabase
+    try {
+      readClient = createAdminClient()
+    } catch {
+      // Fallback to user-bound client if service role is unavailable
+    }
+
     // Fetch beauftragungen via ressource_vakanz_links
-    const { data: links } = await supabase
+    const { data: links } = await readClient
       .from('ressource_vakanz_links')
       .select(`
         id, status, created_at,
@@ -65,7 +73,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .not('status', 'eq', 'Zurückgezogen')
 
     // Fetch actual beauftragungen table
-    const { data: beauftragungen } = await supabase
+    const { data: beauftragungen } = await readClient
       .from('beauftragungen')
       .select(`
         id, status, startdatum, enddatum,
@@ -74,10 +82,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       `)
       .in('ressource_link_id', (links ?? []).map((l: any) => l.id))
 
-    const linkById = new Map((links ?? []).map((l: any) => [l.id, l]))
+    const linkById = new Map<string, any>((links ?? []).map((l: any) => [l.id, l]))
 
     const mappedBeauftragungen = (beauftragungen ?? []).map((b: any) => {
-      const link = linkById.get(b.ressource_link_id)
+      const link: any = linkById.get(b.ressource_link_id)
       return {
       id: b.id,
       ressource_link_id: b.ressource_link_id,
