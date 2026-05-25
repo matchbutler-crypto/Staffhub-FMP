@@ -21,6 +21,7 @@ import {
 
 import { ERFAHRUNGSLEVEL, RESSOURCE_VERFUEGBARKEIT } from "@/lib/constants"
 import type { Erfahrungslevel, RessourceVerfuegbarkeit } from "@/lib/constants"
+import type { Beauftragung } from "@/lib/resource-availability"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { Badge } from "@/components/ui/badge"
@@ -77,6 +78,7 @@ interface Ressource {
   ek_tagesrate?: number | null
   notizen?: string | null
   link_count?: number
+  hat_beauftragt_link?: boolean
   arbeitsmodell?: string | null
   location?: string | null
   agentur_name?: string | null
@@ -1100,6 +1102,7 @@ function TableSkeletonRows({ cols }: { cols: number }) {
 export default function RessourcenPage() {
   // ── Freelancer-Pool state ───────────────────────────────────────────────────
   const [ressourcen, setRessourcen] = React.useState<Ressource[]>([])
+  const [beauftragungen, setBeauftragungen] = React.useState<Beauftragung[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -1182,6 +1185,15 @@ export default function RessourcenPage() {
     fetchRessourcen()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showDeaktiviert])
+
+  React.useEffect(() => {
+    if (ressourcen.length === 0) return
+    const resourceIds = ressourcen.map((r) => r.id).join(',')
+    fetch(`/api/beauftragungen?resource_ids=${encodeURIComponent(resourceIds)}`)
+      .then((res) => res.ok ? res.json() : { beauftragungen: [] })
+      .then((d) => setBeauftragungen(d.beauftragungen ?? []))
+      .catch(() => {})
+  }, [ressourcen])
 
   const agenturen = React.useMemo(() => {
     const seen = new Map<string, string>()
@@ -1355,9 +1367,17 @@ export default function RessourcenPage() {
                                 <TableCell className="text-sm text-muted-foreground">{r.agentur_name ?? "—"}</TableCell>
                                 <TableCell className="text-sm text-muted-foreground">{r.rolle || "—"}</TableCell>
                                 <TableCell className="text-sm text-muted-foreground">
-                                  {r.verfuegbar_ab
-                                    ? new Date(r.verfuegbar_ab).toLocaleDateString("de-DE")
-                                    : "—"}
+                                  {(() => {
+                                    if (r.hat_beauftragt_link) {
+                                      const b = beauftragungen.find((b) => b.ressource_id === r.id)
+                                      return b?.end_date
+                                        ? new Date(b.end_date).toLocaleDateString("de-DE")
+                                        : "—"
+                                    }
+                                    return r.verfuegbar_ab
+                                      ? new Date(r.verfuegbar_ab).toLocaleDateString("de-DE")
+                                      : "—"
+                                  })()}
                                 </TableCell>
                                 <TableCell>
                                   <div className="flex flex-col gap-0.5 text-sm">
@@ -1368,9 +1388,15 @@ export default function RessourcenPage() {
                                   </div>
                                 </TableCell>
                                 <TableCell>
-                                  <Badge variant="outline" className={verfuegbarkeitColors[r.verfuegbarkeit]}>
-                                    {verfuegbarkeitLabel[r.verfuegbarkeit]}
-                                  </Badge>
+                                  {r.hat_beauftragt_link ? (
+                                    <Badge variant="outline" className="bg-teal-100 text-teal-700 border-teal-200">
+                                      Beauftragt
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className={verfuegbarkeitColors[r.verfuegbarkeit]}>
+                                      {verfuegbarkeitLabel[r.verfuegbarkeit]}
+                                    </Badge>
+                                  )}
                                 </TableCell>
                                 <TableCell>
                                   {r.ek_tagesrate != null ? `${r.ek_tagesrate.toLocaleString("de-DE")} €` : <span className="text-muted-foreground">—</span>}
