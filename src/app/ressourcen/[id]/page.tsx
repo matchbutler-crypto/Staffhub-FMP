@@ -9,9 +9,7 @@ import { toast } from "sonner"
 import {
   IconArrowLeft,
   IconBriefcase,
-  IconCalendar,
   IconClock,
-  IconFileText,
   IconLoader2,
   IconMapPin,
   IconPencil,
@@ -46,10 +44,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
-
-// ── Types ──────────────────────────────────────────────────────────────────────
 
 interface Ressource {
   id: string
@@ -93,7 +88,6 @@ interface Zeitnachweis {
   stunden: number
   beschreibung: string
   hochgeladen_von: string
-  created_at: string
 }
 
 const StammdatenSchema = z.object({
@@ -108,8 +102,6 @@ const StammdatenSchema = z.object({
 
 type StammdatenFormValues = z.infer<typeof StammdatenSchema>
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
-
 const VERFUEGBARKEIT_DOT: Record<string, string> = {
   "Jetzt verfügbar": "bg-emerald-500",
   "Verfügbar ab": "bg-amber-400",
@@ -118,30 +110,18 @@ const VERFUEGBARKEIT_DOT: Record<string, string> = {
 }
 
 const VERFUEGBARKEIT_TEXT: Record<string, string> = {
-  "Jetzt verfügbar": "text-emerald-700",
-  "Verfügbar ab": "text-amber-700",
-  "Nicht verfügbar": "text-zinc-500",
-  "Deaktiviert": "text-red-600",
+  "Jetzt verfügbar": "text-emerald-700 dark:text-emerald-300",
+  "Verfügbar ab": "text-amber-700 dark:text-amber-300",
+  "Nicht verfügbar": "text-zinc-500 dark:text-zinc-400",
+  "Deaktiviert": "text-red-600 dark:text-red-300",
 }
 
 const BEAUFTRAGUNG_STATUS: Record<string, string> = {
-  Aktiv: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  Abgeschlossen: "bg-zinc-100 text-zinc-600 border-zinc-200",
-  Abgebrochen: "bg-red-50 text-red-600 border-red-200",
-  Geplant: "bg-blue-50 text-blue-700 border-blue-200",
-}
-
-// ── Sub-components ─────────────────────────────────────────────────────────────
-
-function MetaRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="py-3 border-b border-border last:border-0">
-      <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1">
-        {label}
-      </div>
-      <div className="text-sm text-foreground">{children}</div>
-    </div>
-  )
+  Aktiv: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800",
+  Beauftragt: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800",
+  Abgeschlossen: "bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700",
+  Abgebrochen: "bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800",
+  Geplant: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800",
 }
 
 function FieldRow({ label, value }: { label: string; value?: string | null }) {
@@ -155,15 +135,13 @@ function FieldRow({ label, value }: { label: string; value?: string | null }) {
   )
 }
 
-// ── Header Meta Bar ────────────────────────────────────────────────────────────
-
-function SidebarPanel({
+function HeaderMetaBar({
   ressource,
-  isAgentur,
+  canEdit,
   onUpdate,
 }: {
   ressource: Ressource
-  isAgentur: boolean
+  canEdit: boolean
   onUpdate: () => void
 }) {
   const [savingStatus, setSavingStatus] = React.useState(false)
@@ -189,19 +167,69 @@ function SidebarPanel({
   }
 
   return (
-    <div className="rounded-lg border border-border bg-muted/20 p-4">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1">Verfügbarkeit</p>
-          {isAgentur ? (
+    <div className="border-b border-border">
+      <div className="px-6 py-5">
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+            {ressource.vorname || ressource.nachname
+              ? `${ressource.vorname ?? ""} ${ressource.nachname ?? ""}`.trim()
+              : ressource.name}
+          </h1>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1 text-sm">
+            <span className={`h-2 w-2 rounded-full ${VERFUEGBARKEIT_DOT[currentStatus] ?? "bg-zinc-400"}`} />
+            <span className={VERFUEGBARKEIT_TEXT[currentStatus] ?? "text-foreground"}>
+              {currentStatus}
+            </span>
+          </span>
+          {ressource.erfahrungslevel && (
+            <span className="inline-flex items-center rounded-full border border-border px-3 py-1 text-sm text-foreground">
+              {ressource.erfahrungslevel}
+            </span>
+          )}
+          {ressource.arbeitsmodell && (
+            <span className="inline-flex items-center rounded-full border border-border px-3 py-1 text-sm text-foreground">
+              {ressource.arbeitsmodell}
+            </span>
+          )}
+          {(ressource.location || ressource.rolle) && (
+            <span className="inline-flex items-center rounded-full border border-border px-3 py-1 text-sm text-foreground">
+              {ressource.location ?? ressource.rolle}
+            </span>
+          )}
+        </div>
+
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <div>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">ID</p>
+            <p className="text-2xl font-medium text-foreground">{ressource.ressource_code ?? "—"}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">Angelegt</p>
+            <p className="text-2xl font-medium text-foreground">
+              {new Date(ressource.created_at).toLocaleDateString("de-DE")}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">Agentur</p>
+            <p className="text-2xl font-medium text-foreground">{ressource.agentur_name ?? "—"}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">EK</p>
+            <p className="text-2xl font-medium text-foreground">
+              {ressource.ek_tagesrate != null ? `${ressource.ek_tagesrate.toLocaleString("de-DE")}€` : "—"}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">Standort</p>
+            <p className="text-2xl font-medium text-foreground">{ressource.location ?? "—"}</p>
+          </div>
+        </div>
+
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          {canEdit ? (
             <Select value={currentStatus} onValueChange={handleStatusChange} disabled={savingStatus}>
-              <SelectTrigger className="h-7 text-xs border-0 bg-transparent p-0 shadow-none focus:ring-0 gap-1.5 w-auto">
-                <div className="flex items-center gap-1.5">
-                  <span className={`h-2 w-2 rounded-full shrink-0 ${VERFUEGBARKEIT_DOT[currentStatus] ?? "bg-zinc-400"}`} />
-                  <span className={`font-medium ${VERFUEGBARKEIT_TEXT[currentStatus] ?? "text-foreground"}`}>
-                    <SelectValue />
-                  </span>
-                </div>
+              <SelectTrigger className="h-9 w-auto gap-2 rounded-md border-border bg-muted/40 text-sm">
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="Jetzt verfügbar">Jetzt verfügbar</SelectItem>
@@ -210,117 +238,45 @@ function SidebarPanel({
                 <SelectItem value="Deaktiviert">Deaktiviert</SelectItem>
               </SelectContent>
             </Select>
-          ) : (
-            <div className="flex items-center gap-1.5">
-              <span className={`h-2 w-2 rounded-full ${VERFUEGBARKEIT_DOT[currentStatus] ?? "bg-zinc-400"}`} />
-              <span className={`font-medium ${VERFUEGBARKEIT_TEXT[currentStatus] ?? "text-foreground"}`}>
-                {currentStatus}
-              </span>
-            </div>
-          )}
-        </div>
+          ) : null}
 
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1">Agentur</p>
-          <p className="text-sm font-medium">{ressource.agentur_name ?? "—"}</p>
-        </div>
-
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1">Erfahrungslevel</p>
-          {ressource.erfahrungslevel ? (
-            <Badge variant="outline" className="text-xs font-medium">{ressource.erfahrungslevel}</Badge>
-          ) : (
-            <p className="text-sm">—</p>
-          )}
-        </div>
-
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1">Angelegt</p>
-          <p className="text-sm">
-            {new Date(ressource.created_at).toLocaleDateString("de-DE", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })}
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1">Standort</p>
-          <div className="text-sm">
-            {ressource.location || ressource.arbeitsmodell ? (
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {ressource.location && (
-                  <span className="flex items-center gap-1">
-                    <IconMapPin className="h-3 w-3 text-muted-foreground" />
-                    {ressource.location}
-                  </span>
-                )}
-                {ressource.arbeitsmodell && (
-                  <span className="text-xs text-muted-foreground">· {ressource.arbeitsmodell}</span>
-                )}
-              </div>
-            ) : "—"}
-          </div>
-        </div>
-
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1">EK-Tagesrate</p>
-          <p className="text-sm font-semibold tabular-nums">
-            {ressource.ek_tagesrate != null ? `${ressource.ek_tagesrate.toLocaleString("de-DE")} € / Tag` : "—"}
-          </p>
-        </div>
-
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1">CV</p>
           {ressource.cv_pfad ? (
             <a
               href={ressource.cv_pfad}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-sm text-foreground hover:bg-muted/40"
             >
-              <IconDownload className="h-3 w-3" />
-              Herunterladen
+              <IconDownload className="h-4 w-4" />
+              CV herunterladen
             </a>
-          ) : (
-            <p className="text-sm">—</p>
-          )}
+          ) : null}
         </div>
-      </div>
 
-      {ressource.skills && ressource.skills.length > 0 && (
-        <div className="mt-4">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
-            Skills ({ressource.skills.length})
-          </p>
-          <div className="flex flex-wrap gap-1">
-            {ressource.skills.map((s) => (
-              <span
-                key={s}
-                className="inline-block rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground font-medium"
-              >
-                {s}
-              </span>
-            ))}
+        {ressource.skills && ressource.skills.length > 0 && (
+          <div className="mt-5">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Must Have</p>
+            <div className="flex flex-wrap gap-2">
+              {ressource.skills.map((s) => (
+                <span key={s} className="rounded-full border border-border px-3 py-1 text-sm text-foreground bg-muted/30">
+                  {s}
+                </span>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }
 
-// ── Stammdaten Tab ─────────────────────────────────────────────────────────────
-
 function StammdatenTab({
   ressource,
-  isAgentur,
+  canEdit,
   onUpdate,
 }: {
   ressource: Ressource
-  isAgentur: boolean
+  canEdit: boolean
   onUpdate: () => void
 }) {
   const [isEditing, setIsEditing] = React.useState(false)
@@ -374,9 +330,7 @@ function StammdatenTab({
               <IconX className="h-3.5 w-3.5" /> Abbrechen
             </Button>
             <Button type="submit" size="sm" disabled={!isDirty || isSaving} className="gap-1.5">
-              {isSaving
-                ? <IconLoader2 className="h-3.5 w-3.5 animate-spin" />
-                : <IconCheck className="h-3.5 w-3.5" />}
+              {isSaving ? <IconLoader2 className="h-3.5 w-3.5 animate-spin" /> : <IconCheck className="h-3.5 w-3.5" />}
               Speichern
             </Button>
           </div>
@@ -398,9 +352,7 @@ function StammdatenTab({
               <Controller
                 control={control}
                 name={name}
-                render={({ field }) => (
-                  <Input {...field} type={type} className="mt-1" />
-                )}
+                render={({ field }) => <Input {...field} type={type} className="mt-1" />}
               />
             </div>
           ))}
@@ -411,9 +363,7 @@ function StammdatenTab({
           <Controller
             control={control}
             name="notizen"
-            render={({ field }) => (
-              <Textarea {...field} className="mt-1 resize-none" rows={4} />
-            )}
+            render={({ field }) => <Textarea {...field} className="mt-1 resize-none" rows={4} />}
           />
         </div>
       </form>
@@ -422,7 +372,7 @@ function StammdatenTab({
 
   return (
     <div className="space-y-5">
-      {isAgentur && (
+      {canEdit && (
         <div className="flex justify-end">
           <Button
             variant="outline"
@@ -435,72 +385,56 @@ function StammdatenTab({
         </div>
       )}
 
-      <div className="divide-y divide-border">
-        <FieldRow label="Vorname" value={ressource.vorname} />
-        <FieldRow label="Nachname" value={ressource.nachname} />
-        <FieldRow
-          label="Geburtsdatum"
-          value={
-            ressource.geburtsdatum
-              ? new Date(ressource.geburtsdatum).toLocaleDateString("de-DE")
-              : null
-          }
-        />
-        <FieldRow label="E-Mail" value={ressource.email} />
-        <FieldRow label="Telefon" value={ressource.telefon} />
-        <FieldRow label="Wohnort" value={ressource.wohnort} />
+      <div className="divide-y divide-border rounded-md border border-border bg-background">
+        <div className="px-4"><FieldRow label="Vorname" value={ressource.vorname} /></div>
+        <div className="px-4"><FieldRow label="Nachname" value={ressource.nachname} /></div>
+        <div className="px-4">
+          <FieldRow
+            label="Geburtsdatum"
+            value={ressource.geburtsdatum ? new Date(ressource.geburtsdatum).toLocaleDateString("de-DE") : null}
+          />
+        </div>
+        <div className="px-4"><FieldRow label="E-Mail" value={ressource.email} /></div>
+        <div className="px-4"><FieldRow label="Telefon" value={ressource.telefon} /></div>
+        <div className="px-4"><FieldRow label="Wohnort" value={ressource.wohnort} /></div>
       </div>
 
       {ressource.notizen && (
         <div className="rounded-md border border-border bg-muted/30 p-4">
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">
-            Notizen
-          </p>
-          <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
-            {ressource.notizen}
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">Notizen</p>
+          <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{ressource.notizen}</p>
         </div>
       )}
     </div>
   )
 }
 
-// ── Beauftragungen Tab ─────────────────────────────────────────────────────────
-
 function BeauftragungTab({ beauftragungen }: { beauftragungen: Beauftragung[] }) {
   if (beauftragungen.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <div className="rounded-full bg-muted p-3 mb-3">
-          <IconBriefcase className="h-5 w-5 text-muted-foreground" />
-        </div>
-        <p className="text-sm font-medium text-foreground">Keine Beauftragungen</p>
-        <p className="text-xs text-muted-foreground mt-1">
-          Diese Ressource wurde noch nicht beauftragt.
-        </p>
+      <div className="rounded-xl border border-dashed border-border py-14 text-center text-muted-foreground">
+        Noch keine Beauftragungen vorhanden.
       </div>
     )
   }
 
   return (
-    <div className="overflow-x-auto -mx-6">
+    <div className="overflow-x-auto rounded-md border border-border">
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead className="pl-6">Vakanz</TableHead>
+            <TableHead>Vakanz</TableHead>
             <TableHead>Titel</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Start</TableHead>
             <TableHead>Ende</TableHead>
-            <TableHead className="pr-6">Agentur</TableHead>
+            <TableHead>Agentur</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {beauftragungen.map((b) => (
             <TableRow key={b.id}>
-              <TableCell className="pl-6 font-medium font-mono text-xs text-muted-foreground">
-                {b.vakanz_nr}
-              </TableCell>
+              <TableCell className="font-medium font-mono text-xs text-muted-foreground">{b.vakanz_nr}</TableCell>
               <TableCell className="font-medium">{b.vakanz_titel}</TableCell>
               <TableCell>
                 <Badge
@@ -516,7 +450,7 @@ function BeauftragungTab({ beauftragungen }: { beauftragungen: Beauftragung[] })
               <TableCell className="text-sm tabular-nums">
                 {b.enddatum ? new Date(b.enddatum).toLocaleDateString("de-DE") : "—"}
               </TableCell>
-              <TableCell className="pr-6 text-sm text-muted-foreground">{b.agentur_name}</TableCell>
+              <TableCell className="text-sm text-muted-foreground">{b.agentur_name}</TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -525,24 +459,14 @@ function BeauftragungTab({ beauftragungen }: { beauftragungen: Beauftragung[] })
   )
 }
 
-// ── Zeitnachweise Tab ──────────────────────────────────────────────────────────
-
-function ZeitnachweisTab({
-  zeitnachweise,
-}: {
-  ressource: Ressource
-  zeitnachweise: Zeitnachweis[]
-  onUpdate: () => void
-}) {
+function ZeitnachweisTab({ zeitnachweise }: { zeitnachweise: Zeitnachweis[] }) {
   const totalStunden = zeitnachweise.reduce((sum, z) => sum + z.stunden, 0)
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">
-            Gesamt
-          </p>
+          <p className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">Gesamt</p>
           <p className="text-2xl font-bold tabular-nums mt-0.5">
             {totalStunden}
             <span className="text-sm font-normal text-muted-foreground ml-1">Stunden</span>
@@ -554,35 +478,27 @@ function ZeitnachweisTab({
       </div>
 
       {zeitnachweise.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <div className="rounded-full bg-muted p-3 mb-3">
-            <IconClock className="h-5 w-5 text-muted-foreground" />
-          </div>
-          <p className="text-sm font-medium text-foreground">Keine Zeitnachweise</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Noch keine Stunden erfasst.
-          </p>
+        <div className="rounded-xl border border-dashed border-border py-14 text-center text-muted-foreground">
+          Noch keine Zeitnachweise erfasst.
         </div>
       ) : (
-        <div className="overflow-x-auto -mx-6">
+        <div className="overflow-x-auto rounded-md border border-border">
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className="pl-6">Datum</TableHead>
+                <TableHead>Datum</TableHead>
                 <TableHead>Stunden</TableHead>
                 <TableHead>Beschreibung</TableHead>
-                <TableHead className="pr-6">Hochgeladen von</TableHead>
+                <TableHead>Hochgeladen von</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {zeitnachweise.map((z) => (
                 <TableRow key={z.id}>
-                  <TableCell className="pl-6 tabular-nums">
-                    {new Date(z.datum).toLocaleDateString("de-DE")}
-                  </TableCell>
+                  <TableCell className="tabular-nums">{new Date(z.datum).toLocaleDateString("de-DE")}</TableCell>
                   <TableCell className="font-semibold tabular-nums">{z.stunden}h</TableCell>
                   <TableCell className="text-muted-foreground">{z.beschreibung}</TableCell>
-                  <TableCell className="pr-6 text-muted-foreground">{z.hochgeladen_von}</TableCell>
+                  <TableCell className="text-muted-foreground">{z.hochgeladen_von}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -592,8 +508,6 @@ function ZeitnachweisTab({
     </div>
   )
 }
-
-// ── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function RessourceDetailPage() {
   const params = useParams()
@@ -623,9 +537,8 @@ export default function RessourceDetailPage() {
   React.useEffect(() => { loadData() }, [loadData])
 
   const isManager = user?.rolle === "Admin" || user?.rolle === "Staffhub Manager"
-  const isAgentur = isManager || (user?.rolle === "Agentur" && user?.agentur_id === ressource?.agentur_id)
+  const canEdit = isManager || (user?.rolle === "Agentur" && user?.agentur_id === ressource?.agentur_id)
 
-  // Loading skeleton
   if (userLoading || loading) {
     return (
       <SidebarProvider>
@@ -640,7 +553,6 @@ export default function RessourceDetailPage() {
     )
   }
 
-  // Not found
   if (!ressource) {
     return (
       <SidebarProvider>
@@ -658,11 +570,6 @@ export default function RessourceDetailPage() {
     )
   }
 
-  const displayName =
-    ressource.vorname || ressource.nachname
-      ? `${ressource.vorname ?? ""} ${ressource.nachname ?? ""}`.trim()
-      : ressource.name
-
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -670,8 +577,7 @@ export default function RessourceDetailPage() {
         <SiteHeader />
 
         <div className="flex flex-col flex-1 min-h-0">
-          {/* ── Top bar ── */}
-          <div className="flex items-center justify-between px-6 py-3 border-b border-border">
+          <div className="px-6 py-3 border-b border-border">
             <Button
               variant="ghost"
               size="sm"
@@ -679,46 +585,16 @@ export default function RessourceDetailPage() {
               className="gap-1.5 text-muted-foreground hover:text-foreground -ml-2"
             >
               <IconArrowLeft className="h-4 w-4" />
-              Zurück
+              Zurück zu Ressourcen
             </Button>
-            {ressource.ressource_code && (
-              <span className="text-xs text-muted-foreground font-mono bg-muted px-2 py-1 rounded">
-                {ressource.ressource_code}
-              </span>
-            )}
           </div>
 
-          {/* ── Page header ── */}
-          <div className="px-6 pt-6 pb-5 border-b border-border">
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <h1 className="text-2xl font-bold tracking-tight text-foreground truncate">
-                  {displayName}
-                </h1>
-                {ressource.rolle && (
-                  <p className="text-sm text-muted-foreground mt-0.5">{ressource.rolle}</p>
-                )}
-              </div>
-              {/* Status pill — right side of header */}
-              <div className="flex items-center gap-1.5 shrink-0 mt-1">
-                <span
-                  className={`h-2 w-2 rounded-full ${VERFUEGBARKEIT_DOT[ressource.verfuegbarkeit] ?? "bg-zinc-400"}`}
-                />
-                <span className={`text-sm font-medium ${VERFUEGBARKEIT_TEXT[ressource.verfuegbarkeit] ?? "text-muted-foreground"}`}>
-                  {ressource.verfuegbarkeit}
-                </span>
-              </div>
-            </div>
-          </div>
+          <div className="flex-1 overflow-auto">
+            <HeaderMetaBar ressource={ressource} canEdit={canEdit} onUpdate={loadData} />
 
-          {/* ── Body: header meta + tabs ── */}
-          <div className="flex flex-1 min-h-0 overflow-hidden">
-            <div className="flex-1 overflow-auto">
-              <div className="px-6 pt-6">
-                <SidebarPanel ressource={ressource} isAgentur={isAgentur} onUpdate={loadData} />
-              </div>
-              <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full mt-4">
-                <div className="border-b border-border px-6">
+            <div className="px-6 pt-6 pb-8">
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col">
+                <div className="border-b border-border">
                   <TabsList className="h-auto bg-transparent p-0 gap-0 rounded-none">
                     {[
                       { value: "stammdaten", label: "Stammdaten", icon: IconUser },
@@ -737,21 +613,15 @@ export default function RessourceDetailPage() {
                   </TabsList>
                 </div>
 
-                <div className="flex-1 overflow-auto px-6 py-6">
+                <div className="pt-6">
                   <TabsContent value="stammdaten" className="mt-0 focus-visible:outline-none">
-                    <StammdatenTab ressource={ressource} isAgentur={isAgentur} onUpdate={loadData} />
+                    <StammdatenTab ressource={ressource} canEdit={canEdit} onUpdate={loadData} />
                   </TabsContent>
-
                   <TabsContent value="beauftragungen" className="mt-0 focus-visible:outline-none">
                     <BeauftragungTab beauftragungen={ressource.beauftragungen ?? []} />
                   </TabsContent>
-
                   <TabsContent value="zeitnachweise" className="mt-0 focus-visible:outline-none">
-                    <ZeitnachweisTab
-                      ressource={ressource}
-                      zeitnachweise={zeitnachweise}
-                      onUpdate={loadData}
-                    />
+                    <ZeitnachweisTab zeitnachweise={zeitnachweise} />
                   </TabsContent>
                 </div>
               </Tabs>
