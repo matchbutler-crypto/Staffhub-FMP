@@ -7,6 +7,7 @@ const {
   mockGetUser,
   mockProfileSelect,
   mockRessourcenSelect,
+  mockRessourcenInsert,
   mockInsert,
   mockLinkCountSelect,
   mockLinkSelect,
@@ -14,6 +15,7 @@ const {
   mockGetUser: vi.fn(),
   mockProfileSelect: vi.fn(),
   mockRessourcenSelect: vi.fn(),
+  mockRessourcenInsert: vi.fn(),
   mockInsert: vi.fn(),
   mockLinkCountSelect: vi.fn(),
   mockLinkSelect: vi.fn(),
@@ -51,7 +53,7 @@ vi.mock('@/lib/supabase/server', () => ({
         }
         return {
           select: vi.fn(() => builder),
-          insert: vi.fn().mockReturnValue({
+          insert: mockRessourcenInsert.mockReturnValue({
             select: vi.fn().mockReturnValue({ single: mockInsert }),
           }),
         }
@@ -305,5 +307,29 @@ describe('POST /api/ressourcen', () => {
     const json = await res.json()
     expect(json.ressource.id).toBe('new-res-1')
     expect(json.ressource.name).toBe('Max M.')
+  })
+
+  it('speichert Skills ohne case-insensitive Duplikate', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u1' } }, error: null })
+    mockProfileSelect.mockResolvedValue({
+      data: { rolle: 'Agentur', aktiv: true, agentur_id: 'ag-1' },
+      error: null,
+    })
+    mockInsert.mockResolvedValue({
+      data: { id: 'new-res-1', name: 'Max M.', verfuegbarkeit: 'Jetzt verfügbar', created_at: '2026-04-18T00:00:00Z' },
+      error: null,
+    })
+
+    const res = await POST(makeRequest({
+      ...validRessource,
+      skills: ['Project Management', 'project management', 'React'],
+    }))
+
+    expect(res.status).toBe(201)
+    expect(mockRessourcenInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skills: ['Project Management', 'React'],
+      })
+    )
   })
 })

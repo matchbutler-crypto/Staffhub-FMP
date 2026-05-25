@@ -18,6 +18,22 @@ const createRessourceSchema = z.object({
   { message: 'Datum erforderlich wenn "Verfügbar ab"', path: ['verfuegbar_ab'] }
 )
 
+function normalizeSkillNames(skills: string[]): string[] {
+  const normalized = new Map<string, string>()
+
+  for (const skill of skills) {
+    const trimmed = skill.trim()
+    if (!trimmed) continue
+
+    const key = trimmed.toLowerCase()
+    if (!normalized.has(key)) {
+      normalized.set(key, trimmed)
+    }
+  }
+
+  return Array.from(normalized.values())
+}
+
 async function getUserProfile(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
   const { data } = await supabase
     .from('profiles')
@@ -198,7 +214,7 @@ export async function POST(request: NextRequest) {
     .insert({
       name: parsed.data.name,
       rolle: parsed.data.rolle ?? null,
-      skills: parsed.data.skills,
+      skills: normalizeSkillNames(parsed.data.skills),
       erfahrungslevel: parsed.data.erfahrungslevel,
       verfuegbarkeit: parsed.data.verfuegbarkeit,
       verfuegbar_ab: parsed.data.verfuegbar_ab || null,

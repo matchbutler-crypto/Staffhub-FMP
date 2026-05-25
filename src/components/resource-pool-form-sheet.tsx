@@ -103,6 +103,26 @@ const resourcePoolSchema = z.object({
 
 type ResourcePoolFormData = z.infer<typeof resourcePoolSchema>
 
+export function normalizeSkillNames(skills: string[]): string[] {
+  const normalized = new Map<string, string>()
+
+  for (const skill of skills) {
+    const trimmed = skill.trim()
+    if (!trimmed) continue
+
+    const key = trimmed.toLowerCase()
+    if (!normalized.has(key)) {
+      normalized.set(key, trimmed)
+    }
+  }
+
+  return Array.from(normalized.values())
+}
+
+export function removeSkillAtIndex(skills: string[], indexToRemove: number): string[] {
+  return skills.filter((_, index) => index !== indexToRemove)
+}
+
 interface FileDropzoneProps {
   value: File | null
   onChange: (file: File | null) => void
@@ -232,14 +252,15 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess, isManager
   }
 
   const handleAddSkill = () => {
-    if (skillInput.trim() && !extractedSkills.includes(skillInput.trim())) {
-      setExtractedSkills([...extractedSkills, skillInput.trim()])
+    const nextSkills = normalizeSkillNames([...extractedSkills, skillInput])
+    if (nextSkills.length !== extractedSkills.length) {
+      setExtractedSkills(nextSkills)
       setSkillInput('')
     }
   }
 
-  const handleRemoveSkill = (skill: string) => {
-    setExtractedSkills(extractedSkills.filter((s) => s !== skill))
+  const handleRemoveSkill = (indexToRemove: number) => {
+    setExtractedSkills(removeSkillAtIndex(extractedSkills, indexToRemove))
   }
 
   async function onSubmit(data: ResourcePoolFormData) {
@@ -290,11 +311,11 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess, isManager
       setSavedArbeitsmodell(data.arbeitsmodell ?? 'Onshore')
       setSavedLocation(data.location ?? null)
       const rawSkills = result.profile?.extracted_skills ?? []
-      setExtractedSkills(
+      setExtractedSkills(normalizeSkillNames(
         rawSkills.map((s: { name: string } | string) =>
           typeof s === 'string' ? s : s.name
         )
-      )
+      ))
       setExtractionStep(null)
       toast.success('CV hochgeladen und Skills extrahiert!')
     } catch (error) {
@@ -320,7 +341,7 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess, isManager
         body: JSON.stringify({
           name: savedName,
           rolle: savedRolle ?? null,
-          skills: extractedSkills.slice(0, 30),
+          skills: normalizeSkillNames(extractedSkills).slice(0, 30),
           erfahrungslevel: 'Mid',
           verfuegbarkeit: savedVerfuegbarAb ? 'Verfügbar ab' : 'Jetzt verfügbar',
           verfuegbar_ab: savedVerfuegbarAb ?? null,
@@ -512,10 +533,10 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess, isManager
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex flex-wrap gap-2">
-                    {extractedSkills.map((skill) => (
-                      <div key={skill} className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-sm">
+                    {extractedSkills.map((skill, index) => (
+                      <div key={`${skill}-${index}`} className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-sm">
                         <span>{skill}</span>
-                        <button type="button" onClick={() => handleRemoveSkill(skill)} className="text-muted-foreground hover:text-foreground">
+                        <button type="button" onClick={() => handleRemoveSkill(index)} className="text-muted-foreground hover:text-foreground">
                           <IconX className="size-3" />
                         </button>
                       </div>

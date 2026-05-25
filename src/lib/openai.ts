@@ -50,7 +50,8 @@ Regeln:
 - Technische Skills: Programmiersprachen, Frameworks, Tools, Datenbanken, Cloud-Dienste, Methoden
 - Soft Skills: z.B. "Teamarbeit", "Projektmanagement", "Kommunikation"
 - Kurze kanonische Begriffe: "React" nicht "React.js Framework", "Python" nicht "Python-Programmierung"
-- Keine Duplikate, keine Versionsnummern
+- ABSOLUT KEINE DUPLIKATE: Jeder Skill darf genau einmal vorkommen – prüfe die gesamte Liste vor der Ausgabe auf Wiederholungen (auch sinngemäße wie "Project Management" und "Projektmanagement")
+- Keine Versionsnummern
 - MAXIMAL 30 Skills (nur die Top-30)`
 
 export async function extractSkillsFromCVBuffer(cvBuffer: ArrayBuffer): Promise<string[]> {
