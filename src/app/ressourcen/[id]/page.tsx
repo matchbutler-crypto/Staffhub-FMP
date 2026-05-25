@@ -297,27 +297,27 @@ function HeaderMetaBar({
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <div>
             <p className="text-xs text-muted-foreground uppercase tracking-wider">ID</p>
-            <p className="text-2xl leading-none font-semibold text-foreground">{ressource.ressource_code ?? "—"}</p>
+            <p className="text-xl leading-none font-semibold text-foreground">{ressource.ressource_code ?? "—"}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground uppercase tracking-wider">Angelegt</p>
-            <p className="text-2xl leading-none font-semibold text-foreground">
+            <p className="text-xl leading-none font-semibold text-foreground">
               {new Date(ressource.created_at).toLocaleDateString("de-DE")}
             </p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground uppercase tracking-wider">Agentur</p>
-            <p className="text-2xl leading-none font-semibold text-foreground">{ressource.agentur_name ?? "—"}</p>
+            <p className="text-xl leading-none font-semibold text-foreground">{ressource.agentur_name ?? "—"}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground uppercase tracking-wider">EK</p>
-            <p className="text-2xl leading-none font-semibold text-foreground">
+            <p className="text-xl leading-none font-semibold text-foreground">
               {ressource.ek_tagesrate != null ? `${ressource.ek_tagesrate.toLocaleString("de-DE")}€` : "—"}
             </p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground uppercase tracking-wider">Standort</p>
-            <p className="text-2xl leading-none font-semibold text-foreground">{ressource.location ?? "—"}</p>
+            <p className="text-xl leading-none font-semibold text-foreground">{ressource.location ?? "—"}</p>
           </div>
         </div>
 
