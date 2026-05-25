@@ -84,26 +84,43 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       agentur_name: b.vakanzen_data?.agenturen?.name ?? '—',
     }))
 
-    const { agenturen, ...rest } = ressource
-    return NextResponse.json({
-      ...rest,
+    const {
+      agenturen,
+      email_geschaeftlich,
+      telefon_geschaeftlich,
+      ek_tagesrate,
+      nachname, vorname, geburtsdatum, geschlecht,
+      firma, wohnort, namenszusatz, titel,
+      notizen,
+      ...publicRest
+    } = ressource
+
+    const base = {
+      ...publicRest,
       agentur_name,
-      // Private fields only for own agency or manager
-      ...(canSeePrivate ? {} : {
-        ek_tagesrate: undefined,
-        nachname: undefined,
-        vorname: undefined,
-        geburtsdatum: undefined,
-        geschlecht: undefined,
-        firma: undefined,
-        email_geschaeftlich: undefined,
-        telefon_geschaeftlich: undefined,
-        wohnort: undefined,
-        namenszusatz: undefined,
-        titel: undefined,
-      }),
       beauftragungen: mappedBeauftragungen,
-    })
+    }
+
+    if (canSeePrivate) {
+      return NextResponse.json({
+        ...base,
+        // Map DB field names to what the detail page expects
+        email: email_geschaeftlich ?? null,
+        telefon: telefon_geschaeftlich ?? null,
+        ek_tagesrate: ek_tagesrate ?? null,
+        nachname: nachname ?? null,
+        vorname: vorname ?? null,
+        geburtsdatum: geburtsdatum ?? null,
+        geschlecht: geschlecht ?? null,
+        firma: firma ?? null,
+        wohnort: wohnort ?? null,
+        namenszusatz: namenszusatz ?? null,
+        titel: titel ?? null,
+        notizen: notizen ?? null,
+      })
+    }
+
+    return NextResponse.json(base)
   } catch (err) {
     console.error('Error fetching resource:', err)
     return NextResponse.json({ error: 'Fehler beim Laden der Ressource' }, { status: 500 })

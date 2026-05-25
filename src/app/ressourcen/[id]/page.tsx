@@ -425,7 +425,7 @@ function VerfuegbarkeitTab({
         <CardHeader>
           <CardTitle className="text-base">Verfügbarkeitsstatus</CardTitle>
           <CardDescription>
-            {isAgentur ? "Ihre Agentur kann diesen Status verwalten" : "Nur die Agentur kann diesen Status ändern"}
+            {isAgentur ? "Status kann hier geändert werden" : "Nur die zuständige Agentur kann diesen Status ändern"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -561,7 +561,8 @@ export default function RessourceDetailPage() {
     loadData()
   }, [loadData])
 
-  const isAgentur = user?.rolle === "Agentur" && user?.agentur_id === ressource?.agentur_id
+  const isManager = user?.rolle === "Admin" || user?.rolle === "Staffhub Manager"
+  const isAgentur = isManager || (user?.rolle === "Agentur" && user?.agentur_id === ressource?.agentur_id)
 
   if (userLoading || loading) {
     return (
