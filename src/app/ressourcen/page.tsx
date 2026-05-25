@@ -1362,16 +1362,11 @@ export default function RessourcenPage() {
                           return (
                             <React.Fragment key={r.id}>
                               <TableRow
-                                className="cursor-pointer"
-                                onClick={() => { setSelectedRessource(r); setDetailOpen(true) }}
+                                className="cursor-pointer hover:bg-muted/50"
+                                onClick={() => router.push(`/ressourcen/${r.id}`)}
                               >
-                                <TableCell className="text-xs font-mono text-muted-foreground whitespace-nowrap">
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); router.push(`/ressourcen/${r.id}`) }}
-                                    className="hover:text-blue-600 hover:underline"
-                                  >
-                                    {r.ressource_code ?? '—'}
-                                  </button>
+                                <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                                  {r.ressource_code ?? '—'}
                                 </TableCell>
                                 <TableCell className="font-medium">{r.name}</TableCell>
                                 <TableCell className="text-sm text-muted-foreground">{r.agentur_name ?? "—"}</TableCell>
@@ -1411,7 +1406,7 @@ export default function RessourcenPage() {
                                 <TableCell>
                                   {r.ek_tagesrate != null ? `${r.ek_tagesrate.toLocaleString("de-DE")} €` : <span className="text-muted-foreground">—</span>}
                                 </TableCell>
-                                <TableCell onClick={(e) => { if (linkCount > 0) handleToggleExpand(r.id, e) }}>
+                                <TableCell onClick={(e) => { e.stopPropagation(); if (linkCount > 0) handleToggleExpand(r.id, e) }}>
                                   {linkCount > 0 ? (
                                     <button
                                       className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
@@ -1448,7 +1443,7 @@ export default function RessourcenPage() {
                               </TableRow>
                               {isExpanded && (
                                 <TableRow className="bg-muted/30 hover:bg-muted/30">
-                                  <TableCell colSpan={9} className="px-6 py-0">
+                                  <TableCell colSpan={10} className="px-6 py-0">
                                     {isLoadingLinks ? (
                                       <div className="py-2">
                                         {[1, 2].map((i) => (

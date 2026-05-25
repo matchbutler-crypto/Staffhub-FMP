@@ -2411,20 +2411,15 @@ export default function PoolPage() {
                           const totalCols = (vakanzFilter !== "keine" ? 11 : 10) + (isAdmin ? 1 : 0)
                           return (
                           <React.Fragment key={r.id}>
-                          <TableRow className="cursor-pointer">
-                            <TableCell className="text-xs font-mono text-muted-foreground whitespace-nowrap">
+                          <TableRow
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() => router.push(`/ressourcen/${r.id}`)}
+                          >
+                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                               {r.ressource_code ?? '—'}
                             </TableCell>
                             <TableCell className="font-medium">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  router.push(`/ressourcen/${r.id}`)
-                                }}
-                                className="hover:text-blue-600 hover:underline"
-                              >
-                                {r.name}
-                              </button>
+                              {r.name}
                             </TableCell>
                             {isAdmin && (
                               <TableCell className="text-sm text-muted-foreground">
@@ -2479,7 +2474,7 @@ export default function PoolPage() {
                                     size="sm"
                                     variant="outline"
                                     className="h-7 text-xs border-amber-200 text-amber-700 hover:bg-amber-50"
-                                    onClick={() => setStammdatenModal(r)}
+                                    onClick={(e) => { e.stopPropagation(); setStammdatenModal(r) }}
                                   >
                                     Stammdaten erfassen
                                   </Button>
@@ -2525,7 +2520,7 @@ export default function PoolPage() {
                                 <span className="text-muted-foreground text-xs">—</span>
                               )}
                             </TableCell>
-                            <TableCell>
+                            <TableCell onClick={(e) => e.stopPropagation()}>
                               {r.cv_pfad ? (
                                 <Button
                                   variant="ghost"

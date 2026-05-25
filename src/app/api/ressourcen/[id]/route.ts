@@ -47,9 +47,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const canSeePrivate = isManager || ressource.agentur_id === profile.agentur_id
-    if (!isManager && ressource.agentur_id !== profile.agentur_id) {
-      return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
-    }
 
     const agenturEntry = ressource.agenturen as { name: string } | { name: string }[] | null
     const agentur_name = Array.isArray(agenturEntry)
