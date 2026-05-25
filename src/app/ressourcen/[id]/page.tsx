@@ -155,7 +155,7 @@ function FieldRow({ label, value }: { label: string; value?: string | null }) {
   )
 }
 
-// ── Sidebar Panel ──────────────────────────────────────────────────────────────
+// ── Header Meta Bar ────────────────────────────────────────────────────────────
 
 function SidebarPanel({
   ressource,
@@ -189,92 +189,114 @@ function SidebarPanel({
   }
 
   return (
-    <aside className="w-64 shrink-0 border-r border-border bg-muted/20 px-5 py-6 space-y-0">
-      {/* Availability */}
-      <MetaRow label="Verfügbarkeit">
-        {isAgentur ? (
-          <Select value={currentStatus} onValueChange={handleStatusChange} disabled={savingStatus}>
-            <SelectTrigger className="h-7 text-xs border-0 bg-transparent p-0 shadow-none focus:ring-0 gap-1.5 w-auto">
-              <div className="flex items-center gap-1.5">
-                <span className={`h-2 w-2 rounded-full shrink-0 ${VERFUEGBARKEIT_DOT[currentStatus] ?? "bg-zinc-400"}`} />
-                <span className={`font-medium ${VERFUEGBARKEIT_TEXT[currentStatus] ?? "text-foreground"}`}>
-                  <SelectValue />
-                </span>
-              </div>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Jetzt verfügbar">Jetzt verfügbar</SelectItem>
-              <SelectItem value="Verfügbar ab">Verfügbar ab</SelectItem>
-              <SelectItem value="Nicht verfügbar">Nicht verfügbar</SelectItem>
-              <SelectItem value="Deaktiviert">Deaktiviert</SelectItem>
-            </SelectContent>
-          </Select>
-        ) : (
-          <div className="flex items-center gap-1.5">
-            <span className={`h-2 w-2 rounded-full ${VERFUEGBARKEIT_DOT[currentStatus] ?? "bg-zinc-400"}`} />
-            <span className={`font-medium ${VERFUEGBARKEIT_TEXT[currentStatus] ?? "text-foreground"}`}>
-              {currentStatus}
-            </span>
-          </div>
-        )}
-      </MetaRow>
-
-      {ressource.verfuegbar_ab && (
-        <MetaRow label="Verfügbar ab">
-          {new Date(ressource.verfuegbar_ab).toLocaleDateString("de-DE")}
-        </MetaRow>
-      )}
-
-      {/* Agency */}
-      {ressource.agentur_name && (
-        <MetaRow label="Agentur">
-          <span className="font-medium">{ressource.agentur_name}</span>
-        </MetaRow>
-      )}
-
-      {/* Experience */}
-      {ressource.erfahrungslevel && (
-        <MetaRow label="Erfahrungslevel">
-          <Badge variant="outline" className="text-xs font-medium">
-            {ressource.erfahrungslevel}
-          </Badge>
-        </MetaRow>
-      )}
-
-      {/* Location */}
-      {(ressource.location || ressource.arbeitsmodell) && (
-        <MetaRow label="Standort">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {ressource.location && (
-              <span className="flex items-center gap-1">
-                <IconMapPin className="h-3 w-3 text-muted-foreground" />
-                {ressource.location}
+    <div className="rounded-lg border border-border bg-muted/20 p-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1">Verfügbarkeit</p>
+          {isAgentur ? (
+            <Select value={currentStatus} onValueChange={handleStatusChange} disabled={savingStatus}>
+              <SelectTrigger className="h-7 text-xs border-0 bg-transparent p-0 shadow-none focus:ring-0 gap-1.5 w-auto">
+                <div className="flex items-center gap-1.5">
+                  <span className={`h-2 w-2 rounded-full shrink-0 ${VERFUEGBARKEIT_DOT[currentStatus] ?? "bg-zinc-400"}`} />
+                  <span className={`font-medium ${VERFUEGBARKEIT_TEXT[currentStatus] ?? "text-foreground"}`}>
+                    <SelectValue />
+                  </span>
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Jetzt verfügbar">Jetzt verfügbar</SelectItem>
+                <SelectItem value="Verfügbar ab">Verfügbar ab</SelectItem>
+                <SelectItem value="Nicht verfügbar">Nicht verfügbar</SelectItem>
+                <SelectItem value="Deaktiviert">Deaktiviert</SelectItem>
+              </SelectContent>
+            </Select>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <span className={`h-2 w-2 rounded-full ${VERFUEGBARKEIT_DOT[currentStatus] ?? "bg-zinc-400"}`} />
+              <span className={`font-medium ${VERFUEGBARKEIT_TEXT[currentStatus] ?? "text-foreground"}`}>
+                {currentStatus}
               </span>
-            )}
-            {ressource.arbeitsmodell && ressource.arbeitsmodell !== "Onshore" && (
-              <span className="text-xs text-muted-foreground">· {ressource.arbeitsmodell}</span>
-            )}
-            {ressource.arbeitsmodell === "Onshore" && (
-              <span className="text-xs text-muted-foreground">· Onshore</span>
-            )}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1">Agentur</p>
+          <p className="text-sm font-medium">{ressource.agentur_name ?? "—"}</p>
+        </div>
+
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1">Erfahrungslevel</p>
+          {ressource.erfahrungslevel ? (
+            <Badge variant="outline" className="text-xs font-medium">{ressource.erfahrungslevel}</Badge>
+          ) : (
+            <p className="text-sm">—</p>
+          )}
+        </div>
+
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1">Angelegt</p>
+          <p className="text-sm">
+            {new Date(ressource.created_at).toLocaleDateString("de-DE", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1">Standort</p>
+          <div className="text-sm">
+            {ressource.location || ressource.arbeitsmodell ? (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {ressource.location && (
+                  <span className="flex items-center gap-1">
+                    <IconMapPin className="h-3 w-3 text-muted-foreground" />
+                    {ressource.location}
+                  </span>
+                )}
+                {ressource.arbeitsmodell && (
+                  <span className="text-xs text-muted-foreground">· {ressource.arbeitsmodell}</span>
+                )}
+              </div>
+            ) : "—"}
           </div>
-        </MetaRow>
-      )}
+        </div>
 
-      {/* EK Rate */}
-      {ressource.ek_tagesrate != null && (
-        <MetaRow label="EK-Tagesrate">
-          <span className="font-semibold tabular-nums">
-            {ressource.ek_tagesrate.toLocaleString("de-DE")} €
-          </span>
-          <span className="text-muted-foreground text-xs"> / Tag</span>
-        </MetaRow>
-      )}
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1">EK-Tagesrate</p>
+          <p className="text-sm font-semibold tabular-nums">
+            {ressource.ek_tagesrate != null ? `${ressource.ek_tagesrate.toLocaleString("de-DE")} € / Tag` : "—"}
+          </p>
+        </div>
 
-      {/* Skills */}
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1">CV</p>
+          {ressource.cv_pfad ? (
+            <a
+              href={ressource.cv_pfad}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+            >
+              <IconDownload className="h-3 w-3" />
+              Herunterladen
+            </a>
+          ) : (
+            <p className="text-sm">—</p>
+          )}
+        </div>
+      </div>
+
       {ressource.skills && ressource.skills.length > 0 && (
-        <MetaRow label={`Skills (${ressource.skills.length})`}>
-          <div className="flex flex-wrap gap-1 mt-0.5">
+        <div className="mt-4">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+            Skills ({ressource.skills.length})
+          </p>
+          <div className="flex flex-wrap gap-1">
             {ressource.skills.map((s) => (
               <span
                 key={s}
@@ -284,33 +306,9 @@ function SidebarPanel({
               </span>
             ))}
           </div>
-        </MetaRow>
+        </div>
       )}
-
-      {/* CV */}
-      {ressource.cv_pfad && (
-        <MetaRow label="CV">
-          <a
-            href={ressource.cv_pfad}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-          >
-            <IconDownload className="h-3 w-3" />
-            Herunterladen
-          </a>
-        </MetaRow>
-      )}
-
-      {/* Created */}
-      <MetaRow label="Angelegt">
-        {new Date(ressource.created_at).toLocaleDateString("de-DE", {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-        })}
-      </MetaRow>
-    </aside>
+    </div>
   )
 }
 
@@ -713,15 +711,13 @@ export default function RessourceDetailPage() {
             </div>
           </div>
 
-          {/* ── Body: sidebar + tabs ── */}
+          {/* ── Body: header meta + tabs ── */}
           <div className="flex flex-1 min-h-0 overflow-hidden">
-            {/* Left metadata sidebar */}
-            <SidebarPanel ressource={ressource} isAgentur={isAgentur} onUpdate={loadData} />
-
-            {/* Right content */}
             <div className="flex-1 overflow-auto">
-              <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
-                {/* Tab nav */}
+              <div className="px-6 pt-6">
+                <SidebarPanel ressource={ressource} isAgentur={isAgentur} onUpdate={loadData} />
+              </div>
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full mt-4">
                 <div className="border-b border-border px-6">
                   <TabsList className="h-auto bg-transparent p-0 gap-0 rounded-none">
                     {[
@@ -741,7 +737,6 @@ export default function RessourceDetailPage() {
                   </TabsList>
                 </div>
 
-                {/* Tab content */}
                 <div className="flex-1 overflow-auto px-6 py-6">
                   <TabsContent value="stammdaten" className="mt-0 focus-visible:outline-none">
                     <StammdatenTab ressource={ressource} isAgentur={isAgentur} onUpdate={loadData} />

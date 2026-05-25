@@ -59,7 +59,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .select(`
         id, status, created_at,
         vakanz_id,
-        vakanzen_data(id, vakanz_nr, rolle, agenturen(name))
+        vakanzen_data(id, vakanz_nr, titel, rolle, agenturen(name))
       `)
       .eq('ressource_id', id)
       .not('status', 'eq', 'Zurückgezogen')
@@ -84,6 +84,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       agentur_name: b.vakanzen_data?.agenturen?.name ?? '—',
     }))
 
+    // Fallback: if no beauftragungen rows exist yet, derive display rows from active links
+    const fallbackFromLinks = (links ?? []).map((l: any) => ({
+      id: `link-${l.id}`,
+      vakanz_nr: l.vakanzen_data?.vakanz_nr ?? '—',
+      vakanz_titel: l.vakanzen_data?.titel ?? l.vakanzen_data?.rolle ?? '—',
+      status: l.status ?? 'Eingereicht',
+      startdatum: l.created_at,
+      enddatum: null,
+      agentur_name: l.vakanzen_data?.agenturen?.name ?? '—',
+    }))
+
     const {
       agenturen,
       email_geschaeftlich,
@@ -98,7 +109,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const base = {
       ...publicRest,
       agentur_name,
-      beauftragungen: mappedBeauftragungen,
+      beauftragungen: mappedBeauftragungen.length > 0 ? mappedBeauftragungen : fallbackFromLinks,
     }
 
     if (canSeePrivate) {
