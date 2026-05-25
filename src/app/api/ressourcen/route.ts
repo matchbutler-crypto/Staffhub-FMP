@@ -35,6 +35,28 @@ function normalizeSkillNames(skills: string[]): string[] {
   return Array.from(normalized.values())
 }
 
+async function generateNextRessourceCode(supabaseAdmin: ReturnType<typeof createAdminClient>): Promise<string> {
+  const { data, error } = await supabaseAdmin
+    .from('ressourcen')
+    .select('ressource_code')
+    .like('ressource_code', 'D3XP%')
+    .order('ressource_code', { ascending: false })
+    .limit(1)
+
+  if (error) {
+    throw new Error(`Ressourcen-Code konnte nicht erzeugt werden: ${error.message}`)
+  }
+
+  const latestCode = data?.[0]?.ressource_code
+  const latestNumber =
+    typeof latestCode === 'string'
+      ? Number.parseInt(latestCode.replace(/^D3XP/, ''), 10)
+      : 0
+  const nextNumber = Number.isFinite(latestNumber) ? latestNumber + 1 : 1
+
+  return `D3XP${String(nextNumber).padStart(4, '0')}`
+}
+
 async function getUserProfile(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
   const { data } = await supabase
     .from('profiles')
@@ -210,19 +232,28 @@ export async function POST(request: NextRequest) {
     ? (parsed.data as typeof parsed.data & { agentur_id: string }).agentur_id
     : profile.agentur_id!
 
-  let insertClient = supabase
-  if (isAdmin || isManager) {
-    try {
-      insertClient = createAdminClient() as typeof supabase
-    } catch (error) {
-      console.error('Ressource insert admin client error:', error)
-      return NextResponse.json({ error: 'Server-Konfigurationsfehler' }, { status: 500 })
-    }
+  let supabaseAdmin: ReturnType<typeof createAdminClient>
+  try {
+    supabaseAdmin = createAdminClient()
+  } catch (error) {
+    console.error('Ressource admin client error:', error)
+    return NextResponse.json({ error: 'Server-Konfigurationsfehler' }, { status: 500 })
   }
+
+  let ressourceCode: string
+  try {
+    ressourceCode = await generateNextRessourceCode(supabaseAdmin)
+  } catch (error) {
+    console.error('Ressource code generation error:', error)
+    return NextResponse.json({ error: 'Fehler beim Erzeugen der Ressourcen-ID' }, { status: 500 })
+  }
+
+  const insertClient = (isAdmin || isManager) ? supabaseAdmin : supabase
 
   const { data: ressource, error } = await insertClient
     .from('ressourcen')
     .insert({
+      ressource_code: ressourceCode,
       name: parsed.data.name,
       rolle: parsed.data.rolle ?? null,
       skills: normalizeSkillNames(parsed.data.skills),

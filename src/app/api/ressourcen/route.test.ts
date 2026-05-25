@@ -10,6 +10,7 @@ const {
   mockRessourcenInsert,
   mockInsert,
   mockAdminRessourcenInsert,
+  mockAdminRessourcenSelect,
   mockAdminInsert,
   mockLinkCountSelect,
   mockLinkSelect,
@@ -20,6 +21,7 @@ const {
   mockRessourcenInsert: vi.fn(),
   mockInsert: vi.fn(),
   mockAdminRessourcenInsert: vi.fn(),
+  mockAdminRessourcenSelect: vi.fn(),
   mockAdminInsert: vi.fn(),
   mockLinkCountSelect: vi.fn(),
   mockLinkSelect: vi.fn(),
@@ -95,7 +97,17 @@ vi.mock('@/lib/supabase/admin', () => ({
   createAdminClient: vi.fn(() => ({
     from: vi.fn((table: string) => {
       if (table === 'ressourcen') {
+        const adminSelectBuilder = {
+          like: vi.fn(() => adminSelectBuilder),
+          order: vi.fn(() => adminSelectBuilder),
+          limit: vi.fn(() => ({
+            then: (resolve: (value: unknown) => unknown, reject?: (reason: unknown) => unknown) =>
+              mockAdminRessourcenSelect().then(resolve, reject),
+          })),
+        }
+
         return {
+          select: vi.fn(() => adminSelectBuilder),
           insert: mockAdminRessourcenInsert.mockReturnValue({
             select: vi.fn().mockReturnValue({ single: mockAdminInsert }),
           }),
@@ -272,7 +284,13 @@ describe('GET /api/ressourcen', () => {
 // ── POST /api/ressourcen ───────────────────────────────────────────────────────
 
 describe('POST /api/ressourcen', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockAdminRessourcenSelect.mockResolvedValue({
+      data: [{ ressource_code: 'D3XP0007' }],
+      error: null,
+    })
+  })
 
   it('gibt 401 zurück wenn nicht authentifiziert', async () => {
     mockGetUser.mockResolvedValue({ data: { user: null }, error: null })
@@ -347,7 +365,30 @@ describe('POST /api/ressourcen', () => {
     expect(res.status).toBe(201)
     expect(mockRessourcenInsert).toHaveBeenCalledWith(
       expect.objectContaining({
+        ressource_code: 'D3XP0008',
         skills: ['Project Management', 'React'],
+      })
+    )
+  })
+
+  it('legt Ressource für Agentur mit global eindeutigem ressource_code an', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u1' } }, error: null })
+    mockProfileSelect.mockResolvedValue({
+      data: { rolle: 'Agentur', aktiv: true, agentur_id: 'ag-1' },
+      error: null,
+    })
+    mockInsert.mockResolvedValue({
+      data: { id: 'new-res-1', name: 'Max M.', verfuegbarkeit: 'Jetzt verfügbar', created_at: '2026-04-18T00:00:00Z' },
+      error: null,
+    })
+
+    const res = await POST(makeRequest(validRessource))
+
+    expect(res.status).toBe(201)
+    expect(mockRessourcenInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentur_id: 'ag-1',
+        ressource_code: 'D3XP0008',
       })
     )
   })
@@ -376,6 +417,7 @@ describe('POST /api/ressourcen', () => {
       expect.objectContaining({
         name: 'Max M.',
         agentur_id: AGENTUR_ID,
+        ressource_code: 'D3XP0008',
       })
     )
   })
