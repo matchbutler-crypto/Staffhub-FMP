@@ -169,92 +169,94 @@ function HeaderMetaBar({
   return (
     <div className="border-b border-border">
       <div className="px-6 py-5">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-            {ressource.vorname || ressource.nachname
-              ? `${ressource.vorname ?? ""} ${ressource.nachname ?? ""}`.trim()
-              : ressource.name}
-          </h1>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1 text-sm">
-            <span className={`h-2 w-2 rounded-full ${VERFUEGBARKEIT_DOT[currentStatus] ?? "bg-zinc-400"}`} />
-            <span className={VERFUEGBARKEIT_TEXT[currentStatus] ?? "text-foreground"}>
-              {currentStatus}
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+              {ressource.vorname || ressource.nachname
+                ? `${ressource.vorname ?? ""} ${ressource.nachname ?? ""}`.trim()
+                : ressource.name}
+            </h1>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1 text-sm">
+              <span className={`h-2 w-2 rounded-full ${VERFUEGBARKEIT_DOT[currentStatus] ?? "bg-zinc-400"}`} />
+              <span className={VERFUEGBARKEIT_TEXT[currentStatus] ?? "text-foreground"}>
+                {currentStatus}
+              </span>
             </span>
-          </span>
-          {ressource.erfahrungslevel && (
-            <span className="inline-flex items-center rounded-full border border-border px-3 py-1 text-sm text-foreground">
-              {ressource.erfahrungslevel}
-            </span>
-          )}
-          {ressource.arbeitsmodell && (
-            <span className="inline-flex items-center rounded-full border border-border px-3 py-1 text-sm text-foreground">
-              {ressource.arbeitsmodell}
-            </span>
-          )}
-          {(ressource.location || ressource.rolle) && (
-            <span className="inline-flex items-center rounded-full border border-border px-3 py-1 text-sm text-foreground">
-              {ressource.location ?? ressource.rolle}
-            </span>
-          )}
+            {ressource.erfahrungslevel && (
+              <span className="inline-flex items-center rounded-full border border-border px-3 py-1 text-sm text-foreground">
+                {ressource.erfahrungslevel}
+              </span>
+            )}
+            {ressource.arbeitsmodell && (
+              <span className="inline-flex items-center rounded-full border border-border px-3 py-1 text-sm text-foreground">
+                {ressource.arbeitsmodell}
+              </span>
+            )}
+            {(ressource.location || ressource.rolle) && (
+              <span className="inline-flex items-center rounded-full border border-border px-3 py-1 text-sm text-foreground">
+                {ressource.location ?? ressource.rolle}
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {canEdit ? (
+              <Select value={currentStatus} onValueChange={handleStatusChange} disabled={savingStatus}>
+                <SelectTrigger className="h-9 w-auto min-w-[170px] gap-2 rounded-md border-border bg-muted/40 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Jetzt verfügbar">Jetzt verfügbar</SelectItem>
+                  <SelectItem value="Verfügbar ab">Verfügbar ab</SelectItem>
+                  <SelectItem value="Nicht verfügbar">Nicht verfügbar</SelectItem>
+                  <SelectItem value="Deaktiviert">Deaktiviert</SelectItem>
+                </SelectContent>
+              </Select>
+            ) : null}
+
+            {ressource.cv_pfad ? (
+              <a
+                href={ressource.cv_pfad}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border px-3 text-sm text-foreground hover:bg-muted/40"
+              >
+                <IconDownload className="h-4 w-4" />
+                CV herunterladen
+              </a>
+            ) : null}
+          </div>
         </div>
 
-        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <div>
             <p className="text-xs text-muted-foreground uppercase tracking-wider">ID</p>
-            <p className="text-2xl font-medium text-foreground">{ressource.ressource_code ?? "—"}</p>
+            <p className="text-2xl leading-none font-semibold text-foreground">{ressource.ressource_code ?? "—"}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground uppercase tracking-wider">Angelegt</p>
-            <p className="text-2xl font-medium text-foreground">
+            <p className="text-2xl leading-none font-semibold text-foreground">
               {new Date(ressource.created_at).toLocaleDateString("de-DE")}
             </p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground uppercase tracking-wider">Agentur</p>
-            <p className="text-2xl font-medium text-foreground">{ressource.agentur_name ?? "—"}</p>
+            <p className="text-2xl leading-none font-semibold text-foreground">{ressource.agentur_name ?? "—"}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground uppercase tracking-wider">EK</p>
-            <p className="text-2xl font-medium text-foreground">
+            <p className="text-2xl leading-none font-semibold text-foreground">
               {ressource.ek_tagesrate != null ? `${ressource.ek_tagesrate.toLocaleString("de-DE")}€` : "—"}
             </p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground uppercase tracking-wider">Standort</p>
-            <p className="text-2xl font-medium text-foreground">{ressource.location ?? "—"}</p>
+            <p className="text-2xl leading-none font-semibold text-foreground">{ressource.location ?? "—"}</p>
           </div>
         </div>
 
-        <div className="mt-5 flex flex-wrap items-center gap-3">
-          {canEdit ? (
-            <Select value={currentStatus} onValueChange={handleStatusChange} disabled={savingStatus}>
-              <SelectTrigger className="h-9 w-auto gap-2 rounded-md border-border bg-muted/40 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Jetzt verfügbar">Jetzt verfügbar</SelectItem>
-                <SelectItem value="Verfügbar ab">Verfügbar ab</SelectItem>
-                <SelectItem value="Nicht verfügbar">Nicht verfügbar</SelectItem>
-                <SelectItem value="Deaktiviert">Deaktiviert</SelectItem>
-              </SelectContent>
-            </Select>
-          ) : null}
-
-          {ressource.cv_pfad ? (
-            <a
-              href={ressource.cv_pfad}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-sm text-foreground hover:bg-muted/40"
-            >
-              <IconDownload className="h-4 w-4" />
-              CV herunterladen
-            </a>
-          ) : null}
-        </div>
-
         {ressource.skills && ressource.skills.length > 0 && (
-          <div className="mt-5">
+          <div className="mt-4">
             <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Must Have</p>
             <div className="flex flex-wrap gap-2">
               {ressource.skills.map((s) => (
