@@ -68,9 +68,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       agentur_name: b.vakanzen_data?.agenturen?.name || "—",
     }))
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const agenturName = (ressource.agenturen as any)?.[0]?.name ?? (ressource.agenturen as any)?.name ?? null
+
     return NextResponse.json({
       ...ressource,
-      agentur_name: Array.isArray(ressource.agenturen) ? ressource.agenturen[0]?.name : ressource.agenturen?.name,
+      agentur_name: agenturName,
       beauftragungen: mappedBeauftragungen,
     })
   } catch (error) {
