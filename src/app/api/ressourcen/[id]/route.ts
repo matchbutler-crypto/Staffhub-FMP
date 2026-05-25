@@ -59,7 +59,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .select(`
         id, status, created_at,
         vakanz_id,
-        vakanzen_data(id, vakanz_nr, titel, rolle, agenturen(name))
+        vakanzen_data(id, vakanz_nr, titel, rolle, enddatum, agenturen(name))
       `)
       .eq('ressource_id', id)
       .not('status', 'eq', 'Zurückgezogen')
@@ -74,26 +74,53 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       `)
       .in('ressource_link_id', (links ?? []).map((l: any) => l.id))
 
-    const mappedBeauftragungen = (beauftragungen ?? []).map((b: any) => ({
+    const linkById = new Map((links ?? []).map((l: any) => [l.id, l]))
+
+    const mappedBeauftragungen = (beauftragungen ?? []).map((b: any) => {
+      const link = linkById.get(b.ressource_link_id)
+      return {
       id: b.id,
-      vakanz_nr: b.vakanzen_data?.vakanz_nr ?? '—',
-      vakanz_titel: b.vakanzen_data?.titel ?? '—',
-      status: b.status,
-      startdatum: b.startdatum,
-      enddatum: b.enddatum ?? null,
-      agentur_name: b.vakanzen_data?.agenturen?.name ?? '—',
-    }))
+      ressource_link_id: b.ressource_link_id,
+      vakanz_nr: b.vakanzen_data?.vakanz_nr ?? link?.vakanzen_data?.vakanz_nr ?? '—',
+      vakanz_titel: b.vakanzen_data?.titel ?? link?.vakanzen_data?.titel ?? link?.vakanzen_data?.rolle ?? '—',
+      status: b.status ?? link?.status ?? 'Eingereicht',
+      startdatum: b.startdatum ?? link?.created_at,
+      enddatum: b.enddatum ?? link?.vakanzen_data?.enddatum ?? null,
+      agentur_name: b.vakanzen_data?.agenturen?.name ?? link?.vakanzen_data?.agenturen?.name ?? '—',
+    }})
 
     // Fallback: if no beauftragungen rows exist yet, derive display rows from active links
     const fallbackFromLinks = (links ?? []).map((l: any) => ({
       id: `link-${l.id}`,
+      ressource_link_id: l.id,
       vakanz_nr: l.vakanzen_data?.vakanz_nr ?? '—',
       vakanz_titel: l.vakanzen_data?.titel ?? l.vakanzen_data?.rolle ?? '—',
       status: l.status ?? 'Eingereicht',
       startdatum: l.created_at,
-      enddatum: null,
+      enddatum: l.vakanzen_data?.enddatum ?? null,
       agentur_name: l.vakanzen_data?.agenturen?.name ?? '—',
     }))
+
+    // Merge beauftragungen from DB with fallback links so active link assignments are never lost in UI
+    const mergedMap = new Map<string, any>()
+    for (const row of mappedBeauftragungen) {
+      const key = row.ressource_link_id ?? row.id
+      mergedMap.set(key, row)
+    }
+    for (const row of fallbackFromLinks) {
+      const key = row.ressource_link_id ?? row.id
+      if (!mergedMap.has(key)) mergedMap.set(key, row)
+    }
+    const mergedBeauftragungen = Array.from(mergedMap.values())
+
+    const today = new Date().toISOString().slice(0, 10)
+    const laufendeBeauftragung = mergedBeauftragungen.find((b: any) => {
+      const start = (b.startdatum ?? '').slice(0, 10)
+      const end = b.enddatum ? b.enddatum.slice(0, 10) : null
+      const inTimeRange = start ? start <= today && (!end || end >= today) : true
+      const isActiveStatus = b.status === 'Beauftragt' || b.status === 'Aktiv'
+      return isActiveStatus && inTimeRange
+    }) ?? null
 
     const {
       agenturen,
@@ -108,8 +135,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const base = {
       ...publicRest,
+      verfuegbarkeit: laufendeBeauftragung ? 'Beauftragt' : publicRest.verfuegbarkeit,
+      verfuegbar_ab: laufendeBeauftragung?.enddatum ?? publicRest.verfuegbar_ab,
       agentur_name,
-      beauftragungen: mappedBeauftragungen.length > 0 ? mappedBeauftragungen : fallbackFromLinks,
+      beauftragungen: mergedBeauftragungen,
     }
 
     if (canSeePrivate) {
