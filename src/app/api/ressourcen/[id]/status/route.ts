@@ -26,14 +26,30 @@ export async function PATCH(
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('rolle, aktiv')
+    .select('rolle, aktiv, agentur_id')
     .eq('id', user.id)
     .single()
 
   if (!profile?.aktiv) {
     return NextResponse.json({ error: 'Account deaktiviert' }, { status: 403 })
   }
-  if (profile.rolle !== 'Agentur') {
+  const isManager = profile.rolle === 'Admin' || profile.rolle === 'Staffhub Manager'
+  const isAgency = profile.rolle === 'Agentur'
+  if (!isManager && !isAgency) {
+    return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
+  }
+
+  const { data: existing } = await supabase
+    .from('ressourcen')
+    .select('id, agentur_id')
+    .eq('id', id)
+    .single()
+
+  if (!existing) {
+    return NextResponse.json({ error: 'Ressource nicht gefunden' }, { status: 404 })
+  }
+
+  if (isAgency && existing.agentur_id !== profile.agentur_id) {
     return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
   }
 
@@ -43,6 +59,38 @@ export async function PATCH(
     return NextResponse.json(
       { error: 'Validierungsfehler', details: parsed.error.flatten().fieldErrors },
       { status: 400 }
+    )
+  }
+
+  const { data: links } = await supabase
+    .from('ressource_vakanz_links')
+    .select('id, status')
+    .eq('ressource_id', id)
+    .eq('status', 'Beauftragt')
+
+  const linkIds = (links ?? []).map((l) => l.id)
+  let hasRunningBeauftragung = false
+
+  if (linkIds.length > 0) {
+    const { data: beauftragungen } = await supabase
+      .from('beauftragungen')
+      .select('id, status, startdatum, enddatum, aktiv')
+      .in('ressource_link_id', linkIds)
+      .eq('aktiv', true)
+
+    const today = new Date().toISOString().slice(0, 10)
+    hasRunningBeauftragung = (beauftragungen ?? []).some((b) => {
+      const start = (b.startdatum ?? '').slice(0, 10)
+      const end = b.enddatum ? b.enddatum.slice(0, 10) : null
+      const activeWindow = start ? start <= today && (!end || end >= today) : true
+      return activeWindow && (b.status === 'Beauftragt' || b.status === 'Aktiv' || !b.status)
+    })
+  }
+
+  if (hasRunningBeauftragung) {
+    return NextResponse.json(
+      { error: 'Status kann bei laufender Beauftragung nicht geändert werden' },
+      { status: 409 }
     )
   }
 

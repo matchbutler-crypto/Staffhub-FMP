@@ -107,6 +107,7 @@ const VERFUEGBARKEIT_DOT: Record<string, string> = {
   "Verfügbar ab": "bg-amber-400",
   "Nicht verfügbar": "bg-zinc-400",
   "Deaktiviert": "bg-red-400",
+  Beauftragt: "bg-teal-500",
 }
 
 const VERFUEGBARKEIT_TEXT: Record<string, string> = {
@@ -114,6 +115,7 @@ const VERFUEGBARKEIT_TEXT: Record<string, string> = {
   "Verfügbar ab": "text-amber-700 dark:text-amber-300",
   "Nicht verfügbar": "text-zinc-500 dark:text-zinc-400",
   "Deaktiviert": "text-red-600 dark:text-red-300",
+  Beauftragt: "text-teal-700 dark:text-teal-300",
 }
 
 const BEAUFTRAGUNG_STATUS: Record<string, string> = {
@@ -146,23 +148,61 @@ function HeaderMetaBar({
 }) {
   const [savingStatus, setSavingStatus] = React.useState(false)
   const [currentStatus, setCurrentStatus] = React.useState(ressource.verfuegbarkeit)
+  const [verfuegbarAb, setVerfuegbarAb] = React.useState(ressource.verfuegbar_ab?.slice(0, 10) ?? "")
+  const today = new Date().toISOString().slice(0, 10)
 
-  const handleStatusChange = async (newStatus: string) => {
+  React.useEffect(() => {
+    setCurrentStatus(ressource.verfuegbarkeit)
+    setVerfuegbarAb(ressource.verfuegbar_ab?.slice(0, 10) ?? "")
+  }, [ressource.verfuegbarkeit, ressource.verfuegbar_ab])
+
+  const laufendeBeauftragung = React.useMemo(() => {
+    return (ressource.beauftragungen ?? []).find((b) => {
+      const start = (b.startdatum ?? "").slice(0, 10)
+      const end = b.enddatum ? b.enddatum.slice(0, 10) : null
+      const inTimeRange = start ? start <= today && (!end || end >= today) : true
+      const isActiveStatus = b.status === "Beauftragt" || b.status === "Aktiv"
+      return isActiveStatus && inTimeRange
+    }) ?? null
+  }, [ressource.beauftragungen, today])
+
+  const statusImHeader = laufendeBeauftragung ? "Beauftragt" : currentStatus
+  const statusLocked = !!laufendeBeauftragung
+  const verfuegbarAbText = laufendeBeauftragung?.enddatum
+    ? new Date(laufendeBeauftragung.enddatum).toLocaleDateString("de-DE")
+    : null
+
+  const updateStatus = async (newStatus: string, dateValue?: string | null) => {
     setSavingStatus(true)
     try {
-      const res = await fetch(`/api/ressourcen/${ressource.id}/verfuegbarkeit`, {
-        method: "PUT",
+      const payload = {
+        verfuegbarkeit: newStatus,
+        verfuegbar_ab: newStatus === "Verfügbar ab" ? (dateValue ?? null) : null,
+      }
+      const res = await fetch(`/api/ressourcen/${ressource.id}/status`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ verfuegbarkeit: newStatus }),
+        body: JSON.stringify(payload),
       })
-      if (!res.ok) throw new Error()
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        throw new Error(data?.error ?? "Fehler beim Aktualisieren")
+      }
       setCurrentStatus(newStatus)
+      if (newStatus === "Verfügbar ab") setVerfuegbarAb(dateValue ?? "")
       toast.success("Status aktualisiert")
       onUpdate()
-    } catch {
-      toast.error("Fehler beim Aktualisieren")
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Fehler beim Aktualisieren")
     } finally {
       setSavingStatus(false)
+    }
+  }
+
+  const handleStatusChange = async (newStatus: string) => {
+    setCurrentStatus(newStatus)
+    if (newStatus !== "Verfügbar ab") {
+      await updateStatus(newStatus, null)
     }
   }
 
@@ -177,11 +217,16 @@ function HeaderMetaBar({
                 : ressource.name}
             </h1>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1 text-sm">
-              <span className={`h-2 w-2 rounded-full ${VERFUEGBARKEIT_DOT[currentStatus] ?? "bg-zinc-400"}`} />
-              <span className={VERFUEGBARKEIT_TEXT[currentStatus] ?? "text-foreground"}>
-                {currentStatus}
+              <span className={`h-2 w-2 rounded-full ${VERFUEGBARKEIT_DOT[statusImHeader] ?? "bg-zinc-400"}`} />
+              <span className={VERFUEGBARKEIT_TEXT[statusImHeader] ?? "text-foreground"}>
+                {statusImHeader}
               </span>
             </span>
+            {statusLocked && verfuegbarAbText && (
+              <span className="inline-flex items-center rounded-full border border-teal-300/40 bg-teal-500/10 px-3 py-1 text-sm text-teal-700 dark:text-teal-300">
+                Verfügbar ab {verfuegbarAbText}
+              </span>
+            )}
             {ressource.erfahrungslevel && (
               <span className="inline-flex items-center rounded-full border border-border px-3 py-1 text-sm text-foreground">
                 {ressource.erfahrungslevel}
@@ -200,7 +245,7 @@ function HeaderMetaBar({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {canEdit ? (
+            {canEdit && !statusLocked ? (
               <Select value={currentStatus} onValueChange={handleStatusChange} disabled={savingStatus}>
                 <SelectTrigger className="h-9 w-auto min-w-[170px] gap-2 rounded-md border-border bg-muted/40 text-sm">
                   <SelectValue />
@@ -212,6 +257,27 @@ function HeaderMetaBar({
                   <SelectItem value="Deaktiviert">Deaktiviert</SelectItem>
                 </SelectContent>
               </Select>
+            ) : null}
+
+            {canEdit && !statusLocked && currentStatus === "Verfügbar ab" ? (
+              <>
+                <Input
+                  type="date"
+                  value={verfuegbarAb}
+                  min={today}
+                  onChange={(e) => setVerfuegbarAb(e.target.value)}
+                  className="h-9 w-[170px]"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-9"
+                  disabled={!verfuegbarAb || savingStatus}
+                  onClick={() => updateStatus("Verfügbar ab", verfuegbarAb)}
+                >
+                  Speichern
+                </Button>
+              </>
             ) : null}
 
             {ressource.cv_pfad ? (
