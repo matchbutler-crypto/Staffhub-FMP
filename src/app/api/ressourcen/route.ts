@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 const createRessourceSchema = z.object({
   name: z.string().min(1, 'Name ist erforderlich').max(200),
@@ -209,7 +210,17 @@ export async function POST(request: NextRequest) {
     ? (parsed.data as typeof parsed.data & { agentur_id: string }).agentur_id
     : profile.agentur_id!
 
-  const { data: ressource, error } = await supabase
+  let insertClient = supabase
+  if (isAdmin || isManager) {
+    try {
+      insertClient = createAdminClient() as typeof supabase
+    } catch (error) {
+      console.error('Ressource insert admin client error:', error)
+      return NextResponse.json({ error: 'Server-Konfigurationsfehler' }, { status: 500 })
+    }
+  }
+
+  const { data: ressource, error } = await insertClient
     .from('ressourcen')
     .insert({
       name: parsed.data.name,
@@ -228,6 +239,7 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (error) {
+    console.error('Ressource insert error:', { code: error.code, message: error.message })
     return NextResponse.json({ error: 'Fehler beim Erstellen der Ressource' }, { status: 500 })
   }
 

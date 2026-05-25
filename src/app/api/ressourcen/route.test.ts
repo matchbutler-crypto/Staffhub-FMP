@@ -9,6 +9,8 @@ const {
   mockRessourcenSelect,
   mockRessourcenInsert,
   mockInsert,
+  mockAdminRessourcenInsert,
+  mockAdminInsert,
   mockLinkCountSelect,
   mockLinkSelect,
 } = vi.hoisted(() => ({
@@ -17,6 +19,8 @@ const {
   mockRessourcenSelect: vi.fn(),
   mockRessourcenInsert: vi.fn(),
   mockInsert: vi.fn(),
+  mockAdminRessourcenInsert: vi.fn(),
+  mockAdminInsert: vi.fn(),
   mockLinkCountSelect: vi.fn(),
   mockLinkSelect: vi.fn(),
 }))
@@ -85,6 +89,21 @@ vi.mock('@/lib/supabase/server', () => ({
       return {}
     }),
   }),
+}))
+
+vi.mock('@/lib/supabase/admin', () => ({
+  createAdminClient: vi.fn(() => ({
+    from: vi.fn((table: string) => {
+      if (table === 'ressourcen') {
+        return {
+          insert: mockAdminRessourcenInsert.mockReturnValue({
+            select: vi.fn().mockReturnValue({ single: mockAdminInsert }),
+          }),
+        }
+      }
+      return {}
+    }),
+  })),
 }))
 
 import { GET, POST } from './route'
@@ -329,6 +348,34 @@ describe('POST /api/ressourcen', () => {
     expect(mockRessourcenInsert).toHaveBeenCalledWith(
       expect.objectContaining({
         skills: ['Project Management', 'React'],
+      })
+    )
+  })
+
+  it('legt Ressource für Staffhub Manager per Admin-Client an, damit RLS Agentur-Policies nicht blockieren', async () => {
+    const AGENTUR_ID = '00000000-0000-0000-0000-000000000001'
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u2' } }, error: null })
+    mockProfileSelect.mockResolvedValue({
+      data: { rolle: 'Staffhub Manager', aktiv: true, agentur_id: null },
+      error: null,
+    })
+    mockInsert.mockResolvedValue({
+      data: null,
+      error: { code: '42501', message: 'new row violates row-level security policy' },
+    })
+    mockAdminInsert.mockResolvedValue({
+      data: { id: 'new-res-1', name: 'Max M.', verfuegbarkeit: 'Jetzt verfügbar', created_at: '2026-04-18T00:00:00Z' },
+      error: null,
+    })
+
+    const res = await POST(makeRequest({ ...validRessource, agentur_id: AGENTUR_ID }))
+
+    expect(res.status).toBe(201)
+    expect(mockRessourcenInsert).not.toHaveBeenCalled()
+    expect(mockAdminRessourcenInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Max M.',
+        agentur_id: AGENTUR_ID,
       })
     )
   })
