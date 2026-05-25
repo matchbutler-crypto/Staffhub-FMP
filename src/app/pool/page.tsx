@@ -2430,9 +2430,17 @@ export default function PoolPage() {
                               {r.rolle || "—"}
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
-                              {r.verfuegbar_ab
-                                ? new Date(r.verfuegbar_ab).toLocaleDateString("de-DE")
-                                : "—"}
+                              {(() => {
+                                if (r.hat_beauftragt_link) {
+                                  const b = beauftragungen.find((b) => b.ressource_id === r.id)
+                                  return b?.end_date
+                                    ? new Date(b.end_date).toLocaleDateString("de-DE")
+                                    : "—"
+                                }
+                                return r.verfuegbar_ab
+                                  ? new Date(r.verfuegbar_ab).toLocaleDateString("de-DE")
+                                  : "—"
+                              })()}
                             </TableCell>
                             <TableCell>
                               <div className="flex flex-col gap-0.5 text-sm">
@@ -2444,12 +2452,18 @@ export default function PoolPage() {
                             </TableCell>
                             <TableCell>
                               <div className="flex flex-col gap-1">
-                                <Badge
-                                  variant="outline"
-                                  className={verfuegbarkeitColors[r.verfuegbarkeit]}
-                                >
-                                  {verfuegbarkeitLabel[r.verfuegbarkeit]}
-                                </Badge>
+                                {r.hat_beauftragt_link ? (
+                                  <Badge variant="outline" className="bg-teal-100 text-teal-700 border-teal-200">
+                                    Beauftragt
+                                  </Badge>
+                                ) : (
+                                  <Badge
+                                    variant="outline"
+                                    className={verfuegbarkeitColors[r.verfuegbarkeit]}
+                                  >
+                                    {verfuegbarkeitLabel[r.verfuegbarkeit]}
+                                  </Badge>
+                                )}
                                 {stammdatenAusstehend(r) && (
                                   <span className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-700">
                                     Stammdaten ausstehend
