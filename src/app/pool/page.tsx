@@ -215,6 +215,7 @@ interface RessourceFormSheetProps {
   ressource?: Ressource | null
   onSuccess: () => void
   isAdmin?: boolean
+  isManager?: boolean
   agenturen?: Agentur[]
 }
 
@@ -225,8 +226,10 @@ function RessourceFormSheet({
   ressource,
   onSuccess,
   isAdmin,
+  isManager: isManagerProp,
   agenturen = [],
 }: RessourceFormSheetProps) {
+  const needsAgentur = isAdmin || isManagerProp
   const [saving, setSaving] = React.useState(false)
   const [adminAgenturId, setAdminAgenturId] = React.useState("")
   const [cvFile, setCvFile] = React.useState<File | null>(null)
@@ -271,7 +274,7 @@ function RessourceFormSheet({
           arbeitsmodell: (ressource.arbeitsmodell as 'Onshore' | 'Nearshore' | 'Offshore') ?? 'Onshore',
           location: ressource.location ?? "",
         })
-        if (isAdmin) setAdminAgenturId(ressource.agentur_id)
+        if (needsAgentur) setAdminAgenturId(ressource.agentur_id)
       } else {
         reset({
           name: "",
@@ -287,10 +290,10 @@ function RessourceFormSheet({
         })
       }
     }
-  }, [open, mode, ressource, reset, isAdmin])
+  }, [open, mode, ressource, reset, needsAgentur])
 
   async function onSubmit(data: RessourceFormData) {
-    if (isAdmin && mode === "create" && !adminAgenturId) {
+    if (needsAgentur && mode === "create" && !adminAgenturId) {
       toast.error("Bitte eine Agentur auswählen.")
       return
     }
@@ -315,7 +318,7 @@ function RessourceFormSheet({
           notizen: data.notizen || null,
           arbeitsmodell: data.arbeitsmodell ?? 'Onshore',
           location: data.location || null,
-          ...(isAdmin && mode === "create" ? { agentur_id: adminAgenturId } : {}),
+          ...(needsAgentur && mode === "create" ? { agentur_id: adminAgenturId } : {}),
         }),
       })
 
@@ -386,8 +389,8 @@ function RessourceFormSheet({
           <div className="flex-1 overflow-y-auto px-6 py-4">
             <div className="flex flex-col gap-4">
 
-              {/* Agentur-Auswahl (nur Admin, nur beim Erstellen) */}
-              {isAdmin && mode === "create" && (
+              {/* Agentur-Auswahl (Admin/Manager, nur beim Erstellen) */}
+              {needsAgentur && mode === "create" && (
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="r-agentur">
                     Agentur <span className="text-destructive">*</span>
@@ -2688,6 +2691,7 @@ export default function PoolPage() {
         ressource={editingRessource}
         onSuccess={fetchRessourcen}
         isAdmin={isAdmin}
+        isManager={isManager}
         agenturen={agenturen}
       />
 
