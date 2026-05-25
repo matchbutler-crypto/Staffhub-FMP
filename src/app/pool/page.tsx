@@ -98,6 +98,7 @@ interface Agentur {
 
 interface Ressource {
   id: string
+  ressource_code?: string | null
   agentur_id: string
   name: string
   rolle?: string | null
@@ -2371,6 +2372,7 @@ export default function PoolPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead>ID</TableHead>
                         <TableHead>Name</TableHead>
                         {isAdmin && <TableHead>Agentur</TableHead>}
                         <TableHead>Rolle</TableHead>
@@ -2388,11 +2390,11 @@ export default function PoolPage() {
                     </TableHeader>
                     <TableBody>
                       {loading || kiScoresLoading ? (
-                        <TableSkeletonRows cols={(vakanzFilter !== "keine" ? 10 : 9) + (isAdmin ? 1 : 0)} />
+                        <TableSkeletonRows cols={(vakanzFilter !== "keine" ? 11 : 10) + (isAdmin ? 1 : 0)} />
                       ) : filtered.length === 0 ? (
                         <TableRow>
                           <TableCell
-                            colSpan={(vakanzFilter !== "keine" ? 10 : 9) + (isAdmin ? 1 : 0)}
+                            colSpan={(vakanzFilter !== "keine" ? 11 : 10) + (isAdmin ? 1 : 0)}
                             className="py-12 text-center text-muted-foreground"
                           >
                             {ressourcen.length === 0
@@ -2406,10 +2408,13 @@ export default function PoolPage() {
                           const isExpanded = expandedIds.has(r.id)
                           const isLoadingLinks = loadingLinkIds.has(r.id)
                           const cachedLinks = linksCache[r.id]
-                          const totalCols = (vakanzFilter !== "keine" ? 10 : 9) + (isAdmin ? 1 : 0)
+                          const totalCols = (vakanzFilter !== "keine" ? 11 : 10) + (isAdmin ? 1 : 0)
                           return (
                           <React.Fragment key={r.id}>
                           <TableRow className="cursor-pointer">
+                            <TableCell className="text-xs font-mono text-muted-foreground whitespace-nowrap">
+                              {r.ressource_code ?? '—'}
+                            </TableCell>
                             <TableCell className="font-medium">
                               <button
                                 onClick={(e) => {

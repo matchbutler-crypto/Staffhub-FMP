@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
   let query = supabase
     .from('ressourcen')
     .select(`
-      id, agentur_id, name, rolle, skills, erfahrungslevel,
+      id, ressource_code, agentur_id, name, rolle, skills, erfahrungslevel,
       verfuegbarkeit, verfuegbar_ab, cv_pfad,
       ek_tagesrate, notizen, created_at, updated_at,
       arbeitsmodell, location,

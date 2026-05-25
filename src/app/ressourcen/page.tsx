@@ -67,6 +67,7 @@ import {
 
 interface Ressource {
   id: string
+  ressource_code?: string | null
   agentur_id: string
   name: string
   rolle?: string | null
@@ -1331,6 +1332,7 @@ export default function RessourcenPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead>ID</TableHead>
                         <TableHead>Name</TableHead>
                         <TableHead>Agentur</TableHead>
                         <TableHead>Rolle</TableHead>
@@ -1344,10 +1346,10 @@ export default function RessourcenPage() {
                     </TableHeader>
                     <TableBody>
                       {loading ? (
-                        <TableSkeletonRows cols={9} />
+                        <TableSkeletonRows cols={10} />
                       ) : filtered.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={9} className="py-12 text-center text-muted-foreground">
+                          <TableCell colSpan={10} className="py-12 text-center text-muted-foreground">
                             {ressourcen.length === 0 ? "Noch keine Ressourcen vorhanden." : "Keine Ressourcen für diese Filter."}
                           </TableCell>
                         </TableRow>
@@ -1363,6 +1365,14 @@ export default function RessourcenPage() {
                                 className="cursor-pointer"
                                 onClick={() => { setSelectedRessource(r); setDetailOpen(true) }}
                               >
+                                <TableCell className="text-xs font-mono text-muted-foreground whitespace-nowrap">
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); router.push(`/ressourcen/${r.id}`) }}
+                                    className="hover:text-blue-600 hover:underline"
+                                  >
+                                    {r.ressource_code ?? '—'}
+                                  </button>
+                                </TableCell>
                                 <TableCell className="font-medium">{r.name}</TableCell>
                                 <TableCell className="text-sm text-muted-foreground">{r.agentur_name ?? "—"}</TableCell>
                                 <TableCell className="text-sm text-muted-foreground">{r.rolle || "—"}</TableCell>

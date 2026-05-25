@@ -47,6 +47,7 @@ import { Textarea } from "@/components/ui/textarea"
 
 interface Ressource {
   id: string
+  ressource_code?: string | null
   name: string
   vorname: string
   nachname: string
@@ -103,7 +104,14 @@ function HeaderSection({ ressource }: { ressource: Ressource | null }) {
       <div className="absolute -right-40 -top-40 h-80 w-80 bg-gradient-to-br from-blue-200/30 to-transparent rounded-full blur-3xl" />
       <div className="relative flex items-start justify-between gap-8">
         <div className="flex-1">
-          <div className="text-base text-slate-600 mb-2 font-medium">Ressource</div>
+          <div className="flex items-center gap-3 mb-2">
+            <span className="text-base text-slate-600 font-medium">Ressource</span>
+            {ressource.ressource_code && (
+              <span className="font-mono text-sm bg-slate-200 text-slate-600 px-2 py-0.5 rounded">
+                {ressource.ressource_code}
+              </span>
+            )}
+          </div>
           <h1 className="text-4xl font-bold tracking-tight text-slate-900 mb-3">
             {ressource.vorname} {ressource.nachname}
           </h1>

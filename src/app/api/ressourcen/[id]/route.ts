@@ -1,124 +1,170 @@
-import { createClient } from "@supabase/supabase-js"
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+async function getUserProfile(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
+  const { data } = await supabase
+    .from('profiles')
+    .select('rolle, aktiv, agentur_id')
+    .eq('id', userId)
+    .single()
+  return data
+}
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
+    const supabase = await createClient()
 
-    // Fetch resource details from ressource_vakanz_links table
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 })
+    }
+
+    const profile = await getUserProfile(supabase, user.id)
+    if (!profile?.aktiv) {
+      return NextResponse.json({ error: 'Account deaktiviert' }, { status: 403 })
+    }
+
+    const isManager = profile.rolle === 'Admin' || profile.rolle === 'Staffhub Manager'
+
+    // Fetch resource from ressourcen table
     const { data: ressource, error } = await supabase
-      .from("ressource_vakanz_links")
+      .from('ressourcen')
       .select(`
-        id,
-        name,
-        vorname,
-        nachname,
-        geburtsdatum,
-        email,
-        telefon,
-        wohnort,
-        erfahrungslevel,
-        skills,
-        notizen,
-        agentur_id,
-        verfuegbarkeit,
-        verfuegbar_ab,
-        created_at,
-        updated_at,
-        agenturen (id, name)
+        id, ressource_code, agentur_id, name, rolle, skills, erfahrungslevel,
+        verfuegbarkeit, verfuegbar_ab, cv_pfad,
+        ek_tagesrate, notizen, created_at, updated_at,
+        arbeitsmodell, location,
+        nachname, vorname, geburtsdatum, geschlecht, firma,
+        email_geschaeftlich, telefon_geschaeftlich, wohnort, namenszusatz, titel,
+        agenturen(name)
       `)
-      .eq("id", id)
+      .eq('id', id)
       .single()
 
     if (error || !ressource) {
-      return NextResponse.json(
-        { error: "Ressource nicht gefunden" },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Ressource nicht gefunden' }, { status: 404 })
     }
 
-    // Fetch beauftragungen for this resource
-    const { data: beauftragungen } = await supabase
-      .from("beauftragungen")
-      .select(`
-        id,
-        vakanz_id,
-        status,
-        startdatum,
-        enddatum,
-        ressource_link_id,
-        profil_id,
-        vakanzen_data (id, vakanz_nr, titel, agenturen (name))
-      `)
-      .or(`ressource_link_id.eq.${id},profil_id.eq.${id}`)
+    const canSeePrivate = isManager || ressource.agentur_id === profile.agentur_id
+    if (!isManager && ressource.agentur_id !== profile.agentur_id) {
+      return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
+    }
 
-    // Map beauftragungen to response format
-    const mappedBeauftragungen = (beauftragungen || []).map((b: any) => ({
+    const agenturEntry = ressource.agenturen as { name: string } | { name: string }[] | null
+    const agentur_name = Array.isArray(agenturEntry)
+      ? (agenturEntry[0]?.name ?? null)
+      : (agenturEntry?.name ?? null)
+
+    // Fetch beauftragungen via ressource_vakanz_links
+    const { data: links } = await supabase
+      .from('ressource_vakanz_links')
+      .select(`
+        id, status, created_at,
+        vakanz_id,
+        vakanzen_data(id, vakanz_nr, rolle, agenturen(name))
+      `)
+      .eq('ressource_id', id)
+      .not('status', 'eq', 'Zurückgezogen')
+
+    // Fetch actual beauftragungen table
+    const { data: beauftragungen } = await supabase
+      .from('beauftragungen')
+      .select(`
+        id, status, startdatum, enddatum,
+        ressource_link_id,
+        vakanzen_data(id, vakanz_nr, titel, agenturen(name))
+      `)
+      .in('ressource_link_id', (links ?? []).map((l: any) => l.id))
+
+    const mappedBeauftragungen = (beauftragungen ?? []).map((b: any) => ({
       id: b.id,
-      vakanz_nr: b.vakanzen_data?.vakanz_nr || "—",
-      vakanz_titel: b.vakanzen_data?.titel || "—",
+      vakanz_nr: b.vakanzen_data?.vakanz_nr ?? '—',
+      vakanz_titel: b.vakanzen_data?.titel ?? '—',
       status: b.status,
       startdatum: b.startdatum,
-      enddatum: b.enddatum,
-      agentur_name: b.vakanzen_data?.agenturen?.name || "—",
+      enddatum: b.enddatum ?? null,
+      agentur_name: b.vakanzen_data?.agenturen?.name ?? '—',
     }))
 
-    const agenturName = (ressource.agenturen as any)?.[0]?.name ?? (ressource.agenturen as any)?.name ?? null
-
+    const { agenturen, ...rest } = ressource
     return NextResponse.json({
-      ...ressource,
-      agentur_name: agenturName,
+      ...rest,
+      agentur_name,
+      // Private fields only for own agency or manager
+      ...(canSeePrivate ? {} : {
+        ek_tagesrate: undefined,
+        nachname: undefined,
+        vorname: undefined,
+        geburtsdatum: undefined,
+        geschlecht: undefined,
+        firma: undefined,
+        email_geschaeftlich: undefined,
+        telefon_geschaeftlich: undefined,
+        wohnort: undefined,
+        namenszusatz: undefined,
+        titel: undefined,
+      }),
       beauftragungen: mappedBeauftragungen,
     })
-  } catch (error) {
-    console.error("Error fetching resource:", error)
-    return NextResponse.json(
-      { error: "Fehler beim Laden der Ressource" },
-      { status: 500 }
-    )
+  } catch (err) {
+    console.error('Error fetching resource:', err)
+    return NextResponse.json({ error: 'Fehler beim Laden der Ressource' }, { status: 500 })
   }
 }
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
+    const supabase = await createClient()
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 })
+    }
+
+    const profile = await getUserProfile(supabase, user.id)
+    if (!profile?.aktiv) {
+      return NextResponse.json({ error: 'Account deaktiviert' }, { status: 403 })
+    }
+
+    // Check ownership
+    const { data: ressource } = await supabase
+      .from('ressourcen')
+      .select('agentur_id')
+      .eq('id', id)
+      .single()
+
+    const isManager = profile.rolle === 'Admin' || profile.rolle === 'Staffhub Manager'
+    if (!isManager && ressource?.agentur_id !== profile.agentur_id) {
+      return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
+    }
+
     const body = await request.json()
 
-    // Update resource
     const { data, error } = await supabase
-      .from("ressource_vakanz_links")
+      .from('ressourcen')
       .update({
         vorname: body.vorname,
         nachname: body.nachname,
-        geburtsdatum: body.geburtsdatum,
-        email: body.email,
-        telefon: body.telefon,
+        geburtsdatum: body.geburtsdatum || null,
+        email_geschaeftlich: body.email,
+        telefon_geschaeftlich: body.telefon,
         wohnort: body.adresse,
         notizen: body.notizen,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", id)
+      .eq('id', id)
       .select()
       .single()
 
     if (error) {
-      return NextResponse.json(
-        { error: "Fehler beim Aktualisieren" },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Fehler beim Aktualisieren' }, { status: 400 })
     }
 
     return NextResponse.json(data)
-  } catch (error) {
-    console.error("Error updating resource:", error)
-    return NextResponse.json(
-      { error: "Fehler beim Aktualisieren der Ressource" },
-      { status: 500 }
-    )
+  } catch (err) {
+    console.error('Error updating resource:', err)
+    return NextResponse.json({ error: 'Fehler beim Aktualisieren der Ressource' }, { status: 500 })
   }
 }
