@@ -182,3 +182,70 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: 'Fehler beim Aktualisieren der Ressource' }, { status: 500 })
   }
 }
+
+// ── PATCH /api/ressourcen/[id] — Stammdaten erfassen (Pool-Seite, direkte DB-Feldnamen) ──
+
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params
+    const supabase = await createClient()
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 })
+    }
+
+    const profile = await getUserProfile(supabase, user.id)
+    if (!profile?.aktiv) {
+      return NextResponse.json({ error: 'Account deaktiviert' }, { status: 403 })
+    }
+
+    // Check ownership
+    const { data: existing } = await supabase
+      .from('ressourcen')
+      .select('agentur_id')
+      .eq('id', id)
+      .single()
+
+    const isManager = profile.rolle === 'Admin' || profile.rolle === 'Staffhub Manager'
+    if (!isManager && existing?.agentur_id !== profile.agentur_id) {
+      return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
+    }
+
+    const body = await request.json()
+
+    // Build update object — only include fields that are present in body
+    const update: Record<string, unknown> = { updated_at: new Date().toISOString() }
+
+    const directFields = [
+      'name', 'rolle', 'skills', 'erfahrungslevel',
+      'verfuegbarkeit', 'verfuegbar_ab', 'ek_tagesrate', 'notizen',
+      'arbeitsmodell', 'location',
+      'nachname', 'vorname', 'geburtsdatum', 'geschlecht', 'firma',
+      'email_geschaeftlich', 'telefon_geschaeftlich',
+      'wohnort', 'namenszusatz', 'titel',
+    ] as const
+
+    for (const field of directFields) {
+      if (field in body) {
+        update[field] = body[field] ?? null
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('ressourcen')
+      .update(update)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) {
+      return NextResponse.json({ error: 'Fehler beim Aktualisieren' }, { status: 400 })
+    }
+
+    return NextResponse.json(data)
+  } catch (err) {
+    console.error('Error patching resource:', err)
+    return NextResponse.json({ error: 'Fehler beim Aktualisieren der Ressource' }, { status: 500 })
+  }
+}
