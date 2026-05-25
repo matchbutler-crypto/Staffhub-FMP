@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
-import { isResourceUnavailable, type Beauftragung } from '@/lib/resource-availability'
 
 const spielenSchema = z.object({
   vakanz_id: z.string().uuid('Ungültige Vakanz-ID'),
@@ -20,41 +19,19 @@ async function validateResourceAvailability(
   supabase: Awaited<ReturnType<typeof createClient>>,
   ressourceId: string
 ): Promise<{ available: boolean; reason?: string }> {
-  // Check resource status
-  const { data: ressource, error: resError } = await supabase
-    .from('ressourcen')
-    .select('status')
-    .eq('id', ressourceId)
-    .single()
-
-  if (resError || !ressource) {
-    return { available: false, reason: 'Ressource nicht gefunden' }
-  }
-
-  if (ressource.status === 'nicht_verfügbar') {
-    return { available: false, reason: 'Diese Ressource ist derzeit nicht verfügbar' }
-  }
-
-  // Check for active beauftragungen for this resource
-  const { data: beauftragungen, error: baufError } = await supabase
-    .from('beauftragungen')
-    .select('id, start_date, end_date')
+  // Check if resource is currently beauftragt via ressource_vakanz_links
+  const { data: aktiveLinks, error: linkError } = await supabase
+    .from('ressource_vakanz_links')
+    .select('id, status')
     .eq('ressource_id', ressourceId)
+    .eq('status', 'Beauftragt')
 
-  if (baufError) {
-    console.error('Error checking beauftragungen:', baufError)
+  if (linkError) {
+    console.error('Error checking active links:', linkError)
     return { available: false, reason: 'Fehler bei der Verfügbarkeitsprüfung' }
   }
 
-  // Convert to Beauftragung type and check availability
-  const convertedBeauftragungen: Beauftragung[] = (beauftragungen || []).map((b) => ({
-    id: b.id,
-    ressource_id: ressourceId,
-    start_date: b.start_date,
-    end_date: b.end_date,
-  }))
-
-  if (isResourceUnavailable(ressourceId, convertedBeauftragungen, ressource.status)) {
+  if ((aktiveLinks?.length ?? 0) > 0) {
     return { available: false, reason: 'Diese Ressource ist derzeit beauftragt' }
   }
 
@@ -136,26 +113,52 @@ export async function POST(
     return NextResponse.json({ error: 'Ressource kann nur auf offene Vakanzen gespielt werden' }, { status: 400 })
   }
 
-  // Verknüpfung anlegen (unique constraint verhindert Duplikate)
-  const { data: link, error: insertError } = await supabase
+  // Prüfen ob bereits ein zurückgezogener Link existiert → dann re-aktivieren
+  const { data: existingLink } = await supabase
     .from('ressource_vakanz_links')
-    .insert({
-      ressource_id: ressourceId,
-      vakanz_id,
-      status: 'Gespielt',
-      created_by: user.id,
-    })
-    .select('id, ressource_id, vakanz_id, status, created_at')
+    .select('id, status')
+    .eq('ressource_id', ressourceId)
+    .eq('vakanz_id', vakanz_id)
     .single()
 
-  if (insertError) {
-    if (insertError.code === '23505') {
-      return NextResponse.json(
-        { error: 'Diese Ressource ist bereits auf diese Vakanz gespielt' },
-        { status: 409 }
-      )
+  let link: { id: string; ressource_id: string; vakanz_id: string; status: string; created_at: string }
+
+  if (existingLink?.status === 'Zurückgezogen') {
+    // Zurückgezogene Einreichung reaktivieren
+    const { data: updated, error: updateError } = await supabase
+      .from('ressource_vakanz_links')
+      .update({ status: 'Gespielt', grund_rueckzug: null })
+      .eq('id', existingLink.id)
+      .select('id, ressource_id, vakanz_id, status, created_at')
+      .single()
+
+    if (updateError || !updated) {
+      return NextResponse.json({ error: 'Fehler beim erneuten Einreichen' }, { status: 500 })
     }
-    return NextResponse.json({ error: 'Fehler beim Spielen der Ressource' }, { status: 500 })
+    link = updated
+  } else if (existingLink) {
+    // Aktiver Link (Gespielt, Beauftragt etc.) → kein Duplikat
+    return NextResponse.json(
+      { error: 'Diese Ressource ist bereits auf diese Vakanz gespielt' },
+      { status: 409 }
+    )
+  } else {
+    // Neuer Link anlegen
+    const { data: inserted, error: insertError } = await supabase
+      .from('ressource_vakanz_links')
+      .insert({
+        ressource_id: ressourceId,
+        vakanz_id,
+        status: 'Gespielt',
+        created_by: user.id,
+      })
+      .select('id, ressource_id, vakanz_id, status, created_at')
+      .single()
+
+    if (insertError || !inserted) {
+      return NextResponse.json({ error: 'Fehler beim Spielen der Ressource' }, { status: 500 })
+    }
+    link = inserted
   }
 
   // Automatischer Historien-Eintrag

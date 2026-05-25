@@ -132,9 +132,11 @@ export async function GET(request: NextRequest) {
     result = result.map((r) => {
       const link = linkMap.get(r.id)
       const kiScore = kiScoreMap.get(r.id)
+      // Zurückgezogene Einreichungen gelten nicht als "bereits gespielt" → können erneut eingereicht werden
+      const isActiveLink = !!link && link.status !== 'Zurückgezogen'
       return {
         ...r,
-        bereits_gespielt: !!link,
+        bereits_gespielt: isActiveLink,
         link_id: link?.id ?? null,
         link_status: link?.status ?? null,
         link_created_at: link?.created_at ?? null,
