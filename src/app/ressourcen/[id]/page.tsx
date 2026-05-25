@@ -11,7 +11,6 @@ import {
   IconClock,
   IconFileText,
   IconPencil,
-  IconSave,
   IconUpload,
   IconUser,
   IconCheck,
@@ -269,7 +268,7 @@ function StammdatenTab({
           </div>
           <div className="flex gap-2">
             <Button type="submit" disabled={!isDirty || isSaving} className="gap-2">
-              {isSaving ? <IconLoader2 className="h-4 w-4 animate-spin" /> : <IconSave className="h-4 w-4" />}
+              {isSaving ? <IconLoader2 className="h-4 w-4 animate-spin" /> : <IconCheck className="h-4 w-4" />}
               Speichern
             </Button>
             <Button
