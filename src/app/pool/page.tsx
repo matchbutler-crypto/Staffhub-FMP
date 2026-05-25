@@ -2409,14 +2409,18 @@ export default function PoolPage() {
                           const totalCols = (vakanzFilter !== "keine" ? 10 : 9) + (isAdmin ? 1 : 0)
                           return (
                           <React.Fragment key={r.id}>
-                          <TableRow
-                            className="cursor-pointer"
-                            onClick={() => {
-                              setDetailRessource(r)
-                              setDetailOpen(true)
-                            }}
-                          >
-                            <TableCell className="font-medium">{r.name}</TableCell>
+                          <TableRow className="cursor-pointer">
+                            <TableCell className="font-medium">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  router.push(`/ressourcen/${r.id}`)
+                                }}
+                                className="hover:text-blue-600 hover:underline"
+                              >
+                                {r.name}
+                              </button>
+                            </TableCell>
                             {isAdmin && (
                               <TableCell className="text-sm text-muted-foreground">
                                 {r.agenturen?.name ?? "—"}
