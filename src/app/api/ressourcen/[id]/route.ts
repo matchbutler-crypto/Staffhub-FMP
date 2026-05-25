@@ -70,7 +70,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     return NextResponse.json({
       ...ressource,
-      agentur_name: ressource.agenturen?.name,
+      agentur_name: Array.isArray(ressource.agenturen) ? ressource.agenturen[0]?.name : ressource.agenturen?.name,
       beauftragungen: mappedBeauftragungen,
     })
   } catch (error) {
