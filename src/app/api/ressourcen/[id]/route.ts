@@ -54,6 +54,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       ? (agenturEntry[0]?.name ?? null)
       : (agenturEntry?.name ?? null)
 
+    const getVakanz = (value: any) => Array.isArray(value) ? value[0] : value
+
     let readClient: any = supabase
     try {
       readClient = createAdminClient()
@@ -61,24 +63,59 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       // Fallback to user-bound client if service role is unavailable
     }
 
-    // Fetch beauftragungen via ressource_vakanz_links
-    const { data: links } = await readClient
+    // Fetch beauftragungen via ressource_vakanz_links.
+    // Some environments/RLS setups cannot resolve nested vakanz joins for agency users.
+    // In that case, retry with a minimal link query and hydrate vakanz fields separately.
+    let links: any[] = []
+    let linksError: any = null
+    const detailedLinksRes = await readClient
       .from('ressource_vakanz_links')
       .select(`
         id, status, created_at,
         vakanz_id,
-        vakanzen_data(id, vakanz_nr, titel, rolle, enddatum, agenturen(name))
+        vakanzen_data(id, vakanz_nr, titel, rolle, enddatum)
       `)
       .eq('ressource_id', id)
       .not('status', 'eq', 'Zurückgezogen')
+
+    links = detailedLinksRes.data ?? []
+    linksError = detailedLinksRes.error ?? null
+
+    if (linksError) {
+      const minimalLinksRes = await readClient
+        .from('ressource_vakanz_links')
+        .select('id, status, created_at, vakanz_id')
+        .eq('ressource_id', id)
+        .not('status', 'eq', 'Zurückgezogen')
+      links = minimalLinksRes.data ?? []
+      linksError = minimalLinksRes.error ?? null
+    }
+
+    if (!linksError && links.length > 0) {
+      const needsVakanzHydration = links.some((l: any) => !l.vakanzen_data)
+      if (needsVakanzHydration) {
+        const vakanzIds = Array.from(new Set(links.map((l: any) => l.vakanz_id).filter(Boolean)))
+        if (vakanzIds.length > 0) {
+          const { data: vakanzenRows } = await readClient
+            .from('vakanzen')
+            .select('id, vakanz_nr, titel, rolle, enddatum')
+            .in('id', vakanzIds)
+          const vakanzMap = new Map<string, any>((vakanzenRows ?? []).map((v: any) => [v.id, v]))
+          links = links.map((l: any) => ({
+            ...l,
+            vakanzen_data: l.vakanzen_data ?? vakanzMap.get(l.vakanz_id) ?? null,
+          }))
+        }
+      }
+    }
 
     // Fetch actual beauftragungen table
     const { data: beauftragungen } = await readClient
       .from('beauftragungen')
       .select(`
-        id, status, startdatum, enddatum,
+        id, aktiv, startdatum, enddatum,
         ressource_link_id,
-        vakanzen_data(id, vakanz_nr, titel, agenturen(name))
+        vakanzen_data(id, vakanz_nr, titel)
       `)
       .in('ressource_link_id', (links ?? []).map((l: any) => l.id))
 
@@ -86,28 +123,34 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const mappedBeauftragungen = (beauftragungen ?? []).map((b: any) => {
       const link: any = linkById.get(b.ressource_link_id)
+      const bVakanz = getVakanz(b.vakanzen_data)
+      const linkVakanz = getVakanz(link?.vakanzen_data)
       return {
-      id: b.id,
-      ressource_link_id: b.ressource_link_id,
-      vakanz_nr: b.vakanzen_data?.vakanz_nr ?? link?.vakanzen_data?.vakanz_nr ?? '—',
-      vakanz_titel: b.vakanzen_data?.titel ?? link?.vakanzen_data?.titel ?? link?.vakanzen_data?.rolle ?? '—',
-      status: b.status ?? link?.status ?? 'Eingereicht',
-      startdatum: b.startdatum ?? link?.created_at,
-      enddatum: b.enddatum ?? link?.vakanzen_data?.enddatum ?? null,
-      agentur_name: b.vakanzen_data?.agenturen?.name ?? link?.vakanzen_data?.agenturen?.name ?? '—',
-    }})
+        id: b.id,
+        ressource_link_id: b.ressource_link_id,
+        vakanz_nr: bVakanz?.vakanz_nr ?? linkVakanz?.vakanz_nr ?? '—',
+        vakanz_titel: bVakanz?.titel ?? linkVakanz?.titel ?? linkVakanz?.rolle ?? '—',
+        status: b.aktiv === false ? 'Abgeschlossen' : (link?.status ?? 'Beauftragt'),
+        startdatum: b.startdatum ?? link?.created_at,
+        enddatum: b.enddatum ?? linkVakanz?.enddatum ?? null,
+        agentur_name: agentur_name ?? '—',
+      }
+    })
 
     // Fallback: if no beauftragungen rows exist yet, derive display rows from active links
-    const fallbackFromLinks = (links ?? []).map((l: any) => ({
-      id: `link-${l.id}`,
-      ressource_link_id: l.id,
-      vakanz_nr: l.vakanzen_data?.vakanz_nr ?? '—',
-      vakanz_titel: l.vakanzen_data?.titel ?? l.vakanzen_data?.rolle ?? '—',
-      status: l.status ?? 'Eingereicht',
-      startdatum: l.created_at,
-      enddatum: l.vakanzen_data?.enddatum ?? null,
-      agentur_name: l.vakanzen_data?.agenturen?.name ?? '—',
-    }))
+    const fallbackFromLinks = (links ?? []).map((l: any) => {
+      const vakanz = getVakanz(l.vakanzen_data)
+      return {
+        id: `link-${l.id}`,
+        ressource_link_id: l.id,
+        vakanz_nr: vakanz?.vakanz_nr ?? '—',
+        vakanz_titel: vakanz?.titel ?? vakanz?.rolle ?? '—',
+        status: l.status ?? 'Eingereicht',
+        startdatum: l.created_at,
+        enddatum: vakanz?.enddatum ?? null,
+        agentur_name: agentur_name ?? '—',
+      }
+    })
 
     // Merge beauftragungen from DB with fallback links so active link assignments are never lost in UI
     const mergedMap = new Map<string, any>()
