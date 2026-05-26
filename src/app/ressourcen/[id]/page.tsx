@@ -381,8 +381,6 @@ function StammdatenTab({
       if (!res.ok) throw new Error()
       toast.success("Stammdaten aktualisiert")
       setIsEditing(false)
-      // Invalidate Next.js router cache so Pool-Seite re-fetches after back-navigation
-      router.refresh()
       onUpdate()
     } catch {
       toast.error("Fehler beim Speichern")
@@ -680,7 +678,7 @@ export default function RessourceDetailPage() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => router.back()}
+              onClick={() => router.push('/pool')}
               className="gap-1.5 text-muted-foreground hover:text-foreground -ml-2"
             >
               <IconArrowLeft className="h-4 w-4" />
