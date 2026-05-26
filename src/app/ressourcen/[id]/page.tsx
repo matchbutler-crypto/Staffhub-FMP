@@ -53,6 +53,8 @@ interface Ressource {
   vorname?: string | null
   nachname?: string | null
   geburtsdatum?: string | null
+  geschlecht?: string | null
+  firma?: string | null
   email?: string | null
   telefon?: string | null
   wohnort?: string | null
@@ -94,6 +96,8 @@ const StammdatenSchema = z.object({
   vorname: z.string().min(1),
   nachname: z.string().min(1),
   geburtsdatum: z.string().optional(),
+  geschlecht: z.string().optional(),
+  firma: z.string().optional(),
   email: z.string().email().or(z.literal("")).optional(),
   telefon: z.string().optional(),
   adresse: z.string().optional(),
@@ -347,6 +351,7 @@ function StammdatenTab({
   canEdit: boolean
   onUpdate: () => void
 }) {
+  const router = useRouter()
   const [isEditing, setIsEditing] = React.useState(false)
   const [isSaving, setIsSaving] = React.useState(false)
 
@@ -356,6 +361,8 @@ function StammdatenTab({
       vorname: ressource.vorname ?? "",
       nachname: ressource.nachname ?? "",
       geburtsdatum: ressource.geburtsdatum ?? "",
+      geschlecht: ressource.geschlecht ?? "",
+      firma: ressource.firma ?? "",
       email: ressource.email ?? "",
       telefon: ressource.telefon ?? "",
       adresse: ressource.wohnort ?? "",
@@ -374,6 +381,8 @@ function StammdatenTab({
       if (!res.ok) throw new Error()
       toast.success("Stammdaten aktualisiert")
       setIsEditing(false)
+      // Invalidate Next.js router cache so Pool-Seite re-fetches after back-navigation
+      router.refresh()
       onUpdate()
     } catch {
       toast.error("Fehler beim Speichern")
@@ -410,6 +419,7 @@ function StammdatenTab({
               { name: "vorname" as const, label: "Vorname", type: "text" },
               { name: "nachname" as const, label: "Nachname", type: "text" },
               { name: "geburtsdatum" as const, label: "Geburtsdatum", type: "date" },
+              { name: "firma" as const, label: "Firma", type: "text" },
               { name: "email" as const, label: "E-Mail", type: "email" },
               { name: "telefon" as const, label: "Telefon", type: "text" },
               { name: "adresse" as const, label: "Wohnort / Adresse", type: "text" },
@@ -424,6 +434,27 @@ function StammdatenTab({
               />
             </div>
           ))}
+
+          {/* Geschlecht */}
+          <div>
+            <Label className="text-xs text-muted-foreground uppercase tracking-wide">Geschlecht</Label>
+            <Controller
+              control={control}
+              name="geschlecht"
+              render={({ field }) => (
+                <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Bitte wählen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="männlich">Männlich</SelectItem>
+                    <SelectItem value="weiblich">Weiblich</SelectItem>
+                    <SelectItem value="divers">Divers</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            />
+          </div>
         </div>
 
         <div>

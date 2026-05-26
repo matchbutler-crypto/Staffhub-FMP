@@ -253,6 +253,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         vorname: body.vorname,
         nachname: body.nachname,
         geburtsdatum: body.geburtsdatum || null,
+        geschlecht: body.geschlecht || null,
+        firma: body.firma || null,
         email_geschaeftlich: body.email,
         telefon_geschaeftlich: body.telefon,
         wohnort: body.adresse,

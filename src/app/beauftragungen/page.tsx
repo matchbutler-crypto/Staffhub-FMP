@@ -2,11 +2,13 @@
 
 import * as React from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import {
   IconDotsVertical,
   IconPencil,
   IconPlayerStop,
+  IconUser,
   IconUserCheck,
 } from "@tabler/icons-react"
 
@@ -66,6 +68,7 @@ interface Beauftragung {
   id: string
   profil_id: string | null
   ressource_link_id?: string | null
+  ressource_id?: string | null
   is_pool?: boolean
   agentur_id: string
   kandidatenname: string
@@ -121,6 +124,7 @@ function TableSkeletonRows({ cols = 9, rows = 5 }: { cols?: number; rows?: numbe
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function BeauftragungPage() {
+  const router = useRouter()
   const { user } = useUser()
   const isAgentur = user?.rolle === 'Agentur'
   const isManager = user?.rolle === 'Staffhub Manager' || user?.rolle === 'Admin'
@@ -349,29 +353,40 @@ export default function BeauftragungPage() {
                           </TableCell>
                           {isManager && (
                             <TableCell>
-                              {b.aktiv && (
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="size-8">
-                                      <IconDotsVertical className="size-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    <DropdownMenuItem onClick={() => openEdit(b)}>
-                                      <IconPencil className="mr-2 size-4" />
-                                      Bearbeiten
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem
-                                      className="text-destructive focus:text-destructive"
-                                      onClick={() => setBeendenItem(b)}
-                                    >
-                                      <IconPlayerStop className="mr-2 size-4" />
-                                      Beauftragung beenden
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              )}
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="size-8">
+                                    <IconDotsVertical className="size-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  {b.is_pool && b.ressource_id && (
+                                    <>
+                                      <DropdownMenuItem onClick={() => router.push(`/ressourcen/${b.ressource_id}`)}>
+                                        <IconUser className="mr-2 size-4" />
+                                        Zur Ressource
+                                      </DropdownMenuItem>
+                                      {b.aktiv && <DropdownMenuSeparator />}
+                                    </>
+                                  )}
+                                  {b.aktiv && (
+                                    <>
+                                      <DropdownMenuItem onClick={() => openEdit(b)}>
+                                        <IconPencil className="mr-2 size-4" />
+                                        Bearbeiten
+                                      </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem
+                                        className="text-destructive focus:text-destructive"
+                                        onClick={() => setBeendenItem(b)}
+                                      >
+                                        <IconPlayerStop className="mr-2 size-4" />
+                                        Beauftragung beenden
+                                      </DropdownMenuItem>
+                                    </>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </TableCell>
                           )}
                         </TableRow>
