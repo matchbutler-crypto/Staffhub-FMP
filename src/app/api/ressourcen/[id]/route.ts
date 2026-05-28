@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { logHistorie } from '@/lib/log-historie'
 
 async function getUserProfile(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
   const { data } = await supabase
@@ -115,6 +116,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .select(`
         id, aktiv, startdatum, enddatum,
         ressource_link_id,
+        einkaufspreis, verkaufspreis,
         vakanzen_data(id, vakanz_nr, titel)
       `)
       .in('ressource_link_id', (links ?? []).map((l: any) => l.id))
@@ -134,6 +136,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         startdatum: b.startdatum ?? link?.created_at,
         enddatum: b.enddatum ?? linkVakanz?.enddatum ?? null,
         agentur_name: agentur_name ?? '—',
+        einkaufspreis: b.einkaufspreis ?? null,
+        // VK only exposed to managers
+        verkaufspreis: isManager ? (b.verkaufspreis ?? null) : undefined,
       }
     })
 
@@ -334,6 +339,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (error) {
       return NextResponse.json({ error: 'Fehler beim Aktualisieren' }, { status: 400 })
     }
+
+    // Historie-Eintrag nach erfolgreichem Update
+    await logHistorie({
+      ressourceId: id,
+      text: 'Stammdaten aktualisiert',
+      typ: 'system',
+      erstelltVon: user.id,
+      supabase,
+    })
 
     return NextResponse.json(data)
   } catch (err) {
