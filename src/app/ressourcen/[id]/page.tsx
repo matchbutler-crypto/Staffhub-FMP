@@ -9,15 +9,16 @@ import { toast } from "sonner"
 import {
   IconArrowLeft,
   IconBriefcase,
+  IconCheck,
   IconClock,
+  IconDownload,
+  IconHistory,
   IconLoader2,
   IconMapPin,
   IconPencil,
   IconUpload,
   IconUser,
   IconX,
-  IconCheck,
-  IconDownload,
 } from "@tabler/icons-react"
 
 import { useUser } from "@/context/user-context"
@@ -82,6 +83,8 @@ interface Beauftragung {
   startdatum: string
   enddatum: string | null
   agentur_name: string
+  einkaufspreis?: number | null
+  verkaufspreis?: number | null
 }
 
 interface Zeitnachweis {
@@ -90,6 +93,14 @@ interface Zeitnachweis {
   stunden: number
   beschreibung: string
   hochgeladen_von: string
+}
+
+interface HistorieEintrag {
+  id: string
+  typ: 'system' | 'manuell'
+  text: string
+  created_at: string
+  profiles: { id: string; name: string; rolle: string } | null
 }
 
 const StammdatenSchema = z.object({
@@ -513,7 +524,7 @@ function StammdatenTab({
   )
 }
 
-function BeauftragungTab({ beauftragungen }: { beauftragungen: Beauftragung[] }) {
+function BeauftragungTab({ beauftragungen, isManager }: { beauftragungen: Beauftragung[]; isManager: boolean }) {
   if (beauftragungen.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-border py-14 text-center text-muted-foreground">
@@ -521,6 +532,9 @@ function BeauftragungTab({ beauftragungen }: { beauftragungen: Beauftragung[] })
       </div>
     )
   }
+
+  const fmtPreis = (v?: number | null) =>
+    v != null ? `${v.toLocaleString("de-DE")} €` : "—"
 
   return (
     <div className="overflow-x-auto rounded-md border border-border">
@@ -532,6 +546,8 @@ function BeauftragungTab({ beauftragungen }: { beauftragungen: Beauftragung[] })
             <TableHead>Status</TableHead>
             <TableHead>Start</TableHead>
             <TableHead>Ende</TableHead>
+            <TableHead>Rate</TableHead>
+            {isManager && <TableHead>VK/Tag</TableHead>}
             <TableHead>Agentur</TableHead>
           </TableRow>
         </TableHeader>
@@ -554,11 +570,128 @@ function BeauftragungTab({ beauftragungen }: { beauftragungen: Beauftragung[] })
               <TableCell className="text-sm tabular-nums">
                 {b.enddatum ? new Date(b.enddatum).toLocaleDateString("de-DE") : "—"}
               </TableCell>
+              <TableCell className="text-sm tabular-nums text-foreground">
+                {fmtPreis(b.einkaufspreis)}
+              </TableCell>
+              {isManager && (
+                <TableCell className="text-sm tabular-nums text-foreground">
+                  {fmtPreis(b.verkaufspreis)}
+                </TableCell>
+              )}
               <TableCell className="text-sm text-muted-foreground">{b.agentur_name}</TableCell>
             </TableRow>
           ))}
         </TableBody>
       </Table>
+    </div>
+  )
+}
+
+function HistorieTab({
+  eintraege,
+  isManager,
+  ressourceId,
+  onEintragAdded,
+}: {
+  eintraege: HistorieEintrag[]
+  isManager: boolean
+  ressourceId: string
+  onEintragAdded: () => void
+}) {
+  const [notiz, setNotiz] = React.useState("")
+  const [saving, setSaving] = React.useState(false)
+
+  const handleSubmit = async () => {
+    if (!notiz.trim()) return
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/ressourcen/${ressourceId}/historie`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: notiz.trim() }),
+      })
+      if (!res.ok) throw new Error()
+      setNotiz("")
+      toast.success("Notiz gespeichert")
+      onEintragAdded()
+    } catch {
+      toast.error("Fehler beim Speichern der Notiz")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      {isManager && (
+        <div className="space-y-2">
+          <Textarea
+            placeholder="Manuelle Notiz hinzufügen…"
+            value={notiz}
+            onChange={(e) => setNotiz(e.target.value)}
+            rows={3}
+            className="resize-none text-sm"
+          />
+          <div className="flex justify-end">
+            <Button
+              size="sm"
+              disabled={!notiz.trim() || saving}
+              onClick={handleSubmit}
+            >
+              {saving ? (
+                <IconLoader2 className="h-4 w-4 animate-spin mr-1.5" />
+              ) : (
+                <IconCheck className="h-4 w-4 mr-1.5" />
+              )}
+              Notiz speichern
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {eintraege.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border py-14 text-center text-muted-foreground">
+          Noch keine Einträge vorhanden.
+        </div>
+      ) : (
+        <div className="relative space-y-0">
+          {eintraege.map((e, i) => (
+            <div key={e.id} className="flex gap-3">
+              {/* Timeline dot + line */}
+              <div className="flex flex-col items-center">
+                <div
+                  className={`mt-1 h-2 w-2 rounded-full flex-shrink-0 ${
+                    e.typ === "manuell" ? "bg-foreground" : "bg-muted-foreground/50"
+                  }`}
+                />
+                {i < eintraege.length - 1 && (
+                  <div className="w-px flex-1 bg-border mt-1" />
+                )}
+              </div>
+
+              {/* Content */}
+              <div className={`pb-5 flex-1 ${i === eintraege.length - 1 ? "pb-0" : ""}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    {e.typ === "manuell" && (
+                      <IconPencil className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                    )}
+                    <p className="text-sm text-foreground leading-snug">{e.text}</p>
+                  </div>
+                  <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap flex-shrink-0">
+                    {new Date(e.created_at).toLocaleDateString("de-DE")}
+                  </span>
+                </div>
+                {e.profiles && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {e.profiles.name} · {e.profiles.rolle}
+                  </p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -620,17 +753,23 @@ export default function RessourceDetailPage() {
   const [activeTab, setActiveTab] = React.useState("stammdaten")
   const [ressource, setRessource] = React.useState<Ressource | null>(null)
   const [zeitnachweise, setZeitnachweise] = React.useState<Zeitnachweis[]>([])
+  const [historie, setHistorie] = React.useState<HistorieEintrag[]>([])
   const [loading, setLoading] = React.useState(true)
 
   const loadData = React.useCallback(async () => {
     if (!params.id) return
     try {
-      const [ressourceRes, zeitnachweiseRes] = await Promise.all([
+      const [ressourceRes, zeitnachweiseRes, historieRes] = await Promise.all([
         fetch(`/api/ressourcen/${params.id}`),
         fetch(`/api/ressourcen/${params.id}/zeitnachweise`),
+        fetch(`/api/ressourcen/${params.id}/historie`),
       ])
       if (ressourceRes.ok) setRessource(await ressourceRes.json())
       if (zeitnachweiseRes.ok) setZeitnachweise(await zeitnachweiseRes.json())
+      if (historieRes.ok) {
+        const json = await historieRes.json()
+        setHistorie(json.historie ?? [])
+      }
     } catch {
       toast.error("Fehler beim Laden der Daten")
     } finally {
@@ -704,6 +843,7 @@ export default function RessourceDetailPage() {
                       { value: "stammdaten", label: "Stammdaten", icon: IconUser },
                       { value: "beauftragungen", label: "Beauftragungen", icon: IconBriefcase },
                       { value: "zeitnachweise", label: "Zeitnachweise", icon: IconClock },
+                      { value: "historie", label: "Historie", icon: IconHistory },
                     ].map(({ value, label, icon: Icon }) => (
                       <TabsTrigger
                         key={value}
@@ -722,10 +862,18 @@ export default function RessourceDetailPage() {
                     <StammdatenTab ressource={ressource} canEdit={canEdit} onUpdate={loadData} />
                   </TabsContent>
                   <TabsContent value="beauftragungen" className="mt-0 focus-visible:outline-none">
-                    <BeauftragungTab beauftragungen={ressource.beauftragungen ?? []} />
+                    <BeauftragungTab beauftragungen={ressource.beauftragungen ?? []} isManager={isManager} />
                   </TabsContent>
                   <TabsContent value="zeitnachweise" className="mt-0 focus-visible:outline-none">
                     <ZeitnachweisTab zeitnachweise={zeitnachweise} />
+                  </TabsContent>
+                  <TabsContent value="historie" className="mt-0 focus-visible:outline-none">
+                    <HistorieTab
+                      eintraege={historie}
+                      isManager={isManager}
+                      ressourceId={ressource.id}
+                      onEintragAdded={loadData}
+                    />
                   </TabsContent>
                 </div>
               </Tabs>
