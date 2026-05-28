@@ -19,26 +19,36 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Trash2, Loader2, Info, Download, MessageSquare, Send, CalendarClock, CheckCircle2, XCircle, Ban, Undo2, ChevronDown, Briefcase } from 'lucide-react'
+import { Trash2, Loader2, Info, Download, MessageSquare, Send, CalendarClock, CheckCircle2, XCircle, Ban, Undo2, ChevronDown, Briefcase, FileText, UserCheck, ShoppingCart, ClipboardCheck, Settings, Play } from 'lucide-react'
 import { toast } from 'sonner'
+import { LINK_STATUS_ORDER, getLinkStatusConfig } from '@/lib/link-status-config'
 
-const LINK_STATUSES = ['Gespielt', 'Interview geplant', 'Zugesagt', 'Beauftragt', 'Abgesagt', 'Abgelehnt'] as const
+const LINK_STATUSES = LINK_STATUS_ORDER
 const FEEDBACK_STATUSES = ['Abgesagt', 'Abgelehnt'] as const
 
-const STATUS_CONFIG: Record<string, { color: string; dot: string; icon: React.ReactNode }> = {
-  'Gespielt':          { color: 'bg-blue-50 text-blue-700 border-blue-200',          dot: 'bg-blue-400',    icon: <Send className="h-3 w-3" /> },
-  'Interview geplant': { color: 'bg-violet-50 text-violet-700 border-violet-200',    dot: 'bg-violet-400',  icon: <CalendarClock className="h-3 w-3" /> },
-  'Zugesagt':          { color: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-400', icon: <CheckCircle2 className="h-3 w-3" /> },
-  'Beauftragt':        { color: 'bg-teal-50 text-teal-700 border-teal-200',          dot: 'bg-teal-400',    icon: <Briefcase className="h-3 w-3" /> },
-  'Abgesagt':          { color: 'bg-orange-50 text-orange-700 border-orange-200',    dot: 'bg-orange-400',  icon: <XCircle className="h-3 w-3" /> },
-  'Abgelehnt':         { color: 'bg-red-50 text-red-700 border-red-200',             dot: 'bg-red-400',     icon: <Ban className="h-3 w-3" /> },
-  'Zurückgezogen':     { color: 'bg-gray-100 text-gray-500 border-gray-200',         dot: 'bg-gray-400',    icon: <Undo2 className="h-3 w-3" /> },
+// Icons are only needed in this component — extend the shared style with an icon field
+const STATUS_ICONS: Record<string, React.ReactNode> = {
+  'Gespielt':                      <Send className="h-3 w-3" />,
+  'Interview geplant':             <CalendarClock className="h-3 w-3" />,
+  'Zugesagt':                      <CheckCircle2 className="h-3 w-3" />,
+  'Stammdaten anfordern':          <FileText className="h-3 w-3" />,
+  'Freelancer Prozess gestartet':  <UserCheck className="h-3 w-3" />,
+  'Einkauf gestartet':             <ShoppingCart className="h-3 w-3" />,
+  'Genehmigung gestartet':         <ClipboardCheck className="h-3 w-3" />,
+  'Beauftragt':                    <Briefcase className="h-3 w-3" />,
+  'Setup externe Mail & Hardware': <Settings className="h-3 w-3" />,
+  'Running':                       <Play className="h-3 w-3" />,
+  'Abgesagt':                      <XCircle className="h-3 w-3" />,
+  'Abgelehnt':                     <Ban className="h-3 w-3" />,
+  'Zurückgezogen':                 <Undo2 className="h-3 w-3" />,
+}
+
+function getStatusConfig(status: string | null | undefined) {
+  const cfg = getLinkStatusConfig(status)
+  return { ...cfg, icon: STATUS_ICONS[status ?? ''] ?? null }
 }
 
 const FALLBACK_STATUS = { color: 'bg-gray-100 text-gray-600 border-gray-200', dot: 'bg-gray-300', icon: null }
-function getStatusConfig(status: string | null | undefined) {
-  return STATUS_CONFIG[status ?? ''] ?? FALLBACK_STATUS
-}
 
 function getScoreColor(score: number | null | undefined) {
   if (score === null || score === undefined) return 'bg-gray-100 text-gray-700 border-gray-200'
@@ -242,8 +252,19 @@ export function GespielteRessourcenTable({
     return new Date(isoDate).toLocaleDateString('de-DE')
   }
 
+  const NON_RETRACTABLE_STATUSES = new Set([
+    'Zurückgezogen',
+    'Zugesagt',
+    'Stammdaten anfordern',
+    'Freelancer Prozess gestartet',
+    'Einkauf gestartet',
+    'Genehmigung gestartet',
+    'Beauftragt',
+    'Setup externe Mail & Hardware',
+    'Running',
+  ])
   const isRetractable = (status: string | null | undefined) =>
-    status !== 'Zurückgezogen' && status !== 'Zugesagt' && status !== 'Beauftragt'
+    !NON_RETRACTABLE_STATUSES.has(status ?? '')
 
   return (
     <TooltipProvider>
@@ -314,7 +335,7 @@ export function GespielteRessourcenTable({
 
                   {/* Status */}
                   <div className="col-span-3">
-                    {isManager && currentStatus !== 'Zurückgezogen' && currentStatus !== 'Beauftragt' ? (
+                    {isManager && currentStatus !== 'Zurückgezogen' && currentStatus !== 'Running' ? (
                       isUpdating ? (
                         <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
                           <Loader2 className="h-3 w-3 animate-spin" />
