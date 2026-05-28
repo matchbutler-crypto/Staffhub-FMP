@@ -2,14 +2,38 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 
-const LINK_STATUS = ['Gespielt', 'Interview geplant', 'Zugesagt', 'Beauftragt', 'Abgesagt', 'Abgelehnt'] as const
+const LINK_STATUS = [
+  'Gespielt',
+  'Interview geplant',
+  'Zugesagt',
+  'Stammdaten anfordern',
+  'Freelancer Prozess gestartet',
+  'Einkauf gestartet',
+  'Genehmigung gestartet',
+  'Beauftragt',
+  'Setup externe Mail & Hardware',
+  'Running',
+  'Abgesagt',
+  'Abgelehnt',
+] as const
 type LinkStatus = typeof LINK_STATUS[number]
 
 // 'Zurückgezogen' ist ein terminaler Status (nur via /rueckzug Endpunkt erreichbar)
 const TERMINAL_STATUSES = ['Zurückgezogen']
 
 // Ordered forward-progression statuses — transitions must move forward in this list
-const STATUS_ORDER: LinkStatus[] = ['Gespielt', 'Interview geplant', 'Zugesagt', 'Beauftragt']
+const STATUS_ORDER: LinkStatus[] = [
+  'Gespielt',
+  'Interview geplant',
+  'Zugesagt',
+  'Stammdaten anfordern',
+  'Freelancer Prozess gestartet',
+  'Einkauf gestartet',
+  'Genehmigung gestartet',
+  'Beauftragt',
+  'Setup externe Mail & Hardware',
+  'Running',
+]
 const REJECTION_STATUSES: LinkStatus[] = ['Abgesagt', 'Abgelehnt']
 
 const statusSchema = z.object({
