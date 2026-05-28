@@ -166,11 +166,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const today = new Date().toISOString().slice(0, 10)
     const laufendeBeauftragung = mergedBeauftragungen.find((b: any) => {
-      const start = (b.startdatum ?? '').slice(0, 10)
       const end = b.enddatum ? b.enddatum.slice(0, 10) : null
-      const inTimeRange = start ? start <= today && (!end || end >= today) : true
       const isActiveStatus = b.status === 'Beauftragt' || b.status === 'Aktiv'
-      return isActiveStatus && inTimeRange
+      const notEnded = !end || end >= today
+      return isActiveStatus && notEnded
     }) ?? null
 
     const {

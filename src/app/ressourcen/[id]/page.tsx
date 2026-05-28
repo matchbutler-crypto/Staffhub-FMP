@@ -161,12 +161,13 @@ function HeaderMetaBar({
   }, [ressource.verfuegbarkeit, ressource.verfuegbar_ab])
 
   const laufendeBeauftragung = React.useMemo(() => {
+    // Sperrt den Status sobald eine Beauftragung existiert (auch zukünftige),
+    // solange sie noch nicht abgelaufen ist.
     return (ressource.beauftragungen ?? []).find((b) => {
-      const start = (b.startdatum ?? "").slice(0, 10)
       const end = b.enddatum ? b.enddatum.slice(0, 10) : null
-      const inTimeRange = start ? start <= today && (!end || end >= today) : true
       const isActiveStatus = b.status === "Beauftragt" || b.status === "Aktiv"
-      return isActiveStatus && inTimeRange
+      const notEnded = !end || end >= today
+      return isActiveStatus && notEnded
     }) ?? null
   }, [ressource.beauftragungen, today])
 
@@ -249,7 +250,13 @@ function HeaderMetaBar({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {canEdit && !statusLocked ? (
+            {statusLocked ? (
+              <span className="inline-flex h-9 items-center gap-2 rounded-md border border-teal-300/40 bg-teal-500/10 px-3 text-sm text-teal-700 dark:text-teal-300 select-none">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                Beauftragt
+                {verfuegbarAbText ? ` · bis ${verfuegbarAbText}` : ""}
+              </span>
+            ) : canEdit ? (
               <Select value={currentStatus} onValueChange={handleStatusChange} disabled={savingStatus}>
                 <SelectTrigger className="h-9 w-auto min-w-[170px] gap-2 rounded-md border-border bg-muted/40 text-sm">
                   <SelectValue />
