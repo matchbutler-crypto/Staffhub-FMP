@@ -46,6 +46,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { getLinkStatusConfig } from "@/lib/link-status-config"
 
 interface Ressource {
   id: string
@@ -131,14 +132,6 @@ const VERFUEGBARKEIT_TEXT: Record<string, string> = {
   "Nicht verfügbar": "text-zinc-500 dark:text-zinc-400",
   "Deaktiviert": "text-red-600 dark:text-red-300",
   Beauftragt: "text-teal-700 dark:text-teal-300",
-}
-
-const BEAUFTRAGUNG_STATUS: Record<string, string> = {
-  Aktiv: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800",
-  Beauftragt: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800",
-  Abgeschlossen: "bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700",
-  Abgebrochen: "bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800",
-  Geplant: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800",
 }
 
 function FieldRow({ label, value }: { label: string; value?: string | null }) {
@@ -559,7 +552,7 @@ function BeauftragungTab({ beauftragungen, isManager }: { beauftragungen: Beauft
               <TableCell>
                 <Badge
                   variant="outline"
-                  className={`text-xs ${BEAUFTRAGUNG_STATUS[b.status] ?? "bg-zinc-100 text-zinc-600 border-zinc-200"}`}
+                  className={`text-xs ${getLinkStatusConfig(b.status).color}`}
                 >
                   {b.status}
                 </Badge>
