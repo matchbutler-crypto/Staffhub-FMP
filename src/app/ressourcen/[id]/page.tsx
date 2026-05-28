@@ -365,15 +365,33 @@ function HeaderMetaBar({
 
 function CopyStammdatenButton({ ressource }: { ressource: Ressource }) {
   const [copied, setCopied] = React.useState(false)
+  const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  React.useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+  }, [])
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(buildStammdatenText(ressource))
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    if (copied) return
+    try {
+      await navigator.clipboard.writeText(buildStammdatenText(ressource))
+      setCopied(true)
+      timerRef.current = setTimeout(() => setCopied(false), 2000)
+    } catch {
+      toast.error('Kopieren fehlgeschlagen')
+    }
   }
 
   return (
-    <Button variant="outline" size="sm" onClick={handleCopy} className="gap-1.5">
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={handleCopy}
+      className="gap-1.5"
+      aria-label={copied ? 'Kopiert' : 'Kopieren'}
+    >
       {copied
         ? <IconCheck className="h-3.5 w-3.5 text-green-600" />
         : <IconCopy className="h-3.5 w-3.5" />
