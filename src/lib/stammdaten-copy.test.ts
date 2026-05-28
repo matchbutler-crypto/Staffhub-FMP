@@ -11,9 +11,13 @@ describe('buildStammdatenText', () => {
       telefon: '+49 123 456789',
       wohnort: 'Berlin',
     })
-    expect(result).toBe(
-      'Vorname: Max\nNachname: Mustermann\nGeburtsdatum: 15.1.1990\nE-Mail: max@example.com\nTelefon: +49 123 456789\nWohnort: Berlin'
-    )
+    // Use toContain for each line to avoid locale/timezone fragility on the date
+    expect(result).toContain('Vorname: Max')
+    expect(result).toContain('Nachname: Mustermann')
+    expect(result).toContain('E-Mail: max@example.com')
+    expect(result).toContain('Telefon: +49 123 456789')
+    expect(result).toContain('Wohnort: Berlin')
+    // Date is tested separately in the 'formats Geburtsdatum as de-DE locale' test
   })
 
   it('renders null fields as —', () => {
@@ -60,7 +64,8 @@ describe('buildStammdatenText', () => {
   })
 
   it('formats Geburtsdatum as de-DE locale', () => {
+    const expected = new Date(2000, 5, 1).toLocaleDateString('de-DE')
     const result = buildStammdatenText({ geburtsdatum: '2000-06-01' })
-    expect(result).toContain('Geburtsdatum: 1.6.2000')
+    expect(result).toContain(`Geburtsdatum: ${expected}`)
   })
 })

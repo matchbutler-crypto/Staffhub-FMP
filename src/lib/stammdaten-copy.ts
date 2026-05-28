@@ -14,7 +14,8 @@ function fmt(value: string | null | undefined): string {
 
 function fmtDate(value: string | null | undefined): string {
   if (!value?.trim()) return '—'
-  return new Date(value).toLocaleDateString('de-DE')
+  const [year, month, day] = value.trim().split('-').map(Number)
+  return new Date(year, month - 1, day).toLocaleDateString('de-DE')
 }
 
 export function buildStammdatenText(fields: StammdatenFields): string {
