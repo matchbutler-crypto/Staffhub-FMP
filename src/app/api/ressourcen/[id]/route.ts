@@ -273,6 +273,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Fehler beim Aktualisieren' }, { status: 400 })
     }
 
+    // Historie-Eintrag nach erfolgreichem Update
+    await logHistorie({
+      ressourceId: id,
+      text: 'Stammdaten aktualisiert',
+      typ: 'system',
+      erstelltVon: user.id,
+      supabase,
+    })
+
     return NextResponse.json(data)
   } catch (err) {
     console.error('Error updating resource:', err)
