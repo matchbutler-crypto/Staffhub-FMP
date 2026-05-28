@@ -48,6 +48,14 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { getLinkStatusConfig } from "@/lib/link-status-config"
 
+// Beauftragungen-specific statuses that don't exist in the link-status pipeline
+const BEAUFTRAGUNG_STATUS_OVERRIDE: Record<string, string> = {
+  Aktiv:        'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800',
+  Abgeschlossen:'bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700',
+  Abgebrochen:  'bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800',
+  Geplant:      'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800',
+}
+
 interface Ressource {
   id: string
   ressource_code?: string | null
@@ -552,7 +560,7 @@ function BeauftragungTab({ beauftragungen, isManager }: { beauftragungen: Beauft
               <TableCell>
                 <Badge
                   variant="outline"
-                  className={`text-xs ${getLinkStatusConfig(b.status).color}`}
+                  className={`text-xs ${BEAUFTRAGUNG_STATUS_OVERRIDE[b.status] ?? getLinkStatusConfig(b.status).color}`}
                 >
                   {b.status}
                 </Badge>
