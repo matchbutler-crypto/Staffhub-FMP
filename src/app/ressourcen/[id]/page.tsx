@@ -11,6 +11,7 @@ import {
   IconBriefcase,
   IconCheck,
   IconClock,
+  IconCopy,
   IconDownload,
   IconHistory,
   IconLoader2,
@@ -47,6 +48,7 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { getLinkStatusConfig } from "@/lib/link-status-config"
+import { buildStammdatenText } from "@/lib/stammdaten-copy"
 
 // Beauftragungen-specific statuses that don't exist in the link-status pipeline
 const BEAUFTRAGUNG_STATUS_OVERRIDE: Record<string, string> = {
@@ -361,6 +363,26 @@ function HeaderMetaBar({
   )
 }
 
+function CopyStammdatenButton({ ressource }: { ressource: Ressource }) {
+  const [copied, setCopied] = React.useState(false)
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(buildStammdatenText(ressource))
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <Button variant="outline" size="sm" onClick={handleCopy} className="gap-1.5">
+      {copied
+        ? <IconCheck className="h-3.5 w-3.5 text-green-600" />
+        : <IconCopy className="h-3.5 w-3.5" />
+      }
+      Kopieren
+    </Button>
+  )
+}
+
 function StammdatenTab({
   ressource,
   canEdit,
@@ -488,8 +510,9 @@ function StammdatenTab({
 
   return (
     <div className="space-y-5">
-      {canEdit && (
-        <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <CopyStammdatenButton ressource={ressource} />
+        {canEdit && (
           <Button
             variant="outline"
             size="sm"
@@ -498,8 +521,8 @@ function StammdatenTab({
           >
             <IconPencil className="h-3.5 w-3.5" /> Bearbeiten
           </Button>
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="divide-y divide-border rounded-md border border-border bg-background">
         <div className="px-4"><FieldRow label="Vorname" value={ressource.vorname} /></div>
