@@ -115,14 +115,6 @@ export async function PATCH(
     }
   }
 
-  // Beauftragt kann nur vom Admin geändert werden
-  if (link.status === 'Beauftragt' && profile.rolle !== 'Admin') {
-    return NextResponse.json(
-      { error: 'Status „Beauftragt" kann nur von einem Admin geändert werden' },
-      { status: 403 }
-    )
-  }
-
   // Update durchführen
   const { data: updated, error: updateError } = await supabase
     .from('ressource_vakanz_links')
