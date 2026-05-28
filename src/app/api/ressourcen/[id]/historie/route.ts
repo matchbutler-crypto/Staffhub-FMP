@@ -64,16 +64,9 @@ export async function POST(
     return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 })
   }
 
-  // Agentur: only own resources
-  if (auth.profile.rolle === 'Agentur') {
-    const { data: ressource } = await supabase
-      .from('ressourcen')
-      .select('agentur_id')
-      .eq('id', id)
-      .single()
-    if (!ressource || ressource.agentur_id !== auth.profile.agentur_id) {
-      return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
-    }
+  const isManager = auth.profile.rolle === 'Admin' || auth.profile.rolle === 'Staffhub Manager'
+  if (!isManager) {
+    return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
   }
 
   const body = await request.json().catch(() => null)
