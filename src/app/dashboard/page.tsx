@@ -10,18 +10,25 @@ import {
   IconStack2,
 } from "@tabler/icons-react"
 import {
-  Send,
+  Ban,
+  Briefcase,
   CalendarClock,
   CheckCircle2,
-  XCircle,
-  Ban,
+  ClipboardCheck,
+  FileText,
+  Play,
+  Send,
+  Settings,
+  ShoppingCart,
   Undo2,
-  Briefcase,
+  UserCheck,
+  XCircle,
 } from "lucide-react"
 
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { UnauthorizedToast } from "@/components/unauthorized-toast"
+import { LINK_STATUS_ORDER, getLinkStatusConfig } from "@/lib/link-status-config"
 import {
   Card,
   CardContent,
@@ -88,24 +95,6 @@ type DashboardData = ManagerData | AgenturData
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-// Link-Status config (mirrors GespielteRessourcenTable)
-const LINK_STATUSES = ["Gespielt", "Interview geplant", "Zugesagt", "Beauftragt", "Abgesagt", "Abgelehnt", "Zurückgezogen"] as const
-type LinkStatus = typeof LINK_STATUSES[number]
-
-const linkStatusConfig: Record<LinkStatus, { color: string; dot: string; icon: React.ReactNode; label: string }> = {
-  "Gespielt":          { color: "bg-blue-50 text-blue-700 border-blue-200",        dot: "bg-blue-400",    icon: <Send className="h-3 w-3" />,          label: "Gespielt" },
-  "Interview geplant": { color: "bg-violet-50 text-violet-700 border-violet-200",  dot: "bg-violet-400",  icon: <CalendarClock className="h-3 w-3" />,  label: "Interview" },
-  "Zugesagt":          { color: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-400", icon: <CheckCircle2 className="h-3 w-3" />, label: "Zugesagt" },
-  "Beauftragt":        { color: "bg-teal-50 text-teal-700 border-teal-200",          dot: "bg-teal-400",    icon: <Briefcase className="h-3 w-3" />,     label: "Beauftragt" },
-  "Abgesagt":          { color: "bg-orange-50 text-orange-700 border-orange-200",  dot: "bg-orange-400",  icon: <XCircle className="h-3 w-3" />,        label: "Abgesagt" },
-  "Abgelehnt":         { color: "bg-red-50 text-red-700 border-red-200",            dot: "bg-red-400",     icon: <Ban className="h-3 w-3" />,            label: "Abgelehnt" },
-  "Zurückgezogen":     { color: "bg-gray-100 text-gray-500 border-gray-200",        dot: "bg-gray-400",    icon: <Undo2 className="h-3 w-3" />,          label: "Zurückgezogen" },
-}
-
-function getLinkStatusConfig(status: string) {
-  return linkStatusConfig[status as LinkStatus] ?? { color: "bg-gray-100 text-gray-600 border-gray-200", dot: "bg-gray-300", icon: null, label: status }
-}
-
 function fmt(n: number) {
   return n.toLocaleString("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })
 }
@@ -119,12 +108,29 @@ function KpiSkeleton() {
   )
 }
 
+// Icons are UI-specific — not part of the shared link-status-config
+const LINK_STATUS_ICONS: Record<string, React.ReactNode> = {
+  "Gespielt":                      <Send className="h-3 w-3" />,
+  "Interview geplant":             <CalendarClock className="h-3 w-3" />,
+  "Zugesagt":                      <CheckCircle2 className="h-3 w-3" />,
+  "Stammdaten anfordern":          <FileText className="h-3 w-3" />,
+  "Freelancer Prozess gestartet":  <UserCheck className="h-3 w-3" />,
+  "Einkauf gestartet":             <ShoppingCart className="h-3 w-3" />,
+  "Genehmigung gestartet":         <ClipboardCheck className="h-3 w-3" />,
+  "Beauftragt":                    <Briefcase className="h-3 w-3" />,
+  "Setup externe Mail & Hardware": <Settings className="h-3 w-3" />,
+  "Running":                       <Play className="h-3 w-3" />,
+  "Abgesagt":                      <XCircle className="h-3 w-3" />,
+  "Abgelehnt":                     <Ban className="h-3 w-3" />,
+  "Zurückgezogen":                 <Undo2 className="h-3 w-3" />,
+}
+
 function LinkStatusBadge({ status }: { status: string }) {
   const cfg = getLinkStatusConfig(status)
   return (
     <span className={`inline-flex w-fit items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium ${cfg.color}`}>
-      {cfg.icon}
-      {status}
+      {LINK_STATUS_ICONS[status] ?? null}
+      {cfg.label || status}
     </span>
   )
 }
@@ -140,7 +146,7 @@ function ManagerDashboard({ data }: { data: ManagerData }) {
     : ressourcen_pipeline.filter(r => r.status === statusFilter)
 
   // Statuses that actually have data
-  const activeLinkStatuses = LINK_STATUSES.filter(s => ressourcen_pipeline.some(r => r.status === s))
+  const activeLinkStatuses = LINK_STATUS_ORDER.filter(s => ressourcen_pipeline.some(r => r.status === s))
 
   return (
     <div className="flex flex-col gap-6 py-4 md:gap-8 md:py-6">
@@ -193,7 +199,7 @@ function ManagerDashboard({ data }: { data: ManagerData }) {
                 <p className="text-xs text-muted-foreground">Noch keine Einreichungen</p>
               ) : (
                 <div className="flex flex-col gap-1.5">
-                  {LINK_STATUSES.filter(s => pool_stats.by_link_status[s]).map((s) => {
+                  {LINK_STATUS_ORDER.filter(s => pool_stats.by_link_status[s]).map((s) => {
                     const cfg = getLinkStatusConfig(s)
                     const count = pool_stats.by_link_status[s] ?? 0
                     return (
@@ -417,7 +423,7 @@ function AgenturDashboard({ data }: { data: AgenturData }) {
     ? ressourcen_pipeline
     : ressourcen_pipeline.filter(r => r.status === statusFilter)
 
-  const activeLinkStatuses = LINK_STATUSES.filter(s => ressourcen_pipeline.some(r => r.status === s))
+  const activeLinkStatuses = LINK_STATUS_ORDER.filter(s => ressourcen_pipeline.some(r => r.status === s))
 
   return (
     <div className="flex flex-col gap-6 py-4 md:gap-8 md:py-6">
@@ -440,7 +446,7 @@ function AgenturDashboard({ data }: { data: AgenturData }) {
                 <p className="text-xs text-muted-foreground">Noch keine Ressourcen eingereicht</p>
               ) : (
                 <div className="flex flex-col gap-1.5">
-                  {LINK_STATUSES.filter(s => pool_stats.by_link_status[s]).map((s) => {
+                  {LINK_STATUS_ORDER.filter(s => pool_stats.by_link_status[s]).map((s) => {
                     const cfg = getLinkStatusConfig(s)
                     const count = pool_stats.by_link_status[s] ?? 0
                     return (
