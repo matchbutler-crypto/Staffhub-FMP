@@ -1,76 +1,43 @@
-import { createClient } from "@supabase/supabase-js"
 import { NextRequest, NextResponse } from "next/server"
+import { createClient } from "@/lib/supabase/server"
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const supabase = await createClient()
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const { id } = await params
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 })
 
-    // Fetch zeitnachweise for this resource
-    const { data: zeitnachweise, error } = await supabase
-      .from("zeitnachweise")
-      .select(`
-        id,
-        datum,
-        stunden,
-        beschreibung,
-        hochgeladen_von,
-        created_at
-      `)
-      .eq("ressource_id", id)
-      .order("datum", { ascending: false })
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('rolle, aktiv, agentur_id')
+    .eq('id', user.id)
+    .single()
+  if (!profile?.aktiv) return NextResponse.json({ error: 'Account deaktiviert' }, { status: 403 })
 
-    if (error) {
-      return NextResponse.json(
-        { error: "Fehler beim Laden der Zeitnachweise" },
-        { status: 400 }
-      )
-    }
+  // Resolve: ressource → ressource_vakanz_links → beauftragungen → zeitnachweise
+  const { data: links } = await supabase
+    .from('ressource_vakanz_links')
+    .select('id')
+    .eq('ressource_id', id)
 
-    return NextResponse.json(zeitnachweise || [])
-  } catch (error) {
-    console.error("Error fetching zeitnachweise:", error)
-    return NextResponse.json(
-      { error: "Fehler beim Laden der Zeitnachweise" },
-      { status: 500 }
-    )
-  }
-}
+  const linkIds = links?.map(l => l.id) ?? []
+  if (linkIds.length === 0) return NextResponse.json([])
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const { id } = await params
-    const body = await request.json()
+  const { data: beauftragungen } = await supabase
+    .from('beauftragungen')
+    .select('id')
+    .in('ressource_link_id', linkIds)
 
-    const { data, error } = await supabase
-      .from("zeitnachweise")
-      .insert({
-        ressource_id: id,
-        datum: body.datum,
-        stunden: body.stunden,
-        beschreibung: body.beschreibung,
-        hochgeladen_von: body.hochgeladen_von,
-      })
-      .select()
-      .single()
+  const beauftragungIds = beauftragungen?.map(b => b.id) ?? []
+  if (beauftragungIds.length === 0) return NextResponse.json([])
 
-    if (error) {
-      return NextResponse.json(
-        { error: "Fehler beim Speichern des Zeitnachweises" },
-        { status: 400 }
-      )
-    }
+  const { data, error } = await supabase
+    .from('zeitnachweise')
+    .select('id, beauftragung_id, monat, stunden_ist, tage_ist_override, uploaded_at')
+    .in('beauftragung_id', beauftragungIds)
+    .order('monat', { ascending: false })
 
-    return NextResponse.json(data, { status: 201 })
-  } catch (error) {
-    console.error("Error creating zeitnachweis:", error)
-    return NextResponse.json(
-      { error: "Fehler beim Speichern des Zeitnachweises" },
-      { status: 500 }
-    )
-  }
+  if (error) return NextResponse.json({ error: 'Fehler beim Laden der Zeitnachweise' }, { status: 500 })
+  return NextResponse.json(data ?? [])
 }

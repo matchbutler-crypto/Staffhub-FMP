@@ -17,7 +17,6 @@ import {
   IconLoader2,
   IconMapPin,
   IconPencil,
-  IconUpload,
   IconUser,
   IconX,
 } from "@tabler/icons-react"
@@ -100,10 +99,11 @@ interface Beauftragung {
 
 interface Zeitnachweis {
   id: string
-  datum: string
-  stunden: number
-  beschreibung: string
-  hochgeladen_von: string
+  beauftragung_id: string
+  monat: string
+  stunden_ist: number | null
+  tage_ist_override: number | null
+  uploaded_at: string
 }
 
 interface HistorieEintrag {
@@ -115,14 +115,14 @@ interface HistorieEintrag {
 }
 
 const StammdatenSchema = z.object({
-  vorname: z.string().min(1),
-  nachname: z.string().min(1),
-  geburtsdatum: z.string().optional(),
-  geschlecht: z.string().optional(),
-  firma: z.string().optional(),
-  email: z.string().email().or(z.literal("")).optional(),
-  telefon: z.string().optional(),
-  adresse: z.string().optional(),
+  vorname: z.string().min(1, "Pflichtfeld"),
+  nachname: z.string().min(1, "Pflichtfeld"),
+  geburtsdatum: z.string().min(1, "Pflichtfeld"),
+  geschlecht: z.string().min(1, "Pflichtfeld"),
+  firma: z.string().min(1, "Pflichtfeld"),
+  email: z.string().email("Ungültige E-Mail"),
+  telefon: z.string().min(1, "Pflichtfeld"),
+  adresse: z.string().min(1, "Pflichtfeld"),
   notizen: z.string().optional(),
 })
 
@@ -414,7 +414,7 @@ function StammdatenTab({
   const [isEditing, setIsEditing] = React.useState(false)
   const [isSaving, setIsSaving] = React.useState(false)
 
-  const { control, handleSubmit, reset, formState: { isDirty } } = useForm<StammdatenFormValues>({
+  const { control, handleSubmit, reset } = useForm<StammdatenFormValues>({
     resolver: zodResolver(StammdatenSchema),
     defaultValues: {
       vorname: ressource.vorname ?? "",
@@ -463,7 +463,7 @@ function StammdatenTab({
             >
               <IconX className="h-3.5 w-3.5" /> Abbrechen
             </Button>
-            <Button type="submit" size="sm" disabled={!isDirty || isSaving} className="gap-1.5">
+            <Button type="submit" size="sm" disabled={isSaving} className="gap-1.5">
               {isSaving ? <IconLoader2 className="h-3.5 w-3.5 animate-spin" /> : <IconCheck className="h-3.5 w-3.5" />}
               Speichern
             </Button>
@@ -483,32 +483,45 @@ function StammdatenTab({
             ]
           ).map(({ name, label, type }) => (
             <div key={name}>
-              <Label className="text-xs text-muted-foreground uppercase tracking-wide">{label}</Label>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wide">
+                {label} <span className="text-destructive">*</span>
+              </Label>
               <Controller
                 control={control}
                 name={name}
-                render={({ field }) => <Input {...field} type={type} className="mt-1" />}
+                render={({ field, fieldState }) => (
+                  <>
+                    <Input {...field} type={type} className={`mt-1 ${fieldState.error ? "border-destructive" : ""}`} />
+                    {fieldState.error && <p className="mt-0.5 text-xs text-destructive">{fieldState.error.message}</p>}
+                  </>
+                )}
               />
             </div>
           ))}
 
           {/* Geschlecht */}
           <div>
-            <Label className="text-xs text-muted-foreground uppercase tracking-wide">Geschlecht</Label>
+            <Label className="text-xs text-muted-foreground uppercase tracking-wide">
+              Geschlecht <span className="text-destructive">*</span>
+            </Label>
             <Controller
               control={control}
               name="geschlecht"
-              render={({ field }) => (
-                <Select value={field.value ?? ""} onValueChange={field.onChange}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Bitte wählen" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="männlich">Männlich</SelectItem>
-                    <SelectItem value="weiblich">Weiblich</SelectItem>
-                    <SelectItem value="divers">Divers</SelectItem>
-                  </SelectContent>
-                </Select>
+              render={({ field, fieldState }) => (
+                <>
+                  <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                    <SelectTrigger className={`mt-1 ${fieldState.error ? "border-destructive" : ""}`}>
+                      <SelectValue placeholder="Bitte wählen" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="männlich">Männlich</SelectItem>
+                      <SelectItem value="weiblich">Weiblich</SelectItem>
+                      <SelectItem value="divers">Divers</SelectItem>
+                      <SelectItem value="keine Angabe">Keine Angabe</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {fieldState.error && <p className="mt-0.5 text-xs text-destructive">{fieldState.error.message}</p>}
+                </>
               )}
             />
           </div>
@@ -739,7 +752,7 @@ function HistorieTab({
 }
 
 function ZeitnachweisTab({ zeitnachweise }: { zeitnachweise: Zeitnachweis[] }) {
-  const totalStunden = zeitnachweise.reduce((sum, z) => sum + z.stunden, 0)
+  const totalStunden = zeitnachweise.reduce((sum, z) => sum + (z.stunden_ist ?? 0), 0)
 
   return (
     <div className="space-y-5">
@@ -751,9 +764,6 @@ function ZeitnachweisTab({ zeitnachweise }: { zeitnachweise: Zeitnachweis[] }) {
             <span className="text-sm font-normal text-muted-foreground ml-1">Stunden</span>
           </p>
         </div>
-        <Button size="sm" variant="outline" className="gap-1.5">
-          <IconUpload className="h-3.5 w-3.5" /> Hochladen
-        </Button>
       </div>
 
       {zeitnachweise.length === 0 ? (
@@ -765,19 +775,23 @@ function ZeitnachweisTab({ zeitnachweise }: { zeitnachweise: Zeitnachweis[] }) {
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead>Datum</TableHead>
-                <TableHead>Stunden</TableHead>
-                <TableHead>Beschreibung</TableHead>
-                <TableHead>Hochgeladen von</TableHead>
+                <TableHead>Monat</TableHead>
+                <TableHead>Stunden (Ist)</TableHead>
+                <TableHead>Hochgeladen am</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {zeitnachweise.map((z) => (
                 <TableRow key={z.id}>
-                  <TableCell className="tabular-nums">{new Date(z.datum).toLocaleDateString("de-DE")}</TableCell>
-                  <TableCell className="font-semibold tabular-nums">{z.stunden}h</TableCell>
-                  <TableCell className="text-muted-foreground">{z.beschreibung}</TableCell>
-                  <TableCell className="text-muted-foreground">{z.hochgeladen_von}</TableCell>
+                  <TableCell className="tabular-nums">
+                    {new Date(z.monat).toLocaleDateString("de-DE", { month: "long", year: "numeric" })}
+                  </TableCell>
+                  <TableCell className="font-semibold tabular-nums">
+                    {z.tage_ist_override != null ? `${z.tage_ist_override} Tage` : z.stunden_ist != null ? `${z.stunden_ist}h` : "—"}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground tabular-nums">
+                    {new Date(z.uploaded_at).toLocaleDateString("de-DE")}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
