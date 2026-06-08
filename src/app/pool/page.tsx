@@ -2218,7 +2218,8 @@ export default function PoolPage() {
   const filtered = (() => {
     const base = ressourcen.filter((r) => {
       const matchesStatus =
-        statusFilter === "alle" || r.verfuegbarkeit === statusFilter
+        statusFilter === "alle" ||
+        (statusFilter === "Beauftragt" ? !!r.hat_beauftragt_link : r.verfuegbarkeit === statusFilter)
       const q = searchQuery.toLowerCase()
       const matchesSearch =
         q === "" ||
@@ -2324,6 +2325,7 @@ export default function PoolPage() {
                         </SelectItem>
                       )
                     )}
+                    <SelectItem value="Beauftragt">Beauftragt</SelectItem>
                   </SelectContent>
                 </Select>
                 <Button

@@ -1207,7 +1207,10 @@ export default function RessourcenPage() {
   }, [ressourcen])
 
   const filtered = ressourcen.filter((r) => {
-    if (statusFilter !== "alle" && r.verfuegbarkeit !== statusFilter) return false
+    if (statusFilter !== "alle") {
+      if (statusFilter === "Beauftragt") { if (!r.hat_beauftragt_link) return false }
+      else if (r.verfuegbarkeit !== statusFilter) return false
+    }
     if (levelFilter !== "alle" && r.erfahrungslevel !== levelFilter) return false
     if (agenturFilter !== "alle" && r.agentur_id !== agenturFilter) return false
     const q = searchQuery.toLowerCase()
@@ -1288,6 +1291,7 @@ export default function RessourcenPage() {
                     {RESSOURCE_VERFUEGBARKEIT.filter((v) => v !== "Deaktiviert").map((v) => (
                       <SelectItem key={v} value={v}>{v}</SelectItem>
                     ))}
+                    <SelectItem value="Beauftragt">Beauftragt</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select value={levelFilter} onValueChange={setLevelFilter}>
