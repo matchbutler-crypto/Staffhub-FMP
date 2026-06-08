@@ -4,6 +4,7 @@ import * as React from 'react'
 import {
   IconBrandSlack,
   IconBriefcase,
+  IconBug,
   IconBuilding,
   IconBulb,
   IconClipboardList,
@@ -106,6 +107,12 @@ const ALL_NAV_SECONDARY = [
     title: 'Admin',
     url: '/admin',
     icon: IconSettings,
+    roles: ['Admin'],
+  },
+  {
+    title: 'Feedback',
+    url: '/feedback',
+    icon: IconBug,
     roles: ['Admin'],
   },
 ]
