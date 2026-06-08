@@ -121,6 +121,16 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Account deaktiviert' }, { status: 403 })
   }
 
+  const allowedRollen = ['Admin', 'Staffhub Manager', 'Agentur']
+  if (!allowedRollen.includes(profile.rolle)) {
+    return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
+  }
+
+  const isManagerOrAdmin = profile.rolle === 'Admin' || profile.rolle === 'Staffhub Manager'
+  if (!isManagerOrAdmin && !profile.agentur_id) {
+    return NextResponse.json({ error: 'Agentur-Zuordnung fehlt' }, { status: 403 })
+  }
+
   const body = await request.json().catch(() => null)
   const paths: unknown = body?.paths
 
