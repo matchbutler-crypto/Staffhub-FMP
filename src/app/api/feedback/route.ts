@@ -114,7 +114,14 @@ export async function POST(request: NextRequest) {
     .select('id, beschreibung, kategorie, status, created_at')
     .single()
 
-  if (error) return NextResponse.json({ error: 'Fehler beim Speichern' }, { status: 500 })
+  if (error) {
+    if (screenshotStoragePath) {
+      await adminClient.storage
+        .from('feedback-screenshots')
+        .remove([screenshotStoragePath.replace('feedback-screenshots/', '')])
+    }
+    return NextResponse.json({ error: 'Fehler beim Speichern' }, { status: 500 })
+  }
 
   return NextResponse.json({ feedback }, { status: 201 })
 }
