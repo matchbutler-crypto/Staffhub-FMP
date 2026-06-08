@@ -34,7 +34,7 @@ async function getVacancy(
   supabase: Awaited<ReturnType<typeof createClient>>,
   vacancyId: string
 ) {
-  const { data } = await supabase.from('vakanzen').select('id, titel, beschreibung, skills, erfahrungslevel, status').eq('id', vacancyId).single()
+  const { data } = await supabase.from('vakanzen').select('id, titel, beschreibung, skills, skills_nice_have, erfahrungslevel, status').eq('id', vacancyId).single()
   return data
 }
 
@@ -243,6 +243,7 @@ export async function POST(request: NextRequest) {
           titel: vacancy.titel || 'Unbekannt',
           beschreibung: vacancy.beschreibung ?? '',
           skills: vacancy.skills ?? [],
+          skills_nice_have: vacancy.skills_nice_have ?? [],
           erfahrungslevel: vacancy.erfahrungslevel || 'Mid',
         },
         {

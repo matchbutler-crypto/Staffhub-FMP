@@ -57,7 +57,7 @@ export async function POST(
     .from('kandidaten_profile')
     .select(`
       id, kandidatenname, skills, erfahrungslevel, profiltext, agentur_id,
-      vakanzen!inner(titel, beschreibung, skills, erfahrungslevel)
+      vakanzen!inner(titel, beschreibung, skills, skills_nice_have, erfahrungslevel)
     `)
     .eq('id', id)
     .single()
@@ -77,6 +77,7 @@ export async function POST(
     titel: string
     beschreibung: string
     skills: string[]
+    skills_nice_have: string[]
     erfahrungslevel: string
   }
 
@@ -88,6 +89,7 @@ export async function POST(
         titel: vakanz.titel,
         beschreibung: vakanz.beschreibung ?? '',
         skills: Array.isArray(vakanz.skills) ? vakanz.skills : [],
+        skills_nice_have: Array.isArray(vakanz.skills_nice_have) ? vakanz.skills_nice_have : [],
         erfahrungslevel: vakanz.erfahrungslevel ?? '',
       },
       {
