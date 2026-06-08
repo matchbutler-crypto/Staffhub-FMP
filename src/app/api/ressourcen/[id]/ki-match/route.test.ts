@@ -86,7 +86,8 @@ const mockRessource = {
 }
 const mockVakanz = {
   id: VAKANZ_ID, titel: 'Senior React Dev', rolle: 'Senior React Dev',
-  beschreibung: 'React Entwickler gesucht', skills: ['React', 'TypeScript'], erfahrungslevel: 'Senior',
+  beschreibung: 'React Entwickler gesucht', skills: ['React', 'TypeScript'],
+  skills_nice_have: ['GraphQL', 'Docker'], erfahrungslevel: 'Senior',
 }
 const mockKiResult = {
   score: 85, empfehlung: 'Empfohlen', begruendung: 'Passt gut.',
@@ -198,5 +199,19 @@ describe('POST /api/ressourcen/[id]/ki-match', () => {
     mockScoreUpsert.mockResolvedValue({ data: mockScore, error: null })
     const res = await POST(makePostRequest({ vakanz_id: VAKANZ_ID }), { params })
     expect(res.status).toBe(200)
+  })
+
+  it('passes skills_nice_have to bewerteProfilMitOpenAI', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: USER_ID } } })
+    mockProfileSelect.mockResolvedValue({ data: managerProfile })
+    mockRessourceSelect.mockResolvedValue({ data: mockRessource })
+    mockVakanzSelect.mockResolvedValue({ data: mockVakanz })
+    mockOllama.mockResolvedValue(mockKiResult)
+    mockScoreUpsert.mockResolvedValue({ data: mockScore, error: null })
+    await POST(makePostRequest({ vakanz_id: VAKANZ_ID }), { params })
+    expect(mockOllama).toHaveBeenCalledWith(
+      expect.objectContaining({ skills_nice_have: ['GraphQL', 'Docker'] }),
+      expect.any(Object)
+    )
   })
 })
