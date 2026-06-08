@@ -8,11 +8,6 @@ import { extractSkillsFromCVBuffer } from '@/lib/openai'
 export const maxDuration = 60
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024
-const LIMITS: Record<string, number> = {
-  Admin: 30,
-  'Staffhub Manager': 30,
-  Agentur: 10,
-}
 
 async function getUserProfile(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
   const { data } = await supabase
@@ -49,9 +44,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Agentur-Zuordnung fehlt' }, { status: 403 })
   }
 
-  const agenturId = isManagerOrAdmin
-    ? (request.headers.get('x-agentur-id') ?? 'manager')
-    : profile.agentur_id!
+  let agenturId: string
+  if (isManagerOrAdmin) {
+    const headerVal = request.headers.get('x-agentur-id')
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    agenturId = (headerVal && uuidRegex.test(headerVal)) ? headerVal : user.id
+  } else {
+    agenturId = profile.agentur_id!
+  }
 
   let formData: FormData
   try {
@@ -138,9 +138,15 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'paths ist erforderlich' }, { status: 400 })
   }
 
-  const validPaths = (paths as unknown[]).filter(
-    (p): p is string => typeof p === 'string' && p.startsWith('bulk-temp/')
-  )
+  const isManagerOrAdminDelete = profile.rolle === 'Admin' || profile.rolle === 'Staffhub Manager'
+  const validPaths = (paths as unknown[]).filter((p): p is string => {
+    if (typeof p !== 'string') return false
+    if (!p.startsWith('bulk-temp/')) return false
+    if (!isManagerOrAdminDelete && profile.agentur_id) {
+      return p.startsWith(`bulk-temp/${profile.agentur_id}/`)
+    }
+    return true
+  })
 
   if (validPaths.length === 0) {
     return NextResponse.json({ deleted: 0 })
@@ -153,7 +159,10 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Server-Konfigurationsfehler' }, { status: 500 })
   }
 
-  await supabaseAdmin.storage.from('ressourcen-cvs').remove(validPaths)
+  const { error: removeError } = await supabaseAdmin.storage.from('ressourcen-cvs').remove(validPaths)
+  if (removeError) {
+    console.error('Bulk-temp cleanup error:', removeError.message)
+  }
 
   return NextResponse.json({ deleted: validPaths.length })
 }
