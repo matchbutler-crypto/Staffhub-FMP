@@ -276,17 +276,20 @@ export async function POST(request: NextRequest) {
   }
 
   // Temp CV von bulk-temp/ in finalen Pfad verschieben
-  if (parsed.data.tempCvPfad) {
+  if (parsed.data.tempCvPfad && parsed.data.tempCvPfad.startsWith(`bulk-temp/${agenturId}/`)) {
     const finalCvPfad = `${agenturId}/${ressource.id}.pdf`
     const { error: moveError } = await supabaseAdmin.storage
       .from('ressourcen-cvs')
       .move(parsed.data.tempCvPfad, finalCvPfad)
 
     if (!moveError) {
-      await supabaseAdmin
+      const { error: updateError } = await supabaseAdmin
         .from('ressourcen')
         .update({ cv_pfad: finalCvPfad })
         .eq('id', ressource.id)
+      if (updateError) {
+        console.error('cv_pfad update failed after move:', ressource.id, updateError.message)
+      }
     }
   }
 

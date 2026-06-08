@@ -467,4 +467,64 @@ describe('POST /api/ressourcen', () => {
       `${AGENTUR_UUID}/res-new-1.pdf`
     )
   })
+
+  it('gibt 201 zurück wenn Storage-Move fehlschlägt (tempCvPfad bleibt ignoriert)', async () => {
+    const AGENTUR_UUID = '00000000-0000-0000-0000-000000000003'
+    mockGetUser.mockResolvedValueOnce({ data: { user: { id: 'u1' } }, error: null })
+    mockProfileSelect.mockResolvedValueOnce({ data: { rolle: 'Staffhub Manager', aktiv: true, agentur_id: null }, error: null })
+    mockAdminRessourcenSelect.mockResolvedValueOnce({ data: [{ ressource_code: 'D3XP0001' }], error: null })
+    mockAdminInsert.mockResolvedValueOnce({
+      data: { id: 'res-new-2', name: 'Test', verfuegbarkeit: 'Verfügbar ab', created_at: '2026-06-09' },
+      error: null,
+    })
+    mockStorageMove.mockResolvedValueOnce({ error: { message: 'storage error' } })
+
+    const body = {
+      agentur_id: AGENTUR_UUID,
+      name: 'Test',
+      rolle: 'Dev',
+      skills: ['React'],
+      erfahrungslevel: 'Mid',
+      verfuegbarkeit: 'Verfügbar ab',
+      verfuegbar_ab: '2026-07-01',
+      tempCvPfad: `bulk-temp/${AGENTUR_UUID}/some-uuid.pdf`,
+    }
+    const req = new NextRequest('http://localhost/api/ressourcen', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: { 'Content-Type': 'application/json' },
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(201)
+  })
+
+  it('ignoriert tempCvPfad das nicht zur eigenen Agentur gehört', async () => {
+    const AGENTUR_UUID = '00000000-0000-0000-0000-000000000004'
+    mockGetUser.mockResolvedValueOnce({ data: { user: { id: 'u1' } }, error: null })
+    mockProfileSelect.mockResolvedValueOnce({ data: { rolle: 'Staffhub Manager', aktiv: true, agentur_id: null }, error: null })
+    mockAdminRessourcenSelect.mockResolvedValueOnce({ data: [{ ressource_code: 'D3XP0001' }], error: null })
+    mockAdminInsert.mockResolvedValueOnce({
+      data: { id: 'res-new-3', name: 'Test', verfuegbarkeit: 'Verfügbar ab', created_at: '2026-06-09' },
+      error: null,
+    })
+
+    const body = {
+      agentur_id: AGENTUR_UUID,
+      name: 'Test',
+      rolle: 'Dev',
+      skills: ['React'],
+      erfahrungslevel: 'Mid',
+      verfuegbarkeit: 'Verfügbar ab',
+      verfuegbar_ab: '2026-07-01',
+      tempCvPfad: 'bulk-temp/OTHER_AGENTUR/malicious.pdf',
+    }
+    const req = new NextRequest('http://localhost/api/ressourcen', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: { 'Content-Type': 'application/json' },
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(201)
+    expect(mockStorageMove).not.toHaveBeenCalled()
+  })
 })
