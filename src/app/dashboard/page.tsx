@@ -69,6 +69,8 @@ interface RessourcePipelineRow {
   ressource_name: string
   ressource_rolle: string | null
   ressource_ek_tagesrate: number | null
+  vakanz_id: string | null
+  vakanz_rolle: string | null
 }
 
 interface ManagerData {
@@ -368,16 +370,17 @@ function ManagerDashboard({ data }: { data: ManagerData }) {
               <TableHeader className="bg-muted/50">
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>Rolle</TableHead>
+                  <TableHead>Vakanz-Rolle</TableHead>
+                  <TableHead>Vakanz-ID</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Statusupdate</TableHead>
-                  <TableHead className="text-right">EK-Rate</TableHead>
+                  <TableHead className="text-right">VK-Rate</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredPipeline.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                       {ressourcen_pipeline.length === 0 ? "Noch keine Ressourcen eingereicht." : "Keine Einträge für diesen Filter."}
                     </TableCell>
                   </TableRow>
@@ -388,7 +391,12 @@ function ManagerDashboard({ data }: { data: ManagerData }) {
                         <Link href="/pool" className="hover:underline">{row.ressource_name}</Link>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {row.ressource_rolle ?? <span className="text-muted-foreground/50">–</span>}
+                        {row.vakanz_rolle ?? <span className="text-muted-foreground/50">–</span>}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {row.vakanz_id
+                          ? <Link href="/vakanzen" className="hover:underline">{row.vakanz_id.slice(0, 8)}</Link>
+                          : <span className="text-muted-foreground/50">–</span>}
                       </TableCell>
                       <TableCell>
                         <LinkStatusBadge status={row.status} />
@@ -582,16 +590,17 @@ function AgenturDashboard({ data }: { data: AgenturData }) {
               <TableHeader className="bg-muted/50">
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>Rolle</TableHead>
+                  <TableHead>Vakanz-Rolle</TableHead>
+                  <TableHead>Vakanz-ID</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Statusupdate</TableHead>
-                  <TableHead className="text-right">EK-Rate</TableHead>
+                  <TableHead className="text-right">VK-Rate</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredPipeline.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                       {ressourcen_pipeline.length === 0 ? "Noch keine Ressourcen eingereicht." : "Keine Einträge für diesen Filter."}
                     </TableCell>
                   </TableRow>
@@ -602,7 +611,12 @@ function AgenturDashboard({ data }: { data: AgenturData }) {
                         <Link href="/pool" className="hover:underline">{row.ressource_name}</Link>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {row.ressource_rolle ?? <span className="text-muted-foreground/50">–</span>}
+                        {row.vakanz_rolle ?? <span className="text-muted-foreground/50">–</span>}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {row.vakanz_id
+                          ? <Link href="/vakanzen" className="hover:underline">{row.vakanz_id.slice(0, 8)}</Link>
+                          : <span className="text-muted-foreground/50">–</span>}
                       </TableCell>
                       <TableCell>
                         <LinkStatusBadge status={row.status} />

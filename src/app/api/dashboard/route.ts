@@ -45,7 +45,7 @@ export async function GET() {
       // Bald verfügbar (eigene Ressourcen)
       supabase.from('ressourcen').select('id, name, rolle, verfuegbar_ab').eq('agentur_id', agenturId).eq('verfuegbarkeit', 'Verfügbar ab').not('verfuegbar_ab', 'is', null).lte('verfuegbar_ab', agenturIn30Days).gte('verfuegbar_ab', agenturToday).order('verfuegbar_ab', { ascending: true }).limit(8),
       // Ressourcen-Pipeline (RLS filtert auf eigene Links)
-      supabase.from('ressource_vakanz_links').select('id, status, updated_at, ressourcen(id, name, rolle, ek_tagesrate)').order('updated_at', { ascending: false }).limit(200),
+      supabase.from('ressource_vakanz_links').select('id, status, updated_at, ressourcen(id, name, rolle, ek_tagesrate), vakanzen_data(id, rolle)').order('updated_at', { ascending: false }).limit(200),
       // 3 neueste offene Vakanzen
       supabase.from('vakanzen').select('id, rolle, created_at').eq('status', 'Offen').order('created_at', { ascending: false }).limit(3),
     ])
@@ -69,12 +69,15 @@ export async function GET() {
     const agenturPipeline = (agenturPipelineRaw as unknown as {
       id: string; status: string; updated_at: string
       ressourcen: { id: string; name: string; rolle: string | null; ek_tagesrate: number | null } | { id: string; name: string; rolle: string | null; ek_tagesrate: number | null }[] | null
+      vakanzen_data: { id: string; rolle: string } | { id: string; rolle: string }[] | null
     }[]).map(l => {
       const res = Array.isArray(l.ressourcen) ? l.ressourcen[0] ?? null : l.ressourcen
+      const vak = Array.isArray(l.vakanzen_data) ? l.vakanzen_data[0] ?? null : l.vakanzen_data
       return {
         id: l.id, status: l.status, updated_at: l.updated_at,
         ressource_id: res?.id ?? '', ressource_name: res?.name ?? '–',
         ressource_rolle: res?.rolle ?? null, ressource_ek_tagesrate: res?.ek_tagesrate ?? null,
+        vakanz_id: vak?.id ?? null, vakanz_rolle: vak?.rolle ?? null,
       }
     })
 
@@ -123,7 +126,8 @@ export async function GET() {
     // Full resource pipeline (replaces aktivitaet for manager)
     supabase.from('ressource_vakanz_links').select(`
       id, status, updated_at,
-      ressourcen(id, name, rolle, ek_tagesrate)
+      ressourcen(id, name, rolle, ek_tagesrate),
+      vakanzen_data(id, rolle)
     `).order('updated_at', { ascending: false }).limit(200),
   ])
 
@@ -178,8 +182,10 @@ export async function GET() {
     status: string
     updated_at: string
     ressourcen: { id: string; name: string; rolle: string | null; ek_tagesrate: number | null } | { id: string; name: string; rolle: string | null; ek_tagesrate: number | null }[] | null
+    vakanzen_data: { id: string; rolle: string } | { id: string; rolle: string }[] | null
   }[]).map(l => {
     const res = Array.isArray(l.ressourcen) ? l.ressourcen[0] ?? null : l.ressourcen
+    const vak = Array.isArray(l.vakanzen_data) ? l.vakanzen_data[0] ?? null : l.vakanzen_data
     return {
       id: l.id,
       status: l.status,
@@ -188,6 +194,8 @@ export async function GET() {
       ressource_name: res?.name ?? '–',
       ressource_rolle: res?.rolle ?? null,
       ressource_ek_tagesrate: res?.ek_tagesrate ?? null,
+      vakanz_id: vak?.id ?? null,
+      vakanz_rolle: vak?.rolle ?? null,
     }
   })
 
