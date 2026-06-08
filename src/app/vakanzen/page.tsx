@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { Suspense } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { toast } from "sonner"
@@ -72,6 +73,7 @@ import {
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { useTour } from "@/hooks/use-tour"
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -828,7 +830,8 @@ function VakanzCardSkeleton() {
 
 // ── VakanzenPage ───────────────────────────────────────────────────────────────
 
-export default function VakanzenPage() {
+function VakanzenPage() {
+  useTour()
   const { user } = useUser()
   const router = useRouter()
 
@@ -957,7 +960,7 @@ export default function VakanzenPage() {
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
 
               {/* ── Header ──────────────────────────────────────────────────── */}
-              <div className="flex items-center justify-between px-4 lg:px-6">
+              <div data-tour="vakanzen-header" className="flex items-center justify-between px-4 lg:px-6">
                 <div>
                   <h2 className="text-xl font-semibold">Vakanzen</h2>
                   <p className="text-sm text-muted-foreground">
@@ -970,7 +973,7 @@ export default function VakanzenPage() {
                       <IconRefresh className="size-4" />
                       Updatepost
                     </Button>
-                    <Button size="sm" onClick={() => { setSheetMode("create"); setEditingVakanz(null); setSheetOpen(true) }}>
+                    <Button data-tour="vakanzen-new" size="sm" onClick={() => { setSheetMode("create"); setEditingVakanz(null); setSheetOpen(true) }}>
                       <IconPlus className="size-4" />
                       Neue Vakanz
                     </Button>
@@ -980,7 +983,7 @@ export default function VakanzenPage() {
 
               {/* ── Filter Bar ──────────────────────────────────────────────── */}
               <div className="flex flex-wrap items-center gap-3 px-4 lg:px-6">
-                <div className="relative min-w-[200px] flex-1 max-w-sm">
+                <div data-tour="vakanzen-search" className="relative min-w-[200px] flex-1 max-w-sm">
                   <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input className="pl-9" placeholder={isManagerOrAdmin ? "Vakanz oder Projekt suchen…" : "Vakanz suchen…"} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                 </div>
@@ -1087,5 +1090,13 @@ export default function VakanzenPage() {
       <SlackPostDialog open={detailpostDialogOpen} onOpenChange={setDetailpostDialogOpen} postType="detail" vakanzTitel={detailpostVakanz?.rolle} onConfirm={handleDetailpostConfirm} />
       <SlackPostDialog open={updatepostDialogOpen} onOpenChange={setUpdatepostDialogOpen} postType="update" onConfirm={handleUpdatepostConfirm} />
     </SidebarProvider>
+  )
+}
+
+export default function VakanzenPageWrapper() {
+  return (
+    <Suspense>
+      <VakanzenPage />
+    </Suspense>
   )
 }
