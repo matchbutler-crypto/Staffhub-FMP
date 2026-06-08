@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { IconArrowLeft, IconChevronDown, IconEye, IconEyeOff, IconPencil, IconRotateClockwise } from "@tabler/icons-react"
+import { IconArrowLeft, IconChevronDown, IconCopy, IconEye, IconEyeOff, IconPencil, IconRotateClockwise } from "@tabler/icons-react"
 
 import { useUser } from "@/context/user-context"
 import { AppSidebar } from "@/components/app-sidebar"
@@ -151,6 +151,7 @@ export default function VakanzDetailPage() {
   const [editSheetOpen, setEditSheetOpen] = React.useState(false)
   const [localPublished, setLocalPublished] = React.useState<boolean | undefined>(undefined)
   const [updatingLinkId, setUpdatingLinkId] = React.useState<string | null>(null)
+  const [duplicating, setDuplicating] = React.useState(false)
 
   // ── Load Vakanz ──────────────────────────────────────────────────────────────
 
@@ -281,6 +282,32 @@ export default function VakanzDetailPage() {
     }
   }
 
+  // ── Duplizieren ──────────────────────────────────────────────────────────────
+
+  async function handleDuplizieren() {
+    if (!vakanz) return
+    setDuplicating(true)
+    try {
+      const res = await fetch(`/api/vakanzen/${id}/duplicate`, { method: "POST" })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) { toast.error(body.error ?? "Duplizieren fehlgeschlagen."); return }
+      toast.success(
+        `„${vakanz.rolle}" wurde dupliziert.`,
+        {
+          action: {
+            label: "Zur Kopie",
+            onClick: () => router.push(`/vakanzen/${body.vakanz.id}`),
+          },
+          duration: 6000,
+        }
+      )
+    } catch {
+      toast.error("Verbindungsfehler beim Duplizieren.")
+    } finally {
+      setDuplicating(false)
+    }
+  }
+
   // ── Publish toggle ───────────────────────────────────────────────────────────
 
   async function handleTogglePublished() {
@@ -345,6 +372,16 @@ export default function VakanzDetailPage() {
                         <><IconEyeOff className="size-3.5" />Entwurf</>
                       )}
                     </button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 gap-1.5 text-xs"
+                      disabled={duplicating}
+                      onClick={handleDuplizieren}
+                    >
+                      <IconCopy className="size-3.5" />
+                      {duplicating ? "Dupliziert…" : "Duplizieren"}
+                    </Button>
                     <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => setEditSheetOpen(true)}>
                       <IconPencil className="size-3.5" />
                       Bearbeiten
@@ -417,7 +454,7 @@ export default function VakanzDetailPage() {
                     )}
                     {vakanz.kunde && (
                       <div>
-                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Kunde</p>
+                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Projekt</p>
                         <p className="text-xs font-medium">{vakanz.kunde}</p>
                       </div>
                     )}

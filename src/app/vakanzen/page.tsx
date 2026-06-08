@@ -9,6 +9,7 @@ import {
   IconCheck,
   IconChevronDown,
   IconClock,
+  IconCopy,
   IconDotsVertical,
   IconEye,
   IconEyeOff,
@@ -346,6 +347,7 @@ interface VakanzCardProps {
   onRessourceEinsetzen: (v: Vakanz) => void
   onNavigate: (id: string) => void
   onTogglePublished: (v: Vakanz) => void
+  onDuplizieren: (v: Vakanz) => void
 }
 
 function VakanzCard({
@@ -359,6 +361,7 @@ function VakanzCard({
   onRessourceEinsetzen,
   onNavigate,
   onTogglePublished,
+  onDuplizieren,
 }: VakanzCardProps) {
   const [expanded, setExpanded] = React.useState(false)
   const [profiles, setProfiles] = React.useState<InlineProfile[] | null>(null)
@@ -532,7 +535,7 @@ function VakanzCard({
             )}
             {vakanz.kunde && (
               <div>
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Kunde</p>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Projekt</p>
                 <p className="text-xs font-medium">{vakanz.kunde}</p>
               </div>
             )}
@@ -632,6 +635,10 @@ function VakanzCard({
                 <>
                   <DropdownMenuItem onClick={() => onNavigate(vakanz.id)}>Details anzeigen</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => onBearbeiten(vakanz)}>Bearbeiten</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onDuplizieren(vakanz)}>
+                    <IconCopy className="size-3.5" />
+                    Duplizieren
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => onDetailpost(vakanz)}>
                     <IconBrandSlack className="size-3.5 text-[#4A154B]" />
@@ -865,7 +872,11 @@ export default function VakanzenPage() {
   const filtered = vakanzen
     .filter((v) => {
       const matchesStatus = statusFilter === "alle" || v.status === statusFilter
-      const matchesSearch = searchQuery === "" || v.rolle.toLowerCase().includes(searchQuery.toLowerCase())
+      const q = searchQuery.toLowerCase()
+      const matchesSearch =
+        q === "" ||
+        v.rolle.toLowerCase().includes(q) ||
+        (isManagerOrAdmin && !!v.kunde && v.kunde.toLowerCase().includes(q))
       return matchesStatus && matchesSearch
     })
     .sort((a, b) => {
@@ -906,6 +917,25 @@ export default function VakanzenPage() {
       setVakanzen((prev) => prev.map((v) => v.id === vakanz.id ? { ...v, published: !newPublished } : v))
       toast.error("Verbindungsfehler")
     }
+  }
+
+  async function handleDuplizieren(vakanz: Vakanz) {
+    try {
+      const res = await fetch(`/api/vakanzen/${vakanz.id}/duplicate`, { method: "POST" })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) { toast.error(body.error ?? "Duplizieren fehlgeschlagen."); return }
+      toast.success(
+        `„${vakanz.rolle}" wurde dupliziert.`,
+        {
+          action: {
+            label: "Zur Kopie",
+            onClick: () => router.push(`/vakanzen/${body.vakanz.id}`),
+          },
+          duration: 6000,
+        }
+      )
+      fetchVakanzen()
+    } catch { toast.error("Verbindungsfehler beim Duplizieren.") }
   }
 
   async function handleUpdatepostConfirm(workspace: SlackWorkspace, channel: SlackChannel) {
@@ -952,7 +982,7 @@ export default function VakanzenPage() {
               <div className="flex flex-wrap items-center gap-3 px-4 lg:px-6">
                 <div className="relative min-w-[200px] flex-1 max-w-sm">
                   <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input className="pl-9" placeholder="Vakanz suchen…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                  <Input className="pl-9" placeholder={isManagerOrAdmin ? "Vakanz oder Projekt suchen…" : "Vakanz suchen…"} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                 </div>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger className="w-[160px]"><SelectValue placeholder="Status" /></SelectTrigger>
@@ -1015,6 +1045,7 @@ export default function VakanzenPage() {
                       onRessourceEinsetzen={(vak) => { setRessourceEinsetzenVakanz(vak); setRessourceEinsetzenOpen(true) }}
                       onNavigate={(id) => router.push(`/vakanzen/${id}`)}
                       onTogglePublished={handleTogglePublished}
+                      onDuplizieren={handleDuplizieren}
                     />
                   ))
                 )}
@@ -1025,7 +1056,7 @@ export default function VakanzenPage() {
         </div>
       </SidebarInset>
 
-      <VakanzFormSheet open={sheetOpen} onOpenChange={setSheetOpen} mode={sheetMode} vakanz={editingVakanz} showBudget={isManagerOrAdmin} onSuccess={fetchVakanzen} />
+      <VakanzFormSheet open={sheetOpen} onOpenChange={setSheetOpen} mode={sheetMode} vakanz={editingVakanz} showBudget={isManagerOrAdmin} requireProjektname={isManagerOrAdmin} onSuccess={fetchVakanzen} />
       <VakanzSchließenDialog open={closeDialogOpen} onOpenChange={setCloseDialogOpen} vakanz={closingVakanz} onSuccess={fetchVakanzen} />
 
       {profilVakanz && (

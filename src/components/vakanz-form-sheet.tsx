@@ -252,17 +252,25 @@ interface VakanzFormSheetProps {
   mode: 'create' | 'edit'
   vakanz?: VakanzForForm | null
   showBudget: boolean
+  requireProjektname?: boolean
   onSuccess: () => void
 }
 
-export function VakanzFormSheet({ open, onOpenChange, mode, vakanz, showBudget, onSuccess }: VakanzFormSheetProps) {
+export function VakanzFormSheet({ open, onOpenChange, mode, vakanz, showBudget, requireProjektname, onSuccess }: VakanzFormSheetProps) {
   const [saving, setSaving] = React.useState(false)
   const [kiState, setKiState] = React.useState<KiState>('idle')
   const [kiText, setKiText] = React.useState('')
   const [kiFilledCount, setKiFilledCount] = React.useState(0)
 
+  const effectiveSchema = React.useMemo(
+    () => requireProjektname
+      ? vakanzSchema.extend({ kunde: z.string().min(1, 'Projektname ist erforderlich') })
+      : vakanzSchema,
+    [requireProjektname]
+  )
+
   const { register, control, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<VakanzFormData>({
-    resolver: zodResolver(vakanzSchema),
+    resolver: zodResolver(effectiveSchema),
     defaultValues: {
       branche: '', kunde: '', rolle: '', beschreibung: '', skills: [], skills_nice_have: [],
       erfahrungslevel: undefined, startdatum: '', enddatum: '', teamgroesse: null,
@@ -434,7 +442,7 @@ export function VakanzFormSheet({ open, onOpenChange, mode, vakanz, showBudget, 
                 {errors.beschreibung && <p className="text-xs text-destructive">{errors.beschreibung.message}</p>}
               </div>
 
-              {/* Row 3: Branche + Kunde */}
+              {/* Row 3: Branche + Projektname */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="v-branche">Branche <span className="text-destructive">*</span></Label>
@@ -447,8 +455,11 @@ export function VakanzFormSheet({ open, onOpenChange, mode, vakanz, showBudget, 
                   {errors.branche && <p className="text-xs text-destructive">{errors.branche.message}</p>}
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="v-kunde">Kunde</Label>
-                  <Input id="v-kunde" placeholder="optional" {...register('kunde')} />
+                  <Label htmlFor="v-kunde">
+                    Projektname {requireProjektname ? <span className="text-destructive">*</span> : <span className="text-muted-foreground text-xs">(optional)</span>}
+                  </Label>
+                  <Input id="v-kunde" placeholder="z.B. Projekt Alpha" {...register('kunde')} className={errors.kunde ? 'border-destructive' : ''} />
+                  {errors.kunde && <p className="text-xs text-destructive">{errors.kunde.message}</p>}
                 </div>
               </div>
 
