@@ -411,7 +411,7 @@ export default function VakanzDetailPage() {
                   </div>
 
                   {/* Row 2: Meta-Grid */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-6 gap-y-1">
+                  <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-8 xl:grid-cols-10 gap-x-4 gap-y-1">
                     {vakanz.vakanz_nr && (
                       <div>
                         <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">ID</p>
