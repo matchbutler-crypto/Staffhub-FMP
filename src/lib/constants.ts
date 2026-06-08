@@ -66,6 +66,7 @@ export const BRANCHEN = [
   'Öffentlicher Sektor',
   'Energie / Utilities',
   'Medien / Entertainment',
+  'Verteidigungsindustrie',
   'Sonstige',
 ] as const
 
