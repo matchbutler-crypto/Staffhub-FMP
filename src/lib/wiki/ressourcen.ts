@@ -6,16 +6,36 @@ export const ressourcenPage: WikiPage = {
   roles: ['Admin', 'Staffhub Manager'],
   sections: [
     {
-      heading: 'Übersicht',
-      body: 'Die Ressourcen-Übersicht zeigt alle Profile aus den Pools aller Agenturen. Hier kannst du den aktuellen Status, Verfügbarkeit und Einsatzhistorie jeder Ressource einsehen.',
+      heading: 'Was zeigt die Ressourcen-Übersicht?',
+      body: 'Hier siehst du alle Profile aus den Pools aller Agenturen in einer zentralen Übersicht. Im Gegensatz zur Vakanz-Pipeline, die profilbezogen ist, zeigt diese Seite den Status jeder Ressource übergreifend — inklusive aktueller Verfügbarkeit, Einsatzhistorie und Pipeline-Status.',
     },
     {
-      heading: 'Filter & Suche',
-      body: 'Filtere nach Agentur, Status (Verfügbar / Im Einsatz / Pausiert) oder Suchbegriff. Die Ansicht hilft beim schnellen Abgleich von Bedarf und Verfügbarkeit.',
+      heading: 'Verfügbarkeits-Status',
+      body: 'Jede Ressource hat einen Verfügbarkeits-Status der von der Agentur gepflegt wird: "Jetzt verfügbar", "Verfügbar ab [Datum]", "Nicht verfügbar" oder "Deaktiviert". Dieser Status gibt einen schnellen Überblick ob eine Ressource für neue Vakanzen in Frage kommt.',
     },
     {
-      heading: 'Ressource bearbeiten',
-      body: 'Admins können Ressourcen direkt bearbeiten. Über das Drei-Punkte-Menü sind Bearbeiten, Statusänderung und Löschen erreichbar.',
+      heading: 'Pipeline-Status einer Ressource',
+      body: 'Ressourcen die aktuell für eine Vakanz eingereicht sind, haben zusätzlich einen Pipeline-Status: Gespielt → Interview geplant → Zugesagt → Stammdaten anfordern → Freelancer Prozess gestartet → Einkauf gestartet → Genehmigung gestartet → Beauftragt → Setup ext. Mail & HW → Running. Dieser Status kann vom Manager direkt aus der Ressourcen-Übersicht weitergeschaltet werden.',
+    },
+    {
+      heading: 'Ressource einsetzen ("spielen")',
+      body: 'Über "Ressource einsetzen" (oder das Pfeil-Icon) kannst du eine Ressource direkt einer Vakanz zuordnen und in die Pipeline aufnehmen — ohne dass die Agentur erst einreichen muss. Das ist nützlich wenn du proaktiv eine passende Ressource gefunden hast.',
+    },
+    {
+      heading: 'Suche & Filter',
+      body: 'Filtere nach Agentur, Verfügbarkeit, Erfahrungslevel oder Suchbegriff (Name, Skills). Mit "Beauftragt" kannst du gezielt alle aktuell im Einsatz befindlichen Ressourcen anzeigen.',
+    },
+    {
+      heading: 'Ressourcen-Detailansicht',
+      body: 'Ein Klick auf eine Ressource öffnet das vollständige Profil: Kontaktdaten, Skills, Einsatzhistorie, eingereichte Vakanzen, KI-Bewertung, Kommentare und hochgeladene Dokumente. Von hier aus kannst du den Status ändern, Kommentare hinterlassen oder Dokumente herunterladen.',
+    },
+    {
+      heading: 'Massenaktion: PDF-Extraktion',
+      body: 'Über die Mehrfachauswahl (Checkboxen) kannst du mehrere Profile gleichzeitig auswählen und als anonymisierte PDFs exportieren. Praktisch um mehrere Kandidaten auf einmal beim Kunden zu präsentieren.',
+    },
+    {
+      heading: 'Favoriten',
+      body: 'Ressourcen können mit dem Stern (☆) als Favorit markiert werden. Favoriten erscheinen oben in der Liste und helfen dabei, häufig benötigte Profile schnell zu finden.',
     },
   ],
 }

@@ -6,37 +6,49 @@ export const vakanzenPage: WikiPage = {
   roles: ['Admin', 'Staffhub Manager', 'Agentur'],
   sections: [
     {
-      heading: 'Was sind Vakanzen?',
-      body: 'Vakanzen sind offene Stellen oder Projektbedarfe, die von Staffhub Managern angelegt werden. Agenturen können passende Profile für diese Vakanzen einreichen.',
+      heading: 'Was ist eine Vakanz?',
+      body: 'Eine Vakanz ist eine offene Stelle oder ein Projektbedarf beim Kunden. Admins und Staffhub Manager legen Vakanzen an und verwalten sie. Agenturen sehen die für sie freigegebenen Vakanzen und können Profile aus ihrem Pool einreichen.',
     },
     {
-      heading: 'Neue Vakanz anlegen',
-      body: 'Admins und Staffhub Manager können über den Button "Neue Vakanz" eine neue Stelle anlegen. Dabei werden Titel, Erfahrungslevel, Arbeitsmodell, Startdatum und weitere Details hinterlegt.',
+      heading: 'Vakanz-Status',
+      body: 'Jede Vakanz hat einen Status: Offen (aktiv suchend), In Auswahl (Profile werden geprüft), Besetzt (Stelle wurde vergeben), Pausiert (vorübergehend gestoppt), Geschlossen (nicht mehr aktiv). Der Status ist farblich markiert und kann vom Manager jederzeit geändert werden.',
+    },
+    {
+      heading: 'Neue Vakanz anlegen (Admin & Manager)',
+      body: 'Über "Neue Vakanz" öffnet sich ein Formular. Pflichtfelder sind: Jobtitel, Erfahrungslevel (Junior / Mid / Senior / Expert), Arbeitsmodell (Remote / Hybrid / Onsite) und Startdatum. Optional kannst du Projektname, Branche, Stunden pro Woche, Tagessatz-Rahmen und eine Beschreibung hinterlegen.',
+    },
+    {
+      heading: 'Vakanz duplizieren',
+      body: 'Über das Drei-Punkte-Menü (⋮) einer Vakanz kannst du sie duplizieren. Das erstellt eine identische Kopie mit Status "Offen" — praktisch wenn ähnliche Stellen mehrfach besetzt werden sollen.',
     },
     {
       heading: 'Profil einreichen (Agentur)',
-      body: 'Als Agentur kannst du über das Drei-Punkte-Menü einer Vakanz ein Profil aus deinem Pool einreichen. Das Profil wird anschließend vom Staffhub Manager geprüft.',
+      body: 'Als Agentur klickst du beim Drei-Punkte-Menü (⋮) einer Vakanz auf "Profil einreichen". Du wählst dann eine Ressource aus deinem Pool aus. Nach dem Einreichen ist das Profil mit Status "Eingereicht" in der Pipeline des Managers sichtbar.',
     },
     {
-      heading: 'Status einer Vakanz',
-      body: 'Vakanzen durchlaufen verschiedene Status: Offen → In Prüfung → Besetzt / Geschlossen. Der aktuelle Status ist farblich markiert.',
+      heading: 'Eingereichte Profile einsehen (Manager & Admin)',
+      body: 'Unter jeder Vakanz siehst du eine Tabelle aller eingereichten Profile mit ihrem aktuellen Pipeline-Status. Von hier aus kannst du den Status eines Profils direkt weiterschalten (z.B. auf "Interview geplant" oder "Zugesagt").',
+    },
+    {
+      heading: 'Suche & Filter',
+      body: 'Die Vakanzen-Übersicht lässt sich nach Suchbegriff (Jobtitel), Status, Erfahrungslevel und Arbeitsmodell filtern. Manager sehen zusätzlich einen Filter für "Meine Vakanzen". Die aktiven Filter werden als Tags angezeigt und können einzeln entfernt werden.',
     },
   ],
   tour: [
     {
       element: '[data-tour="vakanzen-header"]',
       title: 'Vakanzen-Übersicht',
-      description: 'Hier siehst du alle Vakanzen, nach deiner Rolle gefiltert.',
+      description: 'Hier siehst du alle Vakanzen. Als Agentur nur die für dich freigegebenen, als Manager alle.',
     },
     {
       element: '[data-tour="vakanzen-search"]',
       title: 'Suche & Filter',
-      description: 'Suche nach Titel oder filtere nach Status, Erfahrungslevel und Arbeitsmodell.',
+      description: 'Filtere nach Status (Offen, Besetzt…), Erfahrungslevel (Junior bis Expert) oder Arbeitsmodell (Remote, Hybrid, Onsite).',
     },
     {
       element: '[data-tour="vakanzen-new"]',
-      title: 'Neue Vakanz',
-      description: 'Lege hier eine neue Vakanz an. Nur für Admins und Staffhub Manager sichtbar.',
+      title: 'Neue Vakanz anlegen',
+      description: 'Admins und Manager können hier eine neue Stelle anlegen. Für Agenturen nicht sichtbar.',
     },
   ],
 }
