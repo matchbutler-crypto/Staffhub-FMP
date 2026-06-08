@@ -132,6 +132,19 @@ describe('POST /api/ressourcen/bulk-extract', () => {
     expect((await res.json()).error).toBe('Nur PDF-Dateien erlaubt')
   })
 
+  it('gibt 400 zurück wenn keine Datei übermittelt wurde', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u1' } }, error: null })
+    mockProfileSelect.mockResolvedValue({ data: agenturProfile, error: null })
+    const fd = new FormData()
+    fd.append('index', '0')
+    const req = new NextRequest('http://localhost/api/ressourcen/bulk-extract', { method: 'POST' })
+    vi.spyOn(req, 'formData').mockResolvedValue(fd)
+    const res = await POST(req)
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.error).toMatch(/Datei/)
+  })
+
   it('extrahiert Skills und gibt tempCvPfad für Agentur-User zurück', async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: 'u1' } }, error: null })
     mockProfileSelect.mockResolvedValue({ data: agenturProfile, error: null })
@@ -174,6 +187,16 @@ describe('POST /api/ressourcen/bulk-extract', () => {
     expect(res.status).toBe(200)
     const json = await res.json()
     expect(json.tempCvPfad).toBe('bulk-temp/manager-user-id/test-uuid-1234.pdf')
+  })
+
+  it('Manager mit ungültigem x-agentur-id Header verwendet user.id als Fallback', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'manager-user-id' } }, error: null })
+    mockProfileSelect.mockResolvedValue({ data: managerProfile, error: null })
+    const pdfFile = new File([new Uint8Array(10)], 'cv.pdf', { type: 'application/pdf' })
+    const res = await POST(makePdfRequest({ file: pdfFile, headers: { 'x-agentur-id': 'not-a-uuid' } }))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.tempCvPfad).toBe('bulk-temp/manager-user-id/test-uuid-1234.pdf')
   })
 
   it('Manager mit gültigem x-agentur-id Header verwendet Header-Wert als agenturId-Segment', async () => {
@@ -264,5 +287,20 @@ describe('DELETE /api/ressourcen/bulk-extract', () => {
     const res = await DELETE(makeDeleteRequest([]))
     expect(res.status).toBe(400)
     expect((await res.json()).error).toBe('paths ist erforderlich')
+  })
+
+  it('filtert nicht-string Werte in paths still heraus', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u1' } }, error: null })
+    mockProfileSelect.mockResolvedValue({ data: agenturProfile, error: null })
+    const req = new NextRequest('http://localhost/api/ressourcen/bulk-extract', {
+      method: 'DELETE',
+      body: JSON.stringify({ paths: [null, 123, 'bulk-temp/ag-1/ok.pdf'] }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+    const res = await DELETE(req)
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.deleted).toBe(1)
+    expect(mockStorageRemove).toHaveBeenCalledWith(['bulk-temp/ag-1/ok.pdf'])
   })
 })
