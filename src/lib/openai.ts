@@ -154,12 +154,13 @@ export interface KiBewertungResult {
   model: string
 }
 
-const KI_BEWERTUNG_PROMPT = `Du bist ein Recruiting-Assistent. Bewerte das folgende Kandidaten-Profil gegen die Vakanz.
+const KI_BEWERTUNG_PROMPT = `Du bist ein Recruiting-Assistent. Bewerte das Kandidaten-Profil gegen die Vakanz anhand eines strukturierten Bewertungsrasters.
 
 VAKANZ:
 Titel: {vakanz_titel}
 Erfahrungslevel: {vakanz_level}
-Geforderte Skills: {vakanz_skills}
+Must-have Skills: {vakanz_skills}
+Nice-to-have Skills: {vakanz_nice_have}
 Beschreibung: {vakanz_beschreibung}
 
 KANDIDAT:
@@ -167,13 +168,45 @@ Erfahrungslevel: {kandidat_level}
 Skills: {kandidat_skills}
 Profil: {kandidat_profil}
 
+BEWERTUNGSRASTER (berechne jeden Wert explizit):
+
+1. Must-have Skills [0-50 Punkte]
+   - Teile 50 Punkte gleichmäßig auf alle geforderten Must-have-Skills auf
+   - Für jeden vorhandenen Must-have-Skill: voller Anteil
+   - Für verwandte/ähnliche Skills (z.B. Vue.js statt React): halber Anteil
+   - Sind keine Must-have-Skills gefordert: 50 Punkte
+
+2. Erfahrungslevel [0-20 Punkte]
+   - Exakt passend: 20 Punkte
+   - Eine Stufe zu niedrig (z.B. Mid statt Senior): 10 Punkte
+   - Eine Stufe zu hoch (z.B. Expert statt Senior): 18 Punkte
+   - Zwei oder mehr Stufen zu niedrig: 0 Punkte
+   - Stufenreihenfolge: Junior < Mid < Senior < Expert
+
+3. Nice-to-have Skills [0-15 Punkte]
+   - Teile 15 Punkte gleichmäßig auf alle Nice-to-have-Skills auf
+   - Für jeden vorhandenen Nice-to-have-Skill: voller Anteil
+   - Sind keine Nice-to-have-Skills definiert: 15 Punkte
+
+4. Gesamtfitness aus Beschreibung [0-15 Punkte]
+   - Profil und Beschreibung passen inhaltlich gut zusammen: 15 Punkte
+   - Teilweise passend: 8 Punkte
+   - Kaum passend: 0 Punkte
+
+Addiere alle vier Werte zu einem Gesamtscore (0-100).
+
+EMPFEHLUNG (strikt nach Score, nicht frei interpretiert):
+- Score >= 65 → "Empfohlen"
+- Score >= 40 → "Bedingt geeignet"
+- Score < 40  → "Nicht geeignet"
+
 Antworte NUR mit einem validen JSON-Objekt (kein Markdown, kein Text davor/danach):
 {
-  "score": <Ganzzahl 0-100>,
+  "score": <Gesamtscore als Ganzzahl 0-100>,
   "empfehlung": <"Empfohlen" | "Bedingt geeignet" | "Nicht geeignet">,
-  "begruendung": <2-3 Sätze auf Deutsch>,
-  "skill_vorhanden": [<geforderte Skills die der Kandidat hat>],
-  "skill_fehlend": [<geforderte Skills die fehlen>]
+  "begruendung": <2-3 Sätze auf Deutsch, was gut passt und was fehlt>,
+  "skill_vorhanden": [<Must-have Skills die der Kandidat hat>],
+  "skill_fehlend": [<Must-have Skills die fehlen>]
 }`
 
 export async function bewerteProfilMitOpenAI(
@@ -181,6 +214,7 @@ export async function bewerteProfilMitOpenAI(
     titel: string
     beschreibung: string
     skills: string[]
+    skills_nice_have: string[]
     erfahrungslevel: string
   },
   profil: {
@@ -194,16 +228,17 @@ export async function bewerteProfilMitOpenAI(
     .replace('{vakanz_titel}', vakanz.titel)
     .replace('{vakanz_level}', vakanz.erfahrungslevel)
     .replace('{vakanz_skills}', vakanz.skills.join(', ') || 'Keine spezifischen Skills gefordert')
-    .replace('{vakanz_beschreibung}', vakanz.beschreibung.slice(0, 500))
+    .replace('{vakanz_nice_have}', vakanz.skills_nice_have.join(', ') || 'Keine')
+    .replace('{vakanz_beschreibung}', vakanz.beschreibung.slice(0, 800))
     .replace('{kandidat_level}', profil.erfahrungslevel)
     .replace('{kandidat_skills}', profil.skills.join(', ') || 'Keine Skills angegeben')
-    .replace('{kandidat_profil}', profil.profiltext.slice(0, 1000))
+    .replace('{kandidat_profil}', profil.profiltext.slice(0, 1500))
 
   const completion = await getOpenAI().chat.completions.create({
     model: 'gpt-4o-mini',
     response_format: { type: 'json_object' },
     temperature: 0.3,
-    max_tokens: 500,
+    max_tokens: 600,
     messages: [
       { role: 'user', content: prompt },
     ],
