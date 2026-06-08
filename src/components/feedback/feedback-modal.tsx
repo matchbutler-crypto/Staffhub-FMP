@@ -12,13 +12,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AnnotationCanvas, type Annotation } from './annotation-canvas'
 
@@ -34,7 +27,6 @@ export function FeedbackModal({ open, onOpenChange }: FeedbackModalProps) {
   const [screenshotDataUrl, setScreenshotDataUrl] = React.useState<string | null>(null)
   const [annotations, setAnnotations] = React.useState<Annotation[]>([])
   const [beschreibung, setBeschreibung] = React.useState('')
-  const [kategorie, setKategorie] = React.useState<string>('')
   const [error, setError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
@@ -43,7 +35,6 @@ export function FeedbackModal({ open, onOpenChange }: FeedbackModalProps) {
     setScreenshotDataUrl(null)
     setAnnotations([])
     setBeschreibung('')
-    setKategorie('')
     setError(null)
 
     // Take screenshot after a short delay to allow modal to not be in the capture
@@ -67,8 +58,8 @@ export function FeedbackModal({ open, onOpenChange }: FeedbackModalProps) {
   }, [open])
 
   async function handleSubmit() {
-    if (!beschreibung.trim() || !kategorie) {
-      setError('Bitte Beschreibung und Kategorie ausfüllen.')
+    if (!beschreibung.trim()) {
+      setError('Bitte eine Beschreibung ausfüllen.')
       return
     }
     setStep('sending')
@@ -79,17 +70,17 @@ export function FeedbackModal({ open, onOpenChange }: FeedbackModalProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           beschreibung: beschreibung.trim(),
-          kategorie,
+          kategorie: 'Bug',
           annotations,
           seite_url: window.location.pathname,
           screenshot_base64: screenshotDataUrl ?? undefined,
         }),
       })
       if (!res.ok) throw new Error('Fehler beim Senden')
-      toast.success('Feedback gesendet — danke!')
+      toast.success('Bug gemeldet — danke!')
       onOpenChange(false)
     } catch {
-      setError('Feedback konnte nicht gesendet werden. Bitte erneut versuchen.')
+      setError('Bug konnte nicht gesendet werden. Bitte erneut versuchen.')
       setStep('form')
     }
   }
@@ -104,7 +95,7 @@ export function FeedbackModal({ open, onOpenChange }: FeedbackModalProps) {
           <DialogTitle>
             {step === 'screenshot' && 'Screenshot wird erstellt…'}
             {step === 'annotate' && 'Markierungen einzeichnen'}
-            {step === 'form' && 'Feedback beschreiben'}
+            {step === 'form' && 'Bug beschreiben'}
             {step === 'sending' && 'Wird gesendet…'}
           </DialogTitle>
         </DialogHeader>
@@ -159,17 +150,6 @@ export function FeedbackModal({ open, onOpenChange }: FeedbackModalProps) {
               </div>
             )}
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="fb-kategorie">Kategorie *</Label>
-              <Select value={kategorie} onValueChange={setKategorie} disabled={step === 'sending'}>
-                <SelectTrigger id="fb-kategorie"><SelectValue placeholder="Wählen…" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Bug">Bug</SelectItem>
-                  <SelectItem value="Idee">Idee</SelectItem>
-                  <SelectItem value="Sonstiges">Sonstiges</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1.5">
               <Label htmlFor="fb-beschreibung">Beschreibung *</Label>
               <textarea
                 id="fb-beschreibung"
@@ -185,7 +165,7 @@ export function FeedbackModal({ open, onOpenChange }: FeedbackModalProps) {
                 Zurück
               </Button>
               <Button onClick={handleSubmit} disabled={step === 'sending'}>
-                {step === 'sending' ? 'Wird gesendet…' : 'Feedback senden'}
+                {step === 'sending' ? 'Wird gesendet…' : 'Bug melden'}
               </Button>
             </div>
           </div>
