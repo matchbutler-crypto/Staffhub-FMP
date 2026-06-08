@@ -14,6 +14,7 @@ const createRessourceSchema = z.object({
   notizen: z.string().max(2000).nullable().optional(),
   arbeitsmodell: z.enum(['Onshore', 'Nearshore', 'Offshore']).optional(),
   location: z.string().max(200).nullable().optional(),
+  tempCvPfad: z.string().max(500).optional(),
 }).refine(
   (d) => d.verfuegbarkeit !== 'Verfügbar ab' || !!d.verfuegbar_ab,
   { message: 'Datum erforderlich wenn "Verfügbar ab"', path: ['verfuegbar_ab'] }
@@ -272,6 +273,21 @@ export async function POST(request: NextRequest) {
   if (error) {
     console.error('Ressource insert error:', { code: error.code, message: error.message })
     return NextResponse.json({ error: 'Fehler beim Erstellen der Ressource' }, { status: 500 })
+  }
+
+  // Temp CV von bulk-temp/ in finalen Pfad verschieben
+  if (parsed.data.tempCvPfad) {
+    const finalCvPfad = `${agenturId}/${ressource.id}.pdf`
+    const { error: moveError } = await supabaseAdmin.storage
+      .from('ressourcen-cvs')
+      .move(parsed.data.tempCvPfad, finalCvPfad)
+
+    if (!moveError) {
+      await supabaseAdmin
+        .from('ressourcen')
+        .update({ cv_pfad: finalCvPfad })
+        .eq('id', ressource.id)
+    }
   }
 
   return NextResponse.json({ ressource }, { status: 201 })

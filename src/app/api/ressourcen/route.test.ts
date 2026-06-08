@@ -14,6 +14,7 @@ const {
   mockAdminInsert,
   mockLinkCountSelect,
   mockLinkSelect,
+  mockStorageMove,
 } = vi.hoisted(() => ({
   mockGetUser: vi.fn(),
   mockProfileSelect: vi.fn(),
@@ -25,6 +26,7 @@ const {
   mockAdminInsert: vi.fn(),
   mockLinkCountSelect: vi.fn(),
   mockLinkSelect: vi.fn(),
+  mockStorageMove: vi.fn(),
 }))
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -111,10 +113,18 @@ vi.mock('@/lib/supabase/admin', () => ({
           insert: mockAdminRessourcenInsert.mockReturnValue({
             select: vi.fn().mockReturnValue({ single: mockAdminInsert }),
           }),
+          update: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ error: null }),
+          }),
         }
       }
       return {}
     }),
+    storage: {
+      from: vi.fn().mockReturnValue({
+        move: mockStorageMove,
+      }),
+    },
   })),
 }))
 
@@ -419,6 +429,42 @@ describe('POST /api/ressourcen', () => {
         agentur_id: AGENTUR_ID,
         ressource_code: 'D3XP0008',
       })
+    )
+  })
+
+  it('moves temp CV to final path after insert when tempCvPfad provided', async () => {
+    mockGetUser.mockResolvedValueOnce({ data: { user: { id: 'u1' } }, error: null })
+    mockProfileSelect.mockResolvedValueOnce({ data: { rolle: 'Staffhub Manager', aktiv: true, agentur_id: null }, error: null })
+    mockAdminRessourcenSelect.mockResolvedValueOnce({ data: [{ ressource_code: 'D3XP0001' }], error: null })
+    mockAdminInsert.mockResolvedValueOnce({
+      data: { id: 'res-new-1', name: 'Test', verfuegbarkeit: 'Verfügbar ab', created_at: '2026-06-09' },
+      error: null,
+    })
+    mockStorageMove.mockResolvedValueOnce({ error: null })
+
+    const AGENTUR_UUID = '00000000-0000-0000-0000-000000000002'
+    const body = {
+      agentur_id: AGENTUR_UUID,
+      name: 'Test Ressource',
+      rolle: 'Entwickler',
+      skills: ['React'],
+      erfahrungslevel: 'Mid',
+      verfuegbarkeit: 'Verfügbar ab',
+      verfuegbar_ab: '2026-07-01',
+      tempCvPfad: `bulk-temp/${AGENTUR_UUID}/some-uuid.pdf`,
+    }
+
+    const req = new NextRequest('http://localhost/api/ressourcen', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+    const res = await POST(req)
+    expect(res.status).toBe(201)
+    expect(mockStorageMove).toHaveBeenCalledWith(
+      `bulk-temp/${AGENTUR_UUID}/some-uuid.pdf`,
+      `${AGENTUR_UUID}/res-new-1.pdf`
     )
   })
 })
