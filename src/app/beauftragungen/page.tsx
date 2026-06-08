@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { Suspense } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -13,6 +14,7 @@ import {
 } from "@tabler/icons-react"
 
 import { useUser } from "@/context/user-context"
+import { useTour } from "@/hooks/use-tour"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import {
@@ -123,7 +125,8 @@ function TableSkeletonRows({ cols = 9, rows = 5 }: { cols?: number; rows?: numbe
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
-export default function BeauftragungPage() {
+function BeauftragungPage() {
+  useTour()
   const router = useRouter()
   const { user } = useUser()
   const isAgentur = user?.rolle === 'Agentur'
@@ -252,14 +255,14 @@ export default function BeauftragungPage() {
           <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
 
             {/* Header */}
-            <div className="flex flex-col gap-3 px-4 lg:px-6 sm:flex-row sm:items-center sm:justify-between">
+            <div data-tour="beauftragungen-header" className="flex flex-col gap-3 px-4 lg:px-6 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-xl font-semibold">Beauftragungen</h2>
                 <p className="text-sm text-muted-foreground">
                   {loading ? "Lädt…" : `${aktiveCount} aktiv · ${items.length} gesamt`}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div data-tour="beauftragungen-filter" className="flex items-center gap-2">
                 <Button
                   variant={nurAktive ? "default" : "outline"}
                   size="sm"
@@ -516,5 +519,13 @@ export default function BeauftragungPage() {
       </AlertDialog>
 
     </SidebarProvider>
+  )
+}
+
+export default function BeauftragungPageWrapper() {
+  return (
+    <Suspense>
+      <BeauftragungPage />
+    </Suspense>
   )
 }
