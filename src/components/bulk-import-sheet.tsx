@@ -39,7 +39,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024
 
 export function getFirstOfNextMonth(): string {
   const next = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1)
-  return next.toISOString().split('T')[0]
+  return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-01`
 }
 
 // ---------------------------------------------------------------------------
@@ -60,12 +60,6 @@ function UploadPhase({ files, onFilesChange, onStart, maxFiles }: UploadPhasePro
     (accepted: File[]) => {
       setValidationError(null)
 
-      const oversized = accepted.some((f) => f.size > MAX_FILE_SIZE)
-      if (oversized) {
-        setValidationError('Eine oder mehrere Dateien überschreiten die maximale Größe von 10 MB.')
-        return
-      }
-
       const combined = [...files, ...accepted]
       if (combined.length > maxFiles) {
         setValidationError(`Maximal ${maxFiles} Dateien erlaubt.`)
@@ -77,20 +71,26 @@ function UploadPhase({ files, onFilesChange, onStart, maxFiles }: UploadPhasePro
     [files, maxFiles, onFilesChange]
   )
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive, fileRejections } = useDropzone({
     onDrop,
     accept: { 'application/pdf': ['.pdf'] },
     multiple: true,
     maxSize: MAX_FILE_SIZE,
-    noClick: false,
   })
+
+  const rejectionError = fileRejections[0]?.errors[0]?.code === 'file-too-large'
+    ? 'Eine oder mehrere Dateien überschreiten 10 MB.'
+    : fileRejections[0]?.errors[0]?.code === 'file-invalid-type'
+    ? 'Nur PDF-Dateien erlaubt.'
+    : undefined
 
   const handleRemove = (index: number) => {
     setValidationError(null)
     onFilesChange(files.filter((_, i) => i !== index))
   }
 
-  const hasError = !!validationError
+  const displayError = rejectionError ?? validationError
+  const hasError = !!displayError
 
   return (
     <div className="space-y-4">
@@ -117,8 +117,8 @@ function UploadPhase({ files, onFilesChange, onStart, maxFiles }: UploadPhasePro
       </div>
 
       {/* Validation error */}
-      {validationError && (
-        <p className="text-xs text-destructive">{validationError}</p>
+      {displayError && (
+        <p className="text-xs text-destructive">{displayError}</p>
       )}
 
       {/* File list */}
@@ -138,6 +138,7 @@ function UploadPhase({ files, onFilesChange, onStart, maxFiles }: UploadPhasePro
                 type="button"
                 onClick={() => handleRemove(index)}
                 className="text-muted-foreground hover:text-foreground"
+                aria-label={`${file.name} entfernen`}
               >
                 <IconX className="size-4" />
               </button>
