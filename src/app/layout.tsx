@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
-import Script from 'next/script'
 import './globals.css'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/sonner'
@@ -36,14 +35,6 @@ export default function RootLayout({
           </UserProvider>
           <Toaster />
         </ThemeProvider>
-        <Script
-          src="https://bugdrop.neonwatty.workers.dev/widget.js"
-          data-repo="matchbutler-crypto/Staffhub-FMP"
-          data-theme="auto"
-          data-position="bottom-right"
-          data-label="Feedback"
-          strategy="beforeInteractive"
-        />
       </body>
     </html>
   )
