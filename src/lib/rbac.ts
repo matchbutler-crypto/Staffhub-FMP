@@ -14,6 +14,7 @@ export const ROLE_ROUTES: Record<string, string[]> = {
     '/ideen',
     '/release-notes',
     '/settings',
+    '/feedback',
     '/api',
   ],
   'Staffhub Manager': [
