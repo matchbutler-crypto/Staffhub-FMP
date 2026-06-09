@@ -535,12 +535,17 @@ export function BulkImportSheet({
   const [skippedPaths, setSkippedPaths] = React.useState<string[]>([])
   const [closeConfirmOpen, setCloseConfirmOpen] = React.useState(false)
   const extractionAbortRef = React.useRef<AbortController | null>(null)
+  const extractionResultsRef = React.useRef<ExtractedItem[]>([])
 
   const maxFiles = isManagerOrAdmin ? 30 : 10
 
   const resetState = () => {
     extractionAbortRef.current?.abort()
     extractionAbortRef.current = null
+    if (extractionResultsRef.current.length > 0) {
+      cleanupPaths(extractionResultsRef.current.map((i) => i.tempCvPfad))
+      extractionResultsRef.current = []
+    }
     setPhase('upload')
     setFiles([])
     setExtractedItems([])
@@ -582,7 +587,8 @@ export function BulkImportSheet({
     const abortController = new AbortController()
     extractionAbortRef.current = abortController
 
-    const results: ExtractedItem[] = []
+    extractionResultsRef.current = []
+    const results = extractionResultsRef.current
 
     for (let i = 0; i < files.length; i++) {
       setExtractionProgress(i + 1)
@@ -594,6 +600,9 @@ export function BulkImportSheet({
           method: 'POST',
           body: fd,
           signal: abortController.signal,
+          ...(isManagerOrAdmin && agenturId
+            ? { headers: { 'x-agentur-id': agenturId } }
+            : {}),
         })
         if (abortController.signal.aborted) return
         if (res.ok) {
