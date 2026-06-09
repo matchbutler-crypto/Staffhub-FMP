@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation"
 import * as React from "react"
+import { Suspense } from "react"
+import { useTour } from "@/hooks/use-tour"
 import { toast } from "sonner"
 import {
   IconArrowRight,
@@ -1100,7 +1102,8 @@ function TableSkeletonRows({ cols }: { cols: number }) {
 
 // ── RessourcenPage ─────────────────────────────────────────────────────────────
 
-export default function RessourcenPage() {
+function RessourcenPage() {
+  useTour()
   // ── Freelancer-Pool state ───────────────────────────────────────────────────
   const [ressourcen, setRessourcen] = React.useState<Ressource[]>([])
   const [beauftragungen, setBeauftragungen] = React.useState<Beauftragung[]>([])
@@ -1244,7 +1247,7 @@ export default function RessourcenPage() {
         <div className="flex flex-1 flex-col">
           <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
               {/* Header */}
-              <div className="flex items-center justify-between px-4 lg:px-6">
+              <div data-tour="ressourcen-header" className="flex items-center justify-between px-4 lg:px-6">
                 <div>
                   <h2 className="text-xl font-semibold">Freelancer-Pool</h2>
                   <p className="text-sm text-muted-foreground">
@@ -1272,8 +1275,8 @@ export default function RessourcenPage() {
               </div>
 
               {/* Filter Bar */}
-              <div className="flex flex-wrap items-center gap-3 px-4 lg:px-6">
-                <div className="relative min-w-[200px] max-w-sm flex-1">
+              <div data-tour="ressourcen-filter" className="flex flex-wrap items-center gap-3 px-4 lg:px-6">
+                <div data-tour="ressourcen-search" className="relative min-w-[200px] max-w-sm flex-1">
                   <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     className="pl-9"
@@ -1331,7 +1334,7 @@ export default function RessourcenPage() {
                 </div>
               )}
 
-              <div className="px-4 lg:px-6">
+              <div data-tour="ressourcen-table" className="px-4 lg:px-6">
                 <div className="rounded-lg border">
                   <Table>
                     <TableHeader>
@@ -1530,5 +1533,13 @@ export default function RessourcenPage() {
         ressource={selectedRessource}
       />
     </SidebarProvider>
+  )
+}
+
+export default function RessourcenPageWrapper() {
+  return (
+    <Suspense>
+      <RessourcenPage />
+    </Suspense>
   )
 }

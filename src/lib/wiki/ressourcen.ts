@@ -4,6 +4,28 @@ export const ressourcenPage: WikiPage = {
   slug: 'ressourcen',
   title: 'Ressourcen',
   roles: ['Admin', 'Staffhub Manager'],
+  tour: [
+    {
+      element: '[data-tour="ressourcen-header"]',
+      title: 'Freelancer-Pool',
+      description: 'Hier siehst du alle Profile aus den Pools aller Agenturen auf einen Blick — inklusive Verfügbarkeit, Pipeline-Status und EK-Rate.',
+    },
+    {
+      element: '[data-tour="ressourcen-search"]',
+      title: 'Suche',
+      description: 'Filtere nach Name oder Skill. Die Suche durchsucht alle Ressourcen gleichzeitig nach beiden Feldern.',
+    },
+    {
+      element: '[data-tour="ressourcen-filter"]',
+      title: 'Filter',
+      description: 'Grenze die Auswahl nach Verfügbarkeit, Erfahrungslevel oder Agentur ein. Mit "Beauftragt" siehst du gezielt alle aktuell im Einsatz befindlichen Ressourcen.',
+    },
+    {
+      element: '[data-tour="ressourcen-table"]',
+      title: 'Ressourcen-Tabelle',
+      description: 'Klicke auf eine Zeile um das vollständige Profil zu öffnen. Das Pfeil-Symbol in der "Gespielt"-Spalte zeigt die Vakanz-Pipeline der Ressource — aufklappen um Status weiterzuschalten.',
+    },
+  ],
   sections: [
     {
       heading: 'Was zeigt die Ressourcen-Übersicht?',
