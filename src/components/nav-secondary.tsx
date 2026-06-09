@@ -37,10 +37,17 @@ export function NavSecondary({
                 isActive={pathname === item.url}
               >
                 <Link href={item.url}>
-                  <item.icon />
+                  <span className="relative inline-flex size-4 shrink-0 items-center justify-center">
+                    <item.icon className="size-4 shrink-0" />
+                    {item.badge != null && item.badge > 0 && (
+                      <span className="pointer-events-none absolute -right-1.5 -top-1.5 hidden h-[14px] min-w-[14px] items-center justify-center rounded-full bg-red-500 px-0.5 text-[8px] font-bold leading-none text-white group-data-[collapsible=icon]:flex">
+                        {item.badge > 99 ? '99+' : item.badge}
+                      </span>
+                    )}
+                  </span>
                   <span>{item.title}</span>
                   {item.badge != null && item.badge > 0 && (
-                    <span className="ml-auto flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium text-white">
+                    <span className="ml-auto flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium text-white group-data-[collapsible=icon]:hidden">
                       {item.badge}
                     </span>
                   )}
