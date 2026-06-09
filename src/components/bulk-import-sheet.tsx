@@ -331,7 +331,13 @@ function WizardForm({
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        toast.error((err as { error?: string }).error ?? 'Fehler beim Anlegen der Ressource')
+        const details = (err as { details?: Record<string, string[]> }).details
+        const detailMsg = details
+          ? Object.entries(details).map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`).join(' | ')
+          : ''
+        toast.error((err as { error?: string }).error ?? 'Fehler beim Anlegen der Ressource', {
+          description: detailMsg || undefined,
+        })
         return
       }
 

@@ -223,6 +223,11 @@ export async function POST(request: NextRequest) {
     : createRessourceSchema.safeParse(body)
 
   if (!parsed.success) {
+    console.error('POST /api/ressourcen validation failed', {
+      rolle: profile.rolle,
+      bodyKeys: body ? Object.keys(body) : null,
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    })
     return NextResponse.json(
       { error: 'Validierungsfehler', details: parsed.error.flatten().fieldErrors },
       { status: 400 }
