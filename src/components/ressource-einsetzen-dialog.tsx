@@ -3,7 +3,7 @@
 import * as React from "react"
 import { calculateSkillMatchScore } from '@/lib/calculateScore'
 import { toast } from "sonner"
-import { IconSearch, IconLoader2 } from "@tabler/icons-react"
+import { IconSearch, IconLoader2, IconInfoCircle } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -15,6 +15,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -218,19 +224,28 @@ export function RessourceEinsetzenDialog({
                 {ressourcen.length === 0 ? "Noch keine Pool-Ressourcen vorhanden." : "Keine Ressourcen gefunden."}
               </div>
             ) : (
-              <table className="w-full text-sm table-fixed">
-                <colgroup>
-                  <col className="w-[46%]" />
-                  <col className="w-[26%]" />
-                  <col className="w-[16%]" />
-                  <col className="w-[12%]" />
-                </colgroup>
+              <TooltipProvider>
+              <table className="w-full text-sm">
                 <thead className="border-b bg-muted/50">
                   <tr>
-                    <th className="px-3 py-2 text-left font-medium text-muted-foreground">Name</th>
-                    <th className="px-3 py-2 text-left font-medium text-muted-foreground">Rolle</th>
-                    <th className="px-3 py-2 text-left font-medium text-muted-foreground">Verfügbar ab</th>
-                    <th className="px-3 py-2 text-right font-medium text-muted-foreground">Match</th>
+                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap w-full">Name</th>
+                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">Rolle</th>
+                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">Verfügbar ab</th>
+                    <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1 justify-end">
+                        Match
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <IconInfoCircle className="size-3.5 cursor-help opacity-60 hover:opacity-100 transition-opacity" />
+                          </TooltipTrigger>
+                          <TooltipContent side="left" className="max-w-[280px] text-xs leading-relaxed">
+                            <p className="font-semibold mb-1">Wie wird der Score berechnet?</p>
+                            <p>GPT-4o-mini bewertet das Profil gegen die Vakanz — Skills, Level und Profiltext semantisch verglichen.</p>
+                            <p className="mt-1">0–100: <span className="text-emerald-600">≥ 70 gut</span> · <span className="text-amber-600">40–69 bedingt</span> · <span className="text-rose-600">&lt; 40 schwach</span></p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -289,6 +304,7 @@ export function RessourceEinsetzenDialog({
                   })}
                 </tbody>
               </table>
+              </TooltipProvider>
             )}
           </div>
         </div>

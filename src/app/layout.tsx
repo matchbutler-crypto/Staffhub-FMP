@@ -4,6 +4,7 @@ import './globals.css'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/sonner'
 import { UserProvider } from '@/context/user-context'
+import { FeedbackButton } from '@/components/feedback/feedback-button'
 
 const geist = Geist({ subsets: ['latin'], variable: '--font-geist-sans' })
 const geistMono = Geist_Mono({
@@ -34,6 +35,7 @@ export default function RootLayout({
             {children}
           </UserProvider>
           <Toaster />
+          <FeedbackButton />
         </ThemeProvider>
       </body>
     </html>

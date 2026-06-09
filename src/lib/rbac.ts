@@ -14,6 +14,8 @@ export const ROLE_ROUTES: Record<string, string[]> = {
     '/ideen',
     '/release-notes',
     '/settings',
+    '/feedback',
+    '/wiki',
     '/api',
   ],
   'Staffhub Manager': [
@@ -27,6 +29,7 @@ export const ROLE_ROUTES: Record<string, string[]> = {
     '/ideen',
     '/release-notes',
     '/settings',
+    '/wiki',
     '/api',
   ],
   Controller: [
@@ -34,9 +37,10 @@ export const ROLE_ROUTES: Record<string, string[]> = {
     '/abrechnung',
     '/release-notes',
     '/settings',
+    '/wiki',
     '/api',
   ],
-  Agentur: ['/dashboard', '/vakanzen', '/meine-profile', '/pool', '/beauftragungen', '/abrechnung', '/ideen', '/release-notes', '/settings', '/api'],
+  Agentur: ['/dashboard', '/vakanzen', '/meine-profile', '/pool', '/ressourcen', '/beauftragungen', '/abrechnung', '/ideen', '/release-notes', '/settings', '/wiki', '/api'],
 }
 
 /** Returns true if the given pathname is accessible for the given role */

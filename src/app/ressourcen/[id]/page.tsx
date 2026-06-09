@@ -1,0 +1,942 @@
+"use client"
+
+import * as React from "react"
+import { useParams, useRouter } from "next/navigation"
+import { useForm, Controller } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
+import { toast } from "sonner"
+import {
+  IconArrowLeft,
+  IconBriefcase,
+  IconCheck,
+  IconClock,
+  IconCopy,
+  IconDownload,
+  IconHistory,
+  IconLoader2,
+  IconMapPin,
+  IconPencil,
+  IconUser,
+  IconX,
+} from "@tabler/icons-react"
+
+import { useUser } from "@/context/user-context"
+import { AppSidebar } from "@/components/app-sidebar"
+import { SiteHeader } from "@/components/site-header"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+import { getLinkStatusConfig } from "@/lib/link-status-config"
+import { buildStammdatenText } from "@/lib/stammdaten-copy"
+
+// Beauftragungen-specific statuses that don't exist in the link-status pipeline
+const BEAUFTRAGUNG_STATUS_OVERRIDE: Record<string, string> = {
+  Aktiv:        'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800',
+  Abgeschlossen:'bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700',
+  Abgebrochen:  'bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800',
+  Geplant:      'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800',
+}
+
+interface Ressource {
+  id: string
+  ressource_code?: string | null
+  name: string
+  vorname?: string | null
+  nachname?: string | null
+  geburtsdatum?: string | null
+  geschlecht?: string | null
+  firma?: string | null
+  email?: string | null
+  telefon?: string | null
+  wohnort?: string | null
+  agentur_id: string
+  agentur_name?: string | null
+  verfuegbarkeit: string
+  verfuegbar_ab?: string | null
+  notizen?: string | null
+  erfahrungslevel?: string | null
+  rolle?: string | null
+  skills?: string[]
+  arbeitsmodell?: string | null
+  location?: string | null
+  ek_tagesrate?: number | null
+  cv_pfad?: string | null
+  created_at: string
+  beauftragungen: Beauftragung[]
+}
+
+interface Beauftragung {
+  id: string
+  vakanz_nr: string
+  vakanz_titel: string
+  status: string
+  startdatum: string
+  enddatum: string | null
+  agentur_name: string
+  einkaufspreis?: number | null
+  verkaufspreis?: number | null
+}
+
+interface Zeitnachweis {
+  id: string
+  beauftragung_id: string
+  monat: string
+  stunden_ist: number | null
+  tage_ist_override: number | null
+  uploaded_at: string
+}
+
+interface HistorieEintrag {
+  id: string
+  typ: 'system' | 'manuell'
+  text: string
+  created_at: string
+  profiles: { id: string; name: string; rolle: string } | null
+}
+
+const StammdatenSchema = z.object({
+  vorname: z.string().min(1, "Pflichtfeld"),
+  nachname: z.string().min(1, "Pflichtfeld"),
+  geburtsdatum: z.string().min(1, "Pflichtfeld"),
+  geschlecht: z.string().min(1, "Pflichtfeld"),
+  firma: z.string().min(1, "Pflichtfeld"),
+  email: z.string().email("Ungültige E-Mail"),
+  telefon: z.string().min(1, "Pflichtfeld"),
+  adresse: z.string().min(1, "Pflichtfeld"),
+  notizen: z.string().optional(),
+})
+
+type StammdatenFormValues = z.infer<typeof StammdatenSchema>
+
+const VERFUEGBARKEIT_DOT: Record<string, string> = {
+  "Jetzt verfügbar": "bg-emerald-500",
+  "Verfügbar ab": "bg-amber-400",
+  "Nicht verfügbar": "bg-zinc-400",
+  "Deaktiviert": "bg-red-400",
+  Beauftragt: "bg-teal-500",
+}
+
+const VERFUEGBARKEIT_TEXT: Record<string, string> = {
+  "Jetzt verfügbar": "text-emerald-700 dark:text-emerald-300",
+  "Verfügbar ab": "text-amber-700 dark:text-amber-300",
+  "Nicht verfügbar": "text-zinc-500 dark:text-zinc-400",
+  "Deaktiviert": "text-red-600 dark:text-red-300",
+  Beauftragt: "text-teal-700 dark:text-teal-300",
+}
+
+function FieldRow({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div className="grid grid-cols-[140px_1fr] gap-2 py-2.5 border-b border-border last:border-0">
+      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide self-center">
+        {label}
+      </span>
+      <span className="text-sm text-foreground">{value || "—"}</span>
+    </div>
+  )
+}
+
+function HeaderMetaBar({
+  ressource,
+  canEdit,
+  onUpdate,
+}: {
+  ressource: Ressource
+  canEdit: boolean
+  onUpdate: () => void
+}) {
+  const [savingStatus, setSavingStatus] = React.useState(false)
+  const [currentStatus, setCurrentStatus] = React.useState(ressource.verfuegbarkeit)
+  const [verfuegbarAb, setVerfuegbarAb] = React.useState(ressource.verfuegbar_ab?.slice(0, 10) ?? "")
+  const today = new Date().toISOString().slice(0, 10)
+
+  React.useEffect(() => {
+    setCurrentStatus(ressource.verfuegbarkeit)
+    setVerfuegbarAb(ressource.verfuegbar_ab?.slice(0, 10) ?? "")
+  }, [ressource.verfuegbarkeit, ressource.verfuegbar_ab])
+
+  const laufendeBeauftragung = React.useMemo(() => {
+    // Sperrt den Status sobald eine Beauftragung existiert (auch zukünftige),
+    // solange sie noch nicht abgelaufen ist.
+    return (ressource.beauftragungen ?? []).find((b) => {
+      const end = b.enddatum ? b.enddatum.slice(0, 10) : null
+      const isActiveStatus = b.status === "Beauftragt" || b.status === "Aktiv"
+      const notEnded = !end || end >= today
+      return isActiveStatus && notEnded
+    }) ?? null
+  }, [ressource.beauftragungen, today])
+
+  const statusImHeader = laufendeBeauftragung ? "Beauftragt" : currentStatus
+  const statusLocked = !!laufendeBeauftragung
+  const verfuegbarAbText = laufendeBeauftragung?.enddatum
+    ? new Date(laufendeBeauftragung.enddatum).toLocaleDateString("de-DE")
+    : null
+
+  const updateStatus = async (newStatus: string, dateValue?: string | null) => {
+    setSavingStatus(true)
+    try {
+      const payload = {
+        verfuegbarkeit: newStatus,
+        verfuegbar_ab: newStatus === "Verfügbar ab" ? (dateValue ?? null) : null,
+      }
+      const res = await fetch(`/api/ressourcen/${ressource.id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        throw new Error(data?.error ?? "Fehler beim Aktualisieren")
+      }
+      setCurrentStatus(newStatus)
+      if (newStatus === "Verfügbar ab") setVerfuegbarAb(dateValue ?? "")
+      toast.success("Status aktualisiert")
+      onUpdate()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Fehler beim Aktualisieren")
+    } finally {
+      setSavingStatus(false)
+    }
+  }
+
+  const handleStatusChange = async (newStatus: string) => {
+    setCurrentStatus(newStatus)
+    if (newStatus !== "Verfügbar ab") {
+      await updateStatus(newStatus, null)
+    }
+  }
+
+  return (
+    <div className="border-b border-border">
+      <div className="px-6 py-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+              {ressource.vorname || ressource.nachname
+                ? `${ressource.vorname ?? ""} ${ressource.nachname ?? ""}`.trim()
+                : ressource.name}
+            </h1>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1 text-sm">
+              <span className={`h-2 w-2 rounded-full ${VERFUEGBARKEIT_DOT[statusImHeader] ?? "bg-zinc-400"}`} />
+              <span className={VERFUEGBARKEIT_TEXT[statusImHeader] ?? "text-foreground"}>
+                {statusImHeader}
+              </span>
+            </span>
+            {statusLocked && verfuegbarAbText && (
+              <span className="inline-flex items-center rounded-full border border-teal-300/40 bg-teal-500/10 px-3 py-1 text-sm text-teal-700 dark:text-teal-300">
+                Verfügbar ab {verfuegbarAbText}
+              </span>
+            )}
+            {ressource.erfahrungslevel && (
+              <span className="inline-flex items-center rounded-full border border-border px-3 py-1 text-sm text-foreground">
+                {ressource.erfahrungslevel}
+              </span>
+            )}
+            {ressource.arbeitsmodell && (
+              <span className="inline-flex items-center rounded-full border border-border px-3 py-1 text-sm text-foreground">
+                {ressource.arbeitsmodell}
+              </span>
+            )}
+            {(ressource.location || ressource.rolle) && (
+              <span className="inline-flex items-center rounded-full border border-border px-3 py-1 text-sm text-foreground">
+                {ressource.location ?? ressource.rolle}
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {statusLocked ? (
+              <span className="inline-flex h-9 items-center gap-2 rounded-md border border-teal-300/40 bg-teal-500/10 px-3 text-sm text-teal-700 dark:text-teal-300 select-none">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                Beauftragt
+                {verfuegbarAbText ? ` · bis ${verfuegbarAbText}` : ""}
+              </span>
+            ) : canEdit ? (
+              <Select value={currentStatus} onValueChange={handleStatusChange} disabled={savingStatus}>
+                <SelectTrigger className="h-9 w-auto min-w-[170px] gap-2 rounded-md border-border bg-muted/40 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Jetzt verfügbar">Jetzt verfügbar</SelectItem>
+                  <SelectItem value="Verfügbar ab">Verfügbar ab</SelectItem>
+                  <SelectItem value="Nicht verfügbar">Nicht verfügbar</SelectItem>
+                  <SelectItem value="Deaktiviert">Deaktiviert</SelectItem>
+                </SelectContent>
+              </Select>
+            ) : null}
+
+            {canEdit && !statusLocked && currentStatus === "Verfügbar ab" ? (
+              <>
+                <Input
+                  type="date"
+                  value={verfuegbarAb}
+                  min={today}
+                  onChange={(e) => setVerfuegbarAb(e.target.value)}
+                  className="h-9 w-[170px]"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-9"
+                  disabled={!verfuegbarAb || savingStatus}
+                  onClick={() => updateStatus("Verfügbar ab", verfuegbarAb)}
+                >
+                  Speichern
+                </Button>
+              </>
+            ) : null}
+
+            {ressource.cv_pfad ? (
+              <a
+                href={ressource.cv_pfad}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border px-3 text-sm text-foreground hover:bg-muted/40"
+              >
+                <IconDownload className="h-4 w-4" />
+                CV herunterladen
+              </a>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <div>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">ID</p>
+            <p className="text-sm leading-snug font-medium text-foreground">{ressource.ressource_code ?? "—"}</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Angelegt</p>
+            <p className="text-sm leading-snug font-medium text-foreground">
+              {new Date(ressource.created_at).toLocaleDateString("de-DE")}
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Agentur</p>
+            <p className="text-sm leading-snug font-medium text-foreground">{ressource.agentur_name ?? "—"}</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">EK</p>
+            <p className="text-sm leading-snug font-medium text-foreground">
+              {ressource.ek_tagesrate != null ? `${ressource.ek_tagesrate.toLocaleString("de-DE")}€` : "—"}
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Standort</p>
+            <p className="text-sm leading-snug font-medium text-foreground">{ressource.location ?? "—"}</p>
+          </div>
+        </div>
+
+        {ressource.skills && ressource.skills.length > 0 && (
+          <div className="mt-4">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Must Have</p>
+            <div className="flex flex-wrap gap-2">
+              {ressource.skills.map((s) => (
+                <span key={s} className="rounded-full border border-border px-3 py-1 text-sm text-foreground bg-muted/30">
+                  {s}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function CopyStammdatenButton({ ressource }: { ressource: Ressource }) {
+  const [copied, setCopied] = React.useState(false)
+  const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  React.useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+  }, [])
+
+  const handleCopy = async () => {
+    if (copied) return
+    try {
+      await navigator.clipboard.writeText(buildStammdatenText(ressource))
+      setCopied(true)
+      timerRef.current = setTimeout(() => setCopied(false), 2000)
+    } catch {
+      toast.error('Kopieren fehlgeschlagen')
+    }
+  }
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={handleCopy}
+      className="gap-1.5"
+      aria-label={copied ? 'Kopiert' : 'Kopieren'}
+    >
+      {copied
+        ? <IconCheck className="h-3.5 w-3.5 text-green-600" />
+        : <IconCopy className="h-3.5 w-3.5" />
+      }
+      Kopieren
+    </Button>
+  )
+}
+
+function StammdatenTab({
+  ressource,
+  canEdit,
+  onUpdate,
+}: {
+  ressource: Ressource
+  canEdit: boolean
+  onUpdate: () => void
+}) {
+  const router = useRouter()
+  const [isEditing, setIsEditing] = React.useState(false)
+  const [isSaving, setIsSaving] = React.useState(false)
+
+  const { control, handleSubmit, reset } = useForm<StammdatenFormValues>({
+    resolver: zodResolver(StammdatenSchema),
+    defaultValues: {
+      vorname: ressource.vorname ?? "",
+      nachname: ressource.nachname ?? "",
+      geburtsdatum: ressource.geburtsdatum ?? "",
+      geschlecht: ressource.geschlecht ?? "",
+      firma: ressource.firma ?? "",
+      email: ressource.email ?? "",
+      telefon: ressource.telefon ?? "",
+      adresse: ressource.wohnort ?? "",
+      notizen: ressource.notizen ?? "",
+    },
+  })
+
+  const onSubmit = async (data: StammdatenFormValues) => {
+    setIsSaving(true)
+    try {
+      const res = await fetch(`/api/ressourcen/${ressource.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      })
+      if (!res.ok) throw new Error()
+      toast.success("Stammdaten aktualisiert")
+      setIsEditing(false)
+      onUpdate()
+    } catch {
+      toast.error("Fehler beim Speichern")
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  if (isEditing) {
+    return (
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-foreground">Stammdaten bearbeiten</h3>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => { setIsEditing(false); reset() }}
+              className="gap-1.5 text-muted-foreground"
+            >
+              <IconX className="h-3.5 w-3.5" /> Abbrechen
+            </Button>
+            <Button type="submit" size="sm" disabled={isSaving} className="gap-1.5">
+              {isSaving ? <IconLoader2 className="h-3.5 w-3.5 animate-spin" /> : <IconCheck className="h-3.5 w-3.5" />}
+              Speichern
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {(
+            [
+              { name: "vorname" as const, label: "Vorname", type: "text" },
+              { name: "nachname" as const, label: "Nachname", type: "text" },
+              { name: "geburtsdatum" as const, label: "Geburtsdatum", type: "date" },
+              { name: "firma" as const, label: "Firma", type: "text" },
+              { name: "email" as const, label: "E-Mail", type: "email" },
+              { name: "telefon" as const, label: "Telefon", type: "text" },
+              { name: "adresse" as const, label: "Wohnort / Adresse", type: "text" },
+            ]
+          ).map(({ name, label, type }) => (
+            <div key={name}>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wide">
+                {label} <span className="text-destructive">*</span>
+              </Label>
+              <Controller
+                control={control}
+                name={name}
+                render={({ field, fieldState }) => (
+                  <>
+                    <Input {...field} type={type} className={`mt-1 ${fieldState.error ? "border-destructive" : ""}`} />
+                    {fieldState.error && <p className="mt-0.5 text-xs text-destructive">{fieldState.error.message}</p>}
+                  </>
+                )}
+              />
+            </div>
+          ))}
+
+          {/* Geschlecht */}
+          <div>
+            <Label className="text-xs text-muted-foreground uppercase tracking-wide">
+              Geschlecht <span className="text-destructive">*</span>
+            </Label>
+            <Controller
+              control={control}
+              name="geschlecht"
+              render={({ field, fieldState }) => (
+                <>
+                  <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                    <SelectTrigger className={`mt-1 ${fieldState.error ? "border-destructive" : ""}`}>
+                      <SelectValue placeholder="Bitte wählen" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="männlich">Männlich</SelectItem>
+                      <SelectItem value="weiblich">Weiblich</SelectItem>
+                      <SelectItem value="divers">Divers</SelectItem>
+                      <SelectItem value="keine Angabe">Keine Angabe</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {fieldState.error && <p className="mt-0.5 text-xs text-destructive">{fieldState.error.message}</p>}
+                </>
+              )}
+            />
+          </div>
+        </div>
+
+        <div>
+          <Label className="text-xs text-muted-foreground uppercase tracking-wide">Notizen</Label>
+          <Controller
+            control={control}
+            name="notizen"
+            render={({ field }) => <Textarea {...field} className="mt-1 resize-none" rows={4} />}
+          />
+        </div>
+      </form>
+    )
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="flex justify-end gap-2">
+        <CopyStammdatenButton ressource={ressource} />
+        {canEdit && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsEditing(true)}
+            className="gap-1.5"
+          >
+            <IconPencil className="h-3.5 w-3.5" /> Bearbeiten
+          </Button>
+        )}
+      </div>
+
+      <div className="divide-y divide-border rounded-md border border-border bg-background">
+        <div className="px-4"><FieldRow label="Vorname" value={ressource.vorname} /></div>
+        <div className="px-4"><FieldRow label="Nachname" value={ressource.nachname} /></div>
+        <div className="px-4">
+          <FieldRow
+            label="Geburtsdatum"
+            value={ressource.geburtsdatum ? new Date(ressource.geburtsdatum).toLocaleDateString("de-DE") : null}
+          />
+        </div>
+        <div className="px-4"><FieldRow label="E-Mail" value={ressource.email} /></div>
+        <div className="px-4"><FieldRow label="Telefon" value={ressource.telefon} /></div>
+        <div className="px-4"><FieldRow label="Wohnort" value={ressource.wohnort} /></div>
+      </div>
+
+      {ressource.notizen && (
+        <div className="rounded-md border border-border bg-muted/30 p-4">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">Notizen</p>
+          <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{ressource.notizen}</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function BeauftragungTab({ beauftragungen, isManager }: { beauftragungen: Beauftragung[]; isManager: boolean }) {
+  if (beauftragungen.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-border py-14 text-center text-muted-foreground">
+        Noch keine Beauftragungen vorhanden.
+      </div>
+    )
+  }
+
+  const fmtPreis = (v?: number | null) =>
+    v != null ? `${v.toLocaleString("de-DE")} €` : "—"
+
+  return (
+    <div className="overflow-x-auto rounded-md border border-border">
+      <Table>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead>Vakanz</TableHead>
+            <TableHead>Titel</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Start</TableHead>
+            <TableHead>Ende</TableHead>
+            <TableHead>Rate</TableHead>
+            {isManager && <TableHead>VK/Tag</TableHead>}
+            <TableHead>Agentur</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {beauftragungen.map((b) => (
+            <TableRow key={b.id}>
+              <TableCell className="font-medium font-mono text-xs text-muted-foreground">{b.vakanz_nr}</TableCell>
+              <TableCell className="font-medium">{b.vakanz_titel}</TableCell>
+              <TableCell>
+                <Badge
+                  variant="outline"
+                  className={`text-xs ${BEAUFTRAGUNG_STATUS_OVERRIDE[b.status] ?? getLinkStatusConfig(b.status).color}`}
+                >
+                  {b.status}
+                </Badge>
+              </TableCell>
+              <TableCell className="text-sm tabular-nums">
+                {b.startdatum ? new Date(b.startdatum).toLocaleDateString("de-DE") : "—"}
+              </TableCell>
+              <TableCell className="text-sm tabular-nums">
+                {b.enddatum ? new Date(b.enddatum).toLocaleDateString("de-DE") : "—"}
+              </TableCell>
+              <TableCell className="text-sm tabular-nums text-foreground">
+                {fmtPreis(b.einkaufspreis)}
+              </TableCell>
+              {isManager && (
+                <TableCell className="text-sm tabular-nums text-foreground">
+                  {fmtPreis(b.verkaufspreis)}
+                </TableCell>
+              )}
+              <TableCell className="text-sm text-muted-foreground">{b.agentur_name}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
+function HistorieTab({
+  eintraege,
+  isManager,
+  ressourceId,
+  onEintragAdded,
+}: {
+  eintraege: HistorieEintrag[]
+  isManager: boolean
+  ressourceId: string
+  onEintragAdded: () => void
+}) {
+  const [notiz, setNotiz] = React.useState("")
+  const [saving, setSaving] = React.useState(false)
+
+  const handleSubmit = async () => {
+    if (!notiz.trim()) return
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/ressourcen/${ressourceId}/historie`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: notiz.trim() }),
+      })
+      if (!res.ok) throw new Error()
+      setNotiz("")
+      toast.success("Notiz gespeichert")
+      onEintragAdded()
+    } catch {
+      toast.error("Fehler beim Speichern der Notiz")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      {isManager && (
+        <div className="space-y-2">
+          <Textarea
+            placeholder="Manuelle Notiz hinzufügen…"
+            value={notiz}
+            onChange={(e) => setNotiz(e.target.value)}
+            rows={3}
+            className="resize-none text-sm"
+          />
+          <div className="flex justify-end">
+            <Button
+              size="sm"
+              disabled={!notiz.trim() || saving}
+              onClick={handleSubmit}
+            >
+              {saving ? (
+                <IconLoader2 className="h-4 w-4 animate-spin mr-1.5" />
+              ) : (
+                <IconCheck className="h-4 w-4 mr-1.5" />
+              )}
+              Notiz speichern
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {eintraege.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border py-14 text-center text-muted-foreground">
+          Noch keine Einträge vorhanden.
+        </div>
+      ) : (
+        <div className="relative space-y-0">
+          {eintraege.map((e, i) => (
+            <div key={e.id} className="flex gap-3">
+              {/* Timeline dot + line */}
+              <div className="flex flex-col items-center">
+                <div
+                  className={`mt-1 h-2 w-2 rounded-full flex-shrink-0 ${
+                    e.typ === "manuell" ? "bg-foreground" : "bg-muted-foreground/50"
+                  }`}
+                />
+                {i < eintraege.length - 1 && (
+                  <div className="w-px flex-1 bg-border mt-1" />
+                )}
+              </div>
+
+              {/* Content */}
+              <div className={`pb-5 flex-1 ${i === eintraege.length - 1 ? "pb-0" : ""}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    {e.typ === "manuell" && (
+                      <IconPencil className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                    )}
+                    <p className="text-sm text-foreground leading-snug">{e.text}</p>
+                  </div>
+                  <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap flex-shrink-0">
+                    {new Date(e.created_at).toLocaleDateString("de-DE")}
+                  </span>
+                </div>
+                {e.profiles && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {e.profiles.name} · {e.profiles.rolle}
+                  </p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ZeitnachweisTab({ zeitnachweise }: { zeitnachweise: Zeitnachweis[] }) {
+  const totalStunden = zeitnachweise.reduce((sum, z) => sum + (z.stunden_ist ?? 0), 0)
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">Gesamt</p>
+          <p className="text-2xl font-bold tabular-nums mt-0.5">
+            {totalStunden}
+            <span className="text-sm font-normal text-muted-foreground ml-1">Stunden</span>
+          </p>
+        </div>
+      </div>
+
+      {zeitnachweise.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border py-14 text-center text-muted-foreground">
+          Noch keine Zeitnachweise erfasst.
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-md border border-border">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>Monat</TableHead>
+                <TableHead>Stunden (Ist)</TableHead>
+                <TableHead>Hochgeladen am</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {zeitnachweise.map((z) => (
+                <TableRow key={z.id}>
+                  <TableCell className="tabular-nums">
+                    {new Date(z.monat).toLocaleDateString("de-DE", { month: "long", year: "numeric" })}
+                  </TableCell>
+                  <TableCell className="font-semibold tabular-nums">
+                    {z.tage_ist_override != null ? `${z.tage_ist_override} Tage` : z.stunden_ist != null ? `${z.stunden_ist}h` : "—"}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground tabular-nums">
+                    {new Date(z.uploaded_at).toLocaleDateString("de-DE")}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default function RessourceDetailPage() {
+  const params = useParams()
+  const router = useRouter()
+  const { user, loading: userLoading } = useUser()
+  const [activeTab, setActiveTab] = React.useState("stammdaten")
+  const [ressource, setRessource] = React.useState<Ressource | null>(null)
+  const [zeitnachweise, setZeitnachweise] = React.useState<Zeitnachweis[]>([])
+  const [historie, setHistorie] = React.useState<HistorieEintrag[]>([])
+  const [loading, setLoading] = React.useState(true)
+
+  const loadData = React.useCallback(async () => {
+    if (!params.id) return
+    try {
+      const [ressourceRes, zeitnachweiseRes, historieRes] = await Promise.all([
+        fetch(`/api/ressourcen/${params.id}`),
+        fetch(`/api/ressourcen/${params.id}/zeitnachweise`),
+        fetch(`/api/ressourcen/${params.id}/historie`),
+      ])
+      if (ressourceRes.ok) setRessource(await ressourceRes.json())
+      if (zeitnachweiseRes.ok) setZeitnachweise(await zeitnachweiseRes.json())
+      if (historieRes.ok) {
+        const json = await historieRes.json()
+        setHistorie(json.historie ?? [])
+      }
+    } catch {
+      toast.error("Fehler beim Laden der Daten")
+    } finally {
+      setLoading(false)
+    }
+  }, [params.id])
+
+  React.useEffect(() => { loadData() }, [loadData])
+
+  const isManager = user?.rolle === "Admin" || user?.rolle === "Staffhub Manager"
+  const canEdit = isManager || (user?.rolle === "Agentur" && user?.agentur_id === ressource?.agentur_id)
+
+  if (userLoading || loading) {
+    return (
+      <SidebarProvider>
+        <AppSidebar />
+        <SidebarInset>
+          <SiteHeader />
+          <div className="flex h-96 items-center justify-center">
+            <IconLoader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
+    )
+  }
+
+  if (!ressource) {
+    return (
+      <SidebarProvider>
+        <AppSidebar />
+        <SidebarInset>
+          <SiteHeader />
+          <div className="flex h-96 flex-col items-center justify-center gap-3">
+            <p className="text-sm text-muted-foreground">Ressource nicht gefunden.</p>
+            <Button variant="ghost" size="sm" onClick={() => router.back()} className="gap-1.5">
+              <IconArrowLeft className="h-4 w-4" /> Zurück
+            </Button>
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
+    )
+  }
+
+  return (
+    <SidebarProvider>
+      <AppSidebar />
+      <SidebarInset>
+        <SiteHeader />
+
+        <div className="flex flex-col flex-1 min-h-0">
+          <div className="px-6 py-3 border-b border-border">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => router.push('/pool')}
+              className="gap-1.5 text-muted-foreground hover:text-foreground -ml-2"
+            >
+              <IconArrowLeft className="h-4 w-4" />
+              Zurück zu Ressourcen
+            </Button>
+          </div>
+
+          <div className="flex-1 overflow-auto">
+            <HeaderMetaBar ressource={ressource} canEdit={canEdit} onUpdate={loadData} />
+
+            <div className="px-6 pt-6 pb-8">
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col">
+                <div className="border-b border-border">
+                  <TabsList className="h-auto bg-transparent p-0 gap-0 rounded-none">
+                    {[
+                      { value: "stammdaten", label: "Stammdaten", icon: IconUser },
+                      { value: "beauftragungen", label: "Beauftragungen", icon: IconBriefcase },
+                      { value: "zeitnachweise", label: "Zeitnachweise", icon: IconClock },
+                      { value: "historie", label: "Historie", icon: IconHistory },
+                    ].map(({ value, label, icon: Icon }) => (
+                      <TabsTrigger
+                        key={value}
+                        value={value}
+                        className="relative h-11 rounded-none bg-transparent px-4 text-sm font-medium text-muted-foreground shadow-none data-[state=active]:text-foreground data-[state=active]:shadow-none after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:rounded-full after:bg-foreground after:opacity-0 data-[state=active]:after:opacity-100 transition-colors"
+                      >
+                        <Icon className="h-3.5 w-3.5 mr-1.5" />
+                        {label}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                </div>
+
+                <div className="pt-6">
+                  <TabsContent value="stammdaten" className="mt-0 focus-visible:outline-none">
+                    <StammdatenTab ressource={ressource} canEdit={canEdit} onUpdate={loadData} />
+                  </TabsContent>
+                  <TabsContent value="beauftragungen" className="mt-0 focus-visible:outline-none">
+                    <BeauftragungTab beauftragungen={ressource.beauftragungen ?? []} isManager={isManager} />
+                  </TabsContent>
+                  <TabsContent value="zeitnachweise" className="mt-0 focus-visible:outline-none">
+                    <ZeitnachweisTab zeitnachweise={zeitnachweise} />
+                  </TabsContent>
+                  <TabsContent value="historie" className="mt-0 focus-visible:outline-none">
+                    <HistorieTab
+                      eintraege={historie}
+                      isManager={isManager}
+                      ressourceId={ressource.id}
+                      onEintragAdded={loadData}
+                    />
+                  </TabsContent>
+                </div>
+              </Tabs>
+            </div>
+          </div>
+        </div>
+      </SidebarInset>
+    </SidebarProvider>
+  )
+}

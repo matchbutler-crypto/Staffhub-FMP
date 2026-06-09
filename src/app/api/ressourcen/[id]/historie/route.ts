@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { logHistorie } from '@/lib/log-historie'
 
 async function getAuthProfile(supabase: Awaited<ReturnType<typeof createClient>>) {
@@ -29,12 +30,9 @@ export async function GET(
     return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 })
   }
 
-  const { data: historie, error } = await supabase
+  const { data: historieRaw, error } = await supabase
     .from('ressource_historie')
-    .select(`
-      id, ressource_id, link_id, typ, text, created_at,
-      profiles!erstellt_von(id, name, rolle)
-    `)
+    .select('id, ressource_id, link_id, typ, text, erstellt_von, created_at')
     .eq('ressource_id', id)
     .order('created_at', { ascending: false })
     .limit(200)
@@ -43,7 +41,31 @@ export async function GET(
     return NextResponse.json({ error: 'Fehler beim Laden der Historie' }, { status: 500 })
   }
 
-  return NextResponse.json({ historie: historie ?? [] })
+  // Fetch profile names via admin to avoid profiles RLS restricting joined data
+  const erstelltVonIds = [...new Set((historieRaw ?? []).map(h => h.erstellt_von).filter(Boolean))]
+  let profileMap: Record<string, { id: string; name: string; rolle: string }> = {}
+  if (erstelltVonIds.length > 0) {
+    const adminSupabase = createAdminClient()
+    const { data: profiles } = await adminSupabase
+      .from('profiles')
+      .select('id, name, rolle')
+      .in('id', erstelltVonIds)
+    for (const p of profiles ?? []) {
+      profileMap[p.id] = p
+    }
+  }
+
+  const historie = (historieRaw ?? []).map(h => ({
+    id: h.id,
+    ressource_id: h.ressource_id,
+    link_id: h.link_id,
+    typ: h.typ,
+    text: h.text,
+    created_at: h.created_at,
+    profiles: h.erstellt_von ? (profileMap[h.erstellt_von] ?? null) : null,
+  }))
+
+  return NextResponse.json({ historie })
 }
 
 // ── POST /api/ressourcen/[id]/historie (manuelle Notiz) ───────────────────────
@@ -64,16 +86,9 @@ export async function POST(
     return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 })
   }
 
-  // Agentur: only own resources
-  if (auth.profile.rolle === 'Agentur') {
-    const { data: ressource } = await supabase
-      .from('ressourcen')
-      .select('agentur_id')
-      .eq('id', id)
-      .single()
-    if (!ressource || ressource.agentur_id !== auth.profile.agentur_id) {
-      return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
-    }
+  const isManager = auth.profile.rolle === 'Admin' || auth.profile.rolle === 'Staffhub Manager'
+  if (!isManager) {
+    return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
   }
 
   const body = await request.json().catch(() => null)

@@ -7,16 +7,26 @@ const {
   mockGetUser,
   mockProfileSelect,
   mockRessourcenSelect,
+  mockRessourcenInsert,
   mockInsert,
+  mockAdminRessourcenInsert,
+  mockAdminRessourcenSelect,
+  mockAdminInsert,
   mockLinkCountSelect,
   mockLinkSelect,
+  mockStorageMove,
 } = vi.hoisted(() => ({
   mockGetUser: vi.fn(),
   mockProfileSelect: vi.fn(),
   mockRessourcenSelect: vi.fn(),
+  mockRessourcenInsert: vi.fn(),
   mockInsert: vi.fn(),
+  mockAdminRessourcenInsert: vi.fn(),
+  mockAdminRessourcenSelect: vi.fn(),
+  mockAdminInsert: vi.fn(),
   mockLinkCountSelect: vi.fn(),
   mockLinkSelect: vi.fn(),
+  mockStorageMove: vi.fn(),
 }))
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -51,7 +61,7 @@ vi.mock('@/lib/supabase/server', () => ({
         }
         return {
           select: vi.fn(() => builder),
-          insert: vi.fn().mockReturnValue({
+          insert: mockRessourcenInsert.mockReturnValue({
             select: vi.fn().mockReturnValue({ single: mockInsert }),
           }),
         }
@@ -83,6 +93,39 @@ vi.mock('@/lib/supabase/server', () => ({
       return {}
     }),
   }),
+}))
+
+vi.mock('@/lib/supabase/admin', () => ({
+  createAdminClient: vi.fn(() => ({
+    from: vi.fn((table: string) => {
+      if (table === 'ressourcen') {
+        const adminSelectBuilder = {
+          like: vi.fn(() => adminSelectBuilder),
+          order: vi.fn(() => adminSelectBuilder),
+          limit: vi.fn(() => ({
+            then: (resolve: (value: unknown) => unknown, reject?: (reason: unknown) => unknown) =>
+              mockAdminRessourcenSelect().then(resolve, reject),
+          })),
+        }
+
+        return {
+          select: vi.fn(() => adminSelectBuilder),
+          insert: mockAdminRessourcenInsert.mockReturnValue({
+            select: vi.fn().mockReturnValue({ single: mockAdminInsert }),
+          }),
+          update: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ error: null }),
+          }),
+        }
+      }
+      return {}
+    }),
+    storage: {
+      from: vi.fn().mockReturnValue({
+        move: mockStorageMove,
+      }),
+    },
+  })),
 }))
 
 import { GET, POST } from './route'
@@ -251,7 +294,13 @@ describe('GET /api/ressourcen', () => {
 // ── POST /api/ressourcen ───────────────────────────────────────────────────────
 
 describe('POST /api/ressourcen', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockAdminRessourcenSelect.mockResolvedValue({
+      data: [{ ressource_code: 'D3XP0007' }],
+      error: null,
+    })
+  })
 
   it('gibt 401 zurück wenn nicht authentifiziert', async () => {
     mockGetUser.mockResolvedValue({ data: { user: null }, error: null })
@@ -305,5 +354,177 @@ describe('POST /api/ressourcen', () => {
     const json = await res.json()
     expect(json.ressource.id).toBe('new-res-1')
     expect(json.ressource.name).toBe('Max M.')
+  })
+
+  it('speichert Skills ohne case-insensitive Duplikate', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u1' } }, error: null })
+    mockProfileSelect.mockResolvedValue({
+      data: { rolle: 'Agentur', aktiv: true, agentur_id: 'ag-1' },
+      error: null,
+    })
+    mockInsert.mockResolvedValue({
+      data: { id: 'new-res-1', name: 'Max M.', verfuegbarkeit: 'Jetzt verfügbar', created_at: '2026-04-18T00:00:00Z' },
+      error: null,
+    })
+
+    const res = await POST(makeRequest({
+      ...validRessource,
+      skills: ['Project Management', 'project management', 'React'],
+    }))
+
+    expect(res.status).toBe(201)
+    expect(mockRessourcenInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ressource_code: 'D3XP0008',
+        skills: ['Project Management', 'React'],
+      })
+    )
+  })
+
+  it('legt Ressource für Agentur mit global eindeutigem ressource_code an', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u1' } }, error: null })
+    mockProfileSelect.mockResolvedValue({
+      data: { rolle: 'Agentur', aktiv: true, agentur_id: 'ag-1' },
+      error: null,
+    })
+    mockInsert.mockResolvedValue({
+      data: { id: 'new-res-1', name: 'Max M.', verfuegbarkeit: 'Jetzt verfügbar', created_at: '2026-04-18T00:00:00Z' },
+      error: null,
+    })
+
+    const res = await POST(makeRequest(validRessource))
+
+    expect(res.status).toBe(201)
+    expect(mockRessourcenInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentur_id: 'ag-1',
+        ressource_code: 'D3XP0008',
+      })
+    )
+  })
+
+  it('legt Ressource für Staffhub Manager per Admin-Client an, damit RLS Agentur-Policies nicht blockieren', async () => {
+    const AGENTUR_ID = '00000000-0000-0000-0000-000000000001'
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u2' } }, error: null })
+    mockProfileSelect.mockResolvedValue({
+      data: { rolle: 'Staffhub Manager', aktiv: true, agentur_id: null },
+      error: null,
+    })
+    mockInsert.mockResolvedValue({
+      data: null,
+      error: { code: '42501', message: 'new row violates row-level security policy' },
+    })
+    mockAdminInsert.mockResolvedValue({
+      data: { id: 'new-res-1', name: 'Max M.', verfuegbarkeit: 'Jetzt verfügbar', created_at: '2026-04-18T00:00:00Z' },
+      error: null,
+    })
+
+    const res = await POST(makeRequest({ ...validRessource, agentur_id: AGENTUR_ID }))
+
+    expect(res.status).toBe(201)
+    expect(mockRessourcenInsert).not.toHaveBeenCalled()
+    expect(mockAdminRessourcenInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Max M.',
+        agentur_id: AGENTUR_ID,
+        ressource_code: 'D3XP0008',
+      })
+    )
+  })
+
+  it('moves temp CV to final path after insert when tempCvPfad provided', async () => {
+    mockGetUser.mockResolvedValueOnce({ data: { user: { id: 'u1' } }, error: null })
+    mockProfileSelect.mockResolvedValueOnce({ data: { rolle: 'Staffhub Manager', aktiv: true, agentur_id: null }, error: null })
+    mockAdminRessourcenSelect.mockResolvedValueOnce({ data: [{ ressource_code: 'D3XP0001' }], error: null })
+    mockAdminInsert.mockResolvedValueOnce({
+      data: { id: 'res-new-1', name: 'Test', verfuegbarkeit: 'Verfügbar ab', created_at: '2026-06-09' },
+      error: null,
+    })
+    mockStorageMove.mockResolvedValueOnce({ error: null })
+
+    const AGENTUR_UUID = '00000000-0000-0000-0000-000000000002'
+    const body = {
+      agentur_id: AGENTUR_UUID,
+      name: 'Test Ressource',
+      rolle: 'Entwickler',
+      skills: ['React'],
+      erfahrungslevel: 'Mid',
+      verfuegbarkeit: 'Verfügbar ab',
+      verfuegbar_ab: '2026-07-01',
+      tempCvPfad: `bulk-temp/${AGENTUR_UUID}/some-uuid.pdf`,
+    }
+
+    const req = new NextRequest('http://localhost/api/ressourcen', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+    const res = await POST(req)
+    expect(res.status).toBe(201)
+    expect(mockStorageMove).toHaveBeenCalledWith(
+      `bulk-temp/${AGENTUR_UUID}/some-uuid.pdf`,
+      `${AGENTUR_UUID}/res-new-1.pdf`
+    )
+  })
+
+  it('gibt 201 zurück wenn Storage-Move fehlschlägt (tempCvPfad bleibt ignoriert)', async () => {
+    const AGENTUR_UUID = '00000000-0000-0000-0000-000000000003'
+    mockGetUser.mockResolvedValueOnce({ data: { user: { id: 'u1' } }, error: null })
+    mockProfileSelect.mockResolvedValueOnce({ data: { rolle: 'Staffhub Manager', aktiv: true, agentur_id: null }, error: null })
+    mockAdminRessourcenSelect.mockResolvedValueOnce({ data: [{ ressource_code: 'D3XP0001' }], error: null })
+    mockAdminInsert.mockResolvedValueOnce({
+      data: { id: 'res-new-2', name: 'Test', verfuegbarkeit: 'Verfügbar ab', created_at: '2026-06-09' },
+      error: null,
+    })
+    mockStorageMove.mockResolvedValueOnce({ error: { message: 'storage error' } })
+
+    const body = {
+      agentur_id: AGENTUR_UUID,
+      name: 'Test',
+      rolle: 'Dev',
+      skills: ['React'],
+      erfahrungslevel: 'Mid',
+      verfuegbarkeit: 'Verfügbar ab',
+      verfuegbar_ab: '2026-07-01',
+      tempCvPfad: `bulk-temp/${AGENTUR_UUID}/some-uuid.pdf`,
+    }
+    const req = new NextRequest('http://localhost/api/ressourcen', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: { 'Content-Type': 'application/json' },
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(201)
+  })
+
+  it('ignoriert tempCvPfad das nicht zur eigenen Agentur gehört', async () => {
+    const AGENTUR_UUID = '00000000-0000-0000-0000-000000000004'
+    mockGetUser.mockResolvedValueOnce({ data: { user: { id: 'u1' } }, error: null })
+    mockProfileSelect.mockResolvedValueOnce({ data: { rolle: 'Staffhub Manager', aktiv: true, agentur_id: null }, error: null })
+    mockAdminRessourcenSelect.mockResolvedValueOnce({ data: [{ ressource_code: 'D3XP0001' }], error: null })
+    mockAdminInsert.mockResolvedValueOnce({
+      data: { id: 'res-new-3', name: 'Test', verfuegbarkeit: 'Verfügbar ab', created_at: '2026-06-09' },
+      error: null,
+    })
+
+    const body = {
+      agentur_id: AGENTUR_UUID,
+      name: 'Test',
+      rolle: 'Dev',
+      skills: ['React'],
+      erfahrungslevel: 'Mid',
+      verfuegbarkeit: 'Verfügbar ab',
+      verfuegbar_ab: '2026-07-01',
+      tempCvPfad: 'bulk-temp/OTHER_AGENTUR/malicious.pdf',
+    }
+    const req = new NextRequest('http://localhost/api/ressourcen', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: { 'Content-Type': 'application/json' },
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(201)
+    expect(mockStorageMove).not.toHaveBeenCalled()
   })
 })

@@ -12,6 +12,7 @@ import {
   IconClock,
   IconDownload,
   IconDotsVertical,
+  IconFileImport,
   IconFileText,
   IconLink,
   IconMessage,
@@ -30,6 +31,7 @@ import type { Erfahrungslevel, RessourceVerfuegbarkeit } from "@/lib/constants"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { TagInput } from "@/components/tag-input"
+import { BulkImportSheet } from "@/components/bulk-import-sheet"
 import { ResourcePoolFormSheet } from "@/components/resource-pool-form-sheet"
 import {
   AlertDialog,
@@ -98,6 +100,7 @@ interface Agentur {
 
 interface Ressource {
   id: string
+  ressource_code?: string | null
   agentur_id: string
   name: string
   rolle?: string | null
@@ -214,6 +217,7 @@ interface RessourceFormSheetProps {
   ressource?: Ressource | null
   onSuccess: () => void
   isAdmin?: boolean
+  isManager?: boolean
   agenturen?: Agentur[]
 }
 
@@ -224,8 +228,10 @@ function RessourceFormSheet({
   ressource,
   onSuccess,
   isAdmin,
+  isManager: isManagerProp,
   agenturen = [],
 }: RessourceFormSheetProps) {
+  const needsAgentur = isAdmin || isManagerProp
   const [saving, setSaving] = React.useState(false)
   const [adminAgenturId, setAdminAgenturId] = React.useState("")
   const [cvFile, setCvFile] = React.useState<File | null>(null)
@@ -270,7 +276,7 @@ function RessourceFormSheet({
           arbeitsmodell: (ressource.arbeitsmodell as 'Onshore' | 'Nearshore' | 'Offshore') ?? 'Onshore',
           location: ressource.location ?? "",
         })
-        if (isAdmin) setAdminAgenturId(ressource.agentur_id)
+        if (needsAgentur) setAdminAgenturId(ressource.agentur_id)
       } else {
         reset({
           name: "",
@@ -286,10 +292,10 @@ function RessourceFormSheet({
         })
       }
     }
-  }, [open, mode, ressource, reset, isAdmin])
+  }, [open, mode, ressource, reset, needsAgentur])
 
   async function onSubmit(data: RessourceFormData) {
-    if (isAdmin && mode === "create" && !adminAgenturId) {
+    if (needsAgentur && mode === "create" && !adminAgenturId) {
       toast.error("Bitte eine Agentur auswählen.")
       return
     }
@@ -297,7 +303,7 @@ function RessourceFormSheet({
     try {
       const url =
         mode === "create" ? "/api/ressourcen" : `/api/ressourcen/${ressource!.id}`
-      const method = mode === "create" ? "POST" : "PUT"
+      const method = mode === "create" ? "POST" : "PATCH"
 
       const res = await fetch(url, {
         method,
@@ -314,7 +320,7 @@ function RessourceFormSheet({
           notizen: data.notizen || null,
           arbeitsmodell: data.arbeitsmodell ?? 'Onshore',
           location: data.location || null,
-          ...(isAdmin && mode === "create" ? { agentur_id: adminAgenturId } : {}),
+          ...(needsAgentur && mode === "create" ? { agentur_id: adminAgenturId } : {}),
         }),
       })
 
@@ -385,8 +391,8 @@ function RessourceFormSheet({
           <div className="flex-1 overflow-y-auto px-6 py-4">
             <div className="flex flex-col gap-4">
 
-              {/* Agentur-Auswahl (nur Admin, nur beim Erstellen) */}
-              {isAdmin && mode === "create" && (
+              {/* Agentur-Auswahl (Admin/Manager, nur beim Erstellen) */}
+              {needsAgentur && mode === "create" && (
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="r-agentur">
                     Agentur <span className="text-destructive">*</span>
@@ -2083,6 +2089,7 @@ export default function PoolPage() {
   const [editingRessource, setEditingRessource] = React.useState<Ressource | null>(null)
 
   const [poolFormSheetOpen, setPoolFormSheetOpen] = React.useState(false)
+  const [bulkImportOpen, setBulkImportOpen] = React.useState(false)
 
   const [deaktivierenOpen, setDeaktivierenOpen] = React.useState(false)
   const [deaktivierenRessource, setDeaktivierenRessource] = React.useState<Ressource | null>(null)
@@ -2214,7 +2221,8 @@ export default function PoolPage() {
   const filtered = (() => {
     const base = ressourcen.filter((r) => {
       const matchesStatus =
-        statusFilter === "alle" || r.verfuegbarkeit === statusFilter
+        statusFilter === "alle" ||
+        (statusFilter === "Beauftragt" ? !!r.hat_beauftragt_link : r.verfuegbarkeit === statusFilter)
       const q = searchQuery.toLowerCase()
       const matchesSearch =
         q === "" ||
@@ -2285,15 +2293,25 @@ export default function PoolPage() {
                     {loading ? "Lädt…" : `${filtered.length} Ressource${filtered.length !== 1 ? "n" : ""}`}
                   </p>
                 </div>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setPoolFormSheetOpen(true)
-                  }}
-                >
-                  <IconPlus className="size-4" />
-                  Neue Ressource
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setBulkImportOpen(true)}
+                  >
+                    <IconFileImport className="size-4" />
+                    Bulk Import
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setPoolFormSheetOpen(true)
+                    }}
+                  >
+                    <IconPlus className="size-4" />
+                    Neue Ressource
+                  </Button>
+                </div>
               </div>
 
               {/* Filter Bar */}
@@ -2320,6 +2338,7 @@ export default function PoolPage() {
                         </SelectItem>
                       )
                     )}
+                    <SelectItem value="Beauftragt">Beauftragt</SelectItem>
                   </SelectContent>
                 </Select>
                 <Button
@@ -2371,6 +2390,7 @@ export default function PoolPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead>ID</TableHead>
                         <TableHead>Name</TableHead>
                         {isAdmin && <TableHead>Agentur</TableHead>}
                         <TableHead>Rolle</TableHead>
@@ -2388,11 +2408,11 @@ export default function PoolPage() {
                     </TableHeader>
                     <TableBody>
                       {loading || kiScoresLoading ? (
-                        <TableSkeletonRows cols={(vakanzFilter !== "keine" ? 10 : 9) + (isAdmin ? 1 : 0)} />
+                        <TableSkeletonRows cols={(vakanzFilter !== "keine" ? 11 : 10) + (isAdmin ? 1 : 0)} />
                       ) : filtered.length === 0 ? (
                         <TableRow>
                           <TableCell
-                            colSpan={(vakanzFilter !== "keine" ? 10 : 9) + (isAdmin ? 1 : 0)}
+                            colSpan={(vakanzFilter !== "keine" ? 11 : 10) + (isAdmin ? 1 : 0)}
                             className="py-12 text-center text-muted-foreground"
                           >
                             {ressourcen.length === 0
@@ -2406,17 +2426,19 @@ export default function PoolPage() {
                           const isExpanded = expandedIds.has(r.id)
                           const isLoadingLinks = loadingLinkIds.has(r.id)
                           const cachedLinks = linksCache[r.id]
-                          const totalCols = (vakanzFilter !== "keine" ? 10 : 9) + (isAdmin ? 1 : 0)
+                          const totalCols = (vakanzFilter !== "keine" ? 11 : 10) + (isAdmin ? 1 : 0)
                           return (
                           <React.Fragment key={r.id}>
                           <TableRow
-                            className="cursor-pointer"
-                            onClick={() => {
-                              setDetailRessource(r)
-                              setDetailOpen(true)
-                            }}
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() => router.push(`/ressourcen/${r.id}`)}
                           >
-                            <TableCell className="font-medium">{r.name}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                              {r.ressource_code ?? '—'}
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              {r.name}
+                            </TableCell>
                             {isAdmin && (
                               <TableCell className="text-sm text-muted-foreground">
                                 {r.agenturen?.name ?? "—"}
@@ -2426,9 +2448,17 @@ export default function PoolPage() {
                               {r.rolle || "—"}
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
-                              {r.verfuegbar_ab
-                                ? new Date(r.verfuegbar_ab).toLocaleDateString("de-DE")
-                                : "—"}
+                              {(() => {
+                                if (r.hat_beauftragt_link) {
+                                  const b = beauftragungen.find((b) => b.ressource_id === r.id)
+                                  return b?.end_date
+                                    ? new Date(b.end_date).toLocaleDateString("de-DE")
+                                    : "—"
+                                }
+                                return r.verfuegbar_ab
+                                  ? new Date(r.verfuegbar_ab).toLocaleDateString("de-DE")
+                                  : "—"
+                              })()}
                             </TableCell>
                             <TableCell>
                               <div className="flex flex-col gap-0.5 text-sm">
@@ -2440,12 +2470,18 @@ export default function PoolPage() {
                             </TableCell>
                             <TableCell>
                               <div className="flex flex-col gap-1">
-                                <Badge
-                                  variant="outline"
-                                  className={verfuegbarkeitColors[r.verfuegbarkeit]}
-                                >
-                                  {verfuegbarkeitLabel[r.verfuegbarkeit]}
-                                </Badge>
+                                {r.hat_beauftragt_link ? (
+                                  <Badge variant="outline" className="bg-teal-100 text-teal-700 border-teal-200">
+                                    Beauftragt
+                                  </Badge>
+                                ) : (
+                                  <Badge
+                                    variant="outline"
+                                    className={verfuegbarkeitColors[r.verfuegbarkeit]}
+                                  >
+                                    {verfuegbarkeitLabel[r.verfuegbarkeit]}
+                                  </Badge>
+                                )}
                                 {stammdatenAusstehend(r) && (
                                   <span className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-700">
                                     Stammdaten ausstehend
@@ -2456,7 +2492,7 @@ export default function PoolPage() {
                                     size="sm"
                                     variant="outline"
                                     className="h-7 text-xs border-amber-200 text-amber-700 hover:bg-amber-50"
-                                    onClick={() => setStammdatenModal(r)}
+                                    onClick={(e) => { e.stopPropagation(); setStammdatenModal(r) }}
                                   >
                                     Stammdaten erfassen
                                   </Button>
@@ -2502,7 +2538,7 @@ export default function PoolPage() {
                                 <span className="text-muted-foreground text-xs">—</span>
                               )}
                             </TableCell>
-                            <TableCell>
+                            <TableCell onClick={(e) => e.stopPropagation()}>
                               {r.cv_pfad ? (
                                 <Button
                                   variant="ghost"
@@ -2670,6 +2706,7 @@ export default function PoolPage() {
         ressource={editingRessource}
         onSuccess={fetchRessourcen}
         isAdmin={isAdmin}
+        isManager={isManager}
         agenturen={agenturen}
       />
 
@@ -2692,6 +2729,15 @@ export default function PoolPage() {
         onOpenChange={setProfilEinreichenOpen}
         ressource={profilEinreichenRessource}
         onSuccess={fetchRessourcen}
+      />
+
+      <BulkImportSheet
+        open={bulkImportOpen}
+        onOpenChange={setBulkImportOpen}
+        onSuccess={fetchRessourcen}
+        isManagerOrAdmin={isManager}
+        agenturId={user?.agentur_id ?? null}
+        agenturen={agenturen}
       />
 
       <ResourcePoolFormSheet

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 const createRessourceSchema = z.object({
   name: z.string().min(1, 'Name ist erforderlich').max(200),
@@ -13,10 +14,49 @@ const createRessourceSchema = z.object({
   notizen: z.string().max(2000).nullable().optional(),
   arbeitsmodell: z.enum(['Onshore', 'Nearshore', 'Offshore']).optional(),
   location: z.string().max(200).nullable().optional(),
+  tempCvPfad: z.string().max(500).optional(),
 }).refine(
   (d) => d.verfuegbarkeit !== 'Verfügbar ab' || !!d.verfuegbar_ab,
   { message: 'Datum erforderlich wenn "Verfügbar ab"', path: ['verfuegbar_ab'] }
 )
+
+function normalizeSkillNames(skills: string[]): string[] {
+  const normalized = new Map<string, string>()
+
+  for (const skill of skills) {
+    const trimmed = skill.trim()
+    if (!trimmed) continue
+
+    const key = trimmed.toLowerCase()
+    if (!normalized.has(key)) {
+      normalized.set(key, trimmed)
+    }
+  }
+
+  return Array.from(normalized.values())
+}
+
+async function generateNextRessourceCode(supabaseAdmin: ReturnType<typeof createAdminClient>): Promise<string> {
+  const { data, error } = await supabaseAdmin
+    .from('ressourcen')
+    .select('ressource_code')
+    .like('ressource_code', 'D3XP%')
+    .order('ressource_code', { ascending: false })
+    .limit(1)
+
+  if (error) {
+    throw new Error(`Ressourcen-Code konnte nicht erzeugt werden: ${error.message}`)
+  }
+
+  const latestCode = data?.[0]?.ressource_code
+  const latestNumber =
+    typeof latestCode === 'string'
+      ? Number.parseInt(latestCode.replace(/^D3XP/, ''), 10)
+      : 0
+  const nextNumber = Number.isFinite(latestNumber) ? latestNumber + 1 : 1
+
+  return `D3XP${String(nextNumber).padStart(4, '0')}`
+}
 
 async function getUserProfile(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
   const { data } = await supabase
@@ -50,7 +90,7 @@ export async function GET(request: NextRequest) {
   let query = supabase
     .from('ressourcen')
     .select(`
-      id, agentur_id, name, rolle, skills, erfahrungslevel,
+      id, ressource_code, agentur_id, name, rolle, skills, erfahrungslevel,
       verfuegbarkeit, verfuegbar_ab, cv_pfad,
       ek_tagesrate, notizen, created_at, updated_at,
       arbeitsmodell, location,
@@ -132,9 +172,11 @@ export async function GET(request: NextRequest) {
     result = result.map((r) => {
       const link = linkMap.get(r.id)
       const kiScore = kiScoreMap.get(r.id)
+      // Zurückgezogene Einreichungen gelten nicht als "bereits gespielt" → können erneut eingereicht werden
+      const isActiveLink = !!link && link.status !== 'Zurückgezogen'
       return {
         ...r,
-        bereits_gespielt: !!link,
+        bereits_gespielt: isActiveLink,
         link_id: link?.id ?? null,
         link_status: link?.status ?? null,
         link_created_at: link?.created_at ?? null,
@@ -191,12 +233,31 @@ export async function POST(request: NextRequest) {
     ? (parsed.data as typeof parsed.data & { agentur_id: string }).agentur_id
     : profile.agentur_id!
 
-  const { data: ressource, error } = await supabase
+  let supabaseAdmin: ReturnType<typeof createAdminClient>
+  try {
+    supabaseAdmin = createAdminClient()
+  } catch (error) {
+    console.error('Ressource admin client error:', error)
+    return NextResponse.json({ error: 'Server-Konfigurationsfehler' }, { status: 500 })
+  }
+
+  let ressourceCode: string
+  try {
+    ressourceCode = await generateNextRessourceCode(supabaseAdmin)
+  } catch (error) {
+    console.error('Ressource code generation error:', error)
+    return NextResponse.json({ error: 'Fehler beim Erzeugen der Ressourcen-ID' }, { status: 500 })
+  }
+
+  const insertClient = (isAdmin || isManager) ? supabaseAdmin : supabase
+
+  const { data: ressource, error } = await insertClient
     .from('ressourcen')
     .insert({
+      ressource_code: ressourceCode,
       name: parsed.data.name,
       rolle: parsed.data.rolle ?? null,
-      skills: parsed.data.skills,
+      skills: normalizeSkillNames(parsed.data.skills),
       erfahrungslevel: parsed.data.erfahrungslevel,
       verfuegbarkeit: parsed.data.verfuegbarkeit,
       verfuegbar_ab: parsed.data.verfuegbar_ab || null,
@@ -210,7 +271,26 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (error) {
+    console.error('Ressource insert error:', { code: error.code, message: error.message })
     return NextResponse.json({ error: 'Fehler beim Erstellen der Ressource' }, { status: 500 })
+  }
+
+  // Temp CV von bulk-temp/ in finalen Pfad verschieben
+  if (parsed.data.tempCvPfad && parsed.data.tempCvPfad.startsWith(`bulk-temp/${agenturId}/`)) {
+    const finalCvPfad = `${agenturId}/${ressource.id}.pdf`
+    const { error: moveError } = await supabaseAdmin.storage
+      .from('ressourcen-cvs')
+      .move(parsed.data.tempCvPfad, finalCvPfad)
+
+    if (!moveError) {
+      const { error: updateError } = await supabaseAdmin
+        .from('ressourcen')
+        .update({ cv_pfad: finalCvPfad })
+        .eq('id', ressource.id)
+      if (updateError) {
+        console.error('cv_pfad update failed after move:', ressource.id, updateError.message)
+      }
+    }
   }
 
   return NextResponse.json({ ressource }, { status: 201 })

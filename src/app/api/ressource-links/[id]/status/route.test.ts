@@ -142,4 +142,65 @@ describe('PATCH /api/ressource-links/[id]/status', () => {
     const json = await res.json()
     expect(json.link.status).toBe('Abgelehnt')
   })
+
+  it('schaltet Zugesagt → Stammdaten anfordern erfolgreich', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u2' } }, error: null })
+    mockProfileSelect.mockResolvedValue({ data: managerProfile, error: null })
+    mockLinkSelect.mockResolvedValue({
+      data: { id: 'link-1', ressource_id: 'res-1', vakanz_id: 'vak-1', status: 'Zugesagt', vakanzen: null },
+      error: null,
+    })
+    mockLinkUpdate.mockResolvedValue({
+      data: { id: 'link-1', ressource_id: 'res-1', vakanz_id: 'vak-1', status: 'Stammdaten anfordern', interview_datum: null, feedback: null, updated_at: '2026-05-28T00:00:00Z' },
+      error: null,
+    })
+    mockHistorieInsert.mockResolvedValue({ error: null })
+
+    const res = await PATCH(
+      makeRequest({ status: 'Stammdaten anfordern' }),
+      { params: Promise.resolve({ id: 'link-1' }) }
+    )
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.link.status).toBe('Stammdaten anfordern')
+  })
+
+  it('gibt 400 zurück bei Rückschritt Stammdaten anfordern → Zugesagt', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u2' } }, error: null })
+    mockProfileSelect.mockResolvedValue({ data: managerProfile, error: null })
+    mockLinkSelect.mockResolvedValue({
+      data: { id: 'link-1', ressource_id: 'res-1', vakanz_id: 'vak-1', status: 'Stammdaten anfordern', vakanzen: null },
+      error: null,
+    })
+
+    const res = await PATCH(
+      makeRequest({ status: 'Zugesagt' }),
+      { params: Promise.resolve({ id: 'link-1' }) }
+    )
+    expect(res.status).toBe(400)
+    const json = await res.json()
+    expect(json.error).toContain('Ungültiger Status-Übergang')
+  })
+
+  it('schaltet Setup externe Mail & Hardware → Running erfolgreich', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u2' } }, error: null })
+    mockProfileSelect.mockResolvedValue({ data: managerProfile, error: null })
+    mockLinkSelect.mockResolvedValue({
+      data: { id: 'link-1', ressource_id: 'res-1', vakanz_id: 'vak-1', status: 'Setup externe Mail & Hardware', vakanzen: null },
+      error: null,
+    })
+    mockLinkUpdate.mockResolvedValue({
+      data: { id: 'link-1', ressource_id: 'res-1', vakanz_id: 'vak-1', status: 'Running', interview_datum: null, feedback: null, updated_at: '2026-05-28T00:00:00Z' },
+      error: null,
+    })
+    mockHistorieInsert.mockResolvedValue({ error: null })
+
+    const res = await PATCH(
+      makeRequest({ status: 'Running' }),
+      { params: Promise.resolve({ id: 'link-1' }) }
+    )
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.link.status).toBe('Running')
+  })
 })

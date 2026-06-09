@@ -157,7 +157,8 @@ export async function GET(request: NextRequest) {
       vakanz_id,
       vakanzen_data!vakanz_id(vakanz_nr),
       kandidaten_profile(kandidatenname, erfahrungslevel, vakanz_id, vakanzen(titel, vakanz_nr)),
-      agenturen!inner(name)
+      agenturen!inner(name),
+      ressource_vakanz_links!ressource_link_id(ressource_id)
     `, { count: 'exact' })
     .order('created_at', { ascending: false })
     .range(from, to)
@@ -173,10 +174,11 @@ export async function GET(request: NextRequest) {
   }
 
   const result = (data ?? []).map((b) => {
-    const { kandidaten_profile, agenturen, einkaufspreis, margenaufschlag, verkaufspreis, ...rest } = b as typeof b & {
+    const { kandidaten_profile, agenturen, einkaufspreis, margenaufschlag, verkaufspreis, ressource_vakanz_links, ...rest } = b as typeof b & {
       vakanzen_data: { vakanz_nr: string | null } | null
       kandidaten_profile: { kandidatenname: string; erfahrungslevel: string; vakanz_id: string; vakanzen: { titel: string; vakanz_nr: string | null } | null } | null
       agenturen: { name: string } | null
+      ressource_vakanz_links: { ressource_id: string } | null
     }
     const bTyped = b as typeof b & { vakanzen_data: { vakanz_nr: string | null } | null }
     const marge_euro = Number(margenaufschlag)
@@ -189,6 +191,7 @@ export async function GET(request: NextRequest) {
     const base = {
       ...rest,
       is_pool: isPool,
+      ressource_id: isPool ? (ressource_vakanz_links?.ressource_id ?? null) : null,
       kandidatenname: isPool ? (b.ressource_name ?? '–') : (kandidaten_profile?.kandidatenname ?? '–'),
       erfahrungslevel: isPool ? (b.erfahrungslevel_pool ?? '–') : (kandidaten_profile?.erfahrungslevel ?? '–'),
       vakanz_titel: isPool ? (b.vakanz_titel ?? '–') : (kandidaten_profile?.vakanzen?.titel ?? '–'),
@@ -289,6 +292,13 @@ export async function POST(request: NextRequest) {
       .eq('id', parsed.data.ressource_link_id)
       .single()
 
+    // Get vakanz_id from ressource_vakanz_links
+    const { data: linkData } = await supabase
+      .from('ressource_vakanz_links')
+      .select('vakanz_id')
+      .eq('id', parsed.data.ressource_link_id)
+      .single()
+
     const { data: neu, error } = await supabase
       .from('beauftragungen')
       .insert({
@@ -304,6 +314,7 @@ export async function POST(request: NextRequest) {
         startdatum: parsed.data.startdatum,
         enddatum: parsed.data.enddatum ?? null,
         stunden_woche: parsed.data.stunden_woche,
+        vakanz_id: linkData?.vakanz_id ?? null,
       })
       .select('id, einkaufspreis, margenaufschlag, verkaufspreis, aktiv, created_at')
       .single()
@@ -355,6 +366,13 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  // Get vakanz_id from kandidaten_profile
+  const { data: profData } = await supabase
+    .from('kandidaten_profile')
+    .select('vakanz_id')
+    .eq('id', parsed.data.profil_id)
+    .single()
+
   const { data: neu, error } = await supabase
     .from('beauftragungen')
     .insert({
@@ -366,6 +384,7 @@ export async function POST(request: NextRequest) {
       margenaufschlag,
       startdatum: parsed.data.startdatum,
       stunden_woche: parsed.data.stunden_woche,
+      vakanz_id: profData?.vakanz_id ?? null,
     })
     .select('id, einkaufspreis, margenaufschlag, verkaufspreis, aktiv, created_at')
     .single()

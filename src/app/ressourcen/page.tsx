@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation"
 import * as React from "react"
+import { Suspense } from "react"
+import { useTour } from "@/hooks/use-tour"
 import { toast } from "sonner"
 import {
   IconArrowRight,
@@ -21,6 +23,7 @@ import {
 
 import { ERFAHRUNGSLEVEL, RESSOURCE_VERFUEGBARKEIT } from "@/lib/constants"
 import type { Erfahrungslevel, RessourceVerfuegbarkeit } from "@/lib/constants"
+import type { Beauftragung } from "@/lib/resource-availability"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { Badge } from "@/components/ui/badge"
@@ -66,6 +69,7 @@ import {
 
 interface Ressource {
   id: string
+  ressource_code?: string | null
   agentur_id: string
   name: string
   rolle?: string | null
@@ -77,6 +81,7 @@ interface Ressource {
   ek_tagesrate?: number | null
   notizen?: string | null
   link_count?: number
+  hat_beauftragt_link?: boolean
   arbeitsmodell?: string | null
   location?: string | null
   agentur_name?: string | null
@@ -1097,9 +1102,11 @@ function TableSkeletonRows({ cols }: { cols: number }) {
 
 // ── RessourcenPage ─────────────────────────────────────────────────────────────
 
-export default function RessourcenPage() {
+function RessourcenPage() {
+  useTour()
   // ── Freelancer-Pool state ───────────────────────────────────────────────────
   const [ressourcen, setRessourcen] = React.useState<Ressource[]>([])
+  const [beauftragungen, setBeauftragungen] = React.useState<Beauftragung[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -1183,6 +1190,15 @@ export default function RessourcenPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showDeaktiviert])
 
+  React.useEffect(() => {
+    if (ressourcen.length === 0) return
+    const resourceIds = ressourcen.map((r) => r.id).join(',')
+    fetch(`/api/beauftragungen?resource_ids=${encodeURIComponent(resourceIds)}`)
+      .then((res) => res.ok ? res.json() : { beauftragungen: [] })
+      .then((d) => setBeauftragungen(d.beauftragungen ?? []))
+      .catch(() => {})
+  }, [ressourcen])
+
   const agenturen = React.useMemo(() => {
     const seen = new Map<string, string>()
     for (const r of ressourcen) {
@@ -1194,7 +1210,10 @@ export default function RessourcenPage() {
   }, [ressourcen])
 
   const filtered = ressourcen.filter((r) => {
-    if (statusFilter !== "alle" && r.verfuegbarkeit !== statusFilter) return false
+    if (statusFilter !== "alle") {
+      if (statusFilter === "Beauftragt") { if (!r.hat_beauftragt_link) return false }
+      else if (r.verfuegbarkeit !== statusFilter) return false
+    }
     if (levelFilter !== "alle" && r.erfahrungslevel !== levelFilter) return false
     if (agenturFilter !== "alle" && r.agentur_id !== agenturFilter) return false
     const q = searchQuery.toLowerCase()
@@ -1228,7 +1247,7 @@ export default function RessourcenPage() {
         <div className="flex flex-1 flex-col">
           <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
               {/* Header */}
-              <div className="flex items-center justify-between px-4 lg:px-6">
+              <div data-tour="ressourcen-header" className="flex items-center justify-between px-4 lg:px-6">
                 <div>
                   <h2 className="text-xl font-semibold">Freelancer-Pool</h2>
                   <p className="text-sm text-muted-foreground">
@@ -1256,8 +1275,8 @@ export default function RessourcenPage() {
               </div>
 
               {/* Filter Bar */}
-              <div className="flex flex-wrap items-center gap-3 px-4 lg:px-6">
-                <div className="relative min-w-[200px] max-w-sm flex-1">
+              <div data-tour="ressourcen-filter" className="flex flex-wrap items-center gap-3 px-4 lg:px-6">
+                <div data-tour="ressourcen-search" className="relative min-w-[200px] max-w-sm flex-1">
                   <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     className="pl-9"
@@ -1275,6 +1294,7 @@ export default function RessourcenPage() {
                     {RESSOURCE_VERFUEGBARKEIT.filter((v) => v !== "Deaktiviert").map((v) => (
                       <SelectItem key={v} value={v}>{v}</SelectItem>
                     ))}
+                    <SelectItem value="Beauftragt">Beauftragt</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select value={levelFilter} onValueChange={setLevelFilter}>
@@ -1314,11 +1334,12 @@ export default function RessourcenPage() {
                 </div>
               )}
 
-              <div className="px-4 lg:px-6">
+              <div data-tour="ressourcen-table" className="px-4 lg:px-6">
                 <div className="rounded-lg border">
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead>ID</TableHead>
                         <TableHead>Name</TableHead>
                         <TableHead>Agentur</TableHead>
                         <TableHead>Rolle</TableHead>
@@ -1332,10 +1353,10 @@ export default function RessourcenPage() {
                     </TableHeader>
                     <TableBody>
                       {loading ? (
-                        <TableSkeletonRows cols={9} />
+                        <TableSkeletonRows cols={10} />
                       ) : filtered.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={9} className="py-12 text-center text-muted-foreground">
+                          <TableCell colSpan={10} className="py-12 text-center text-muted-foreground">
                             {ressourcen.length === 0 ? "Noch keine Ressourcen vorhanden." : "Keine Ressourcen für diese Filter."}
                           </TableCell>
                         </TableRow>
@@ -1348,16 +1369,27 @@ export default function RessourcenPage() {
                           return (
                             <React.Fragment key={r.id}>
                               <TableRow
-                                className="cursor-pointer"
-                                onClick={() => { setSelectedRessource(r); setDetailOpen(true) }}
+                                className="cursor-pointer hover:bg-muted/50"
+                                onClick={() => router.push(`/ressourcen/${r.id}`)}
                               >
+                                <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                                  {r.ressource_code ?? '—'}
+                                </TableCell>
                                 <TableCell className="font-medium">{r.name}</TableCell>
                                 <TableCell className="text-sm text-muted-foreground">{r.agentur_name ?? "—"}</TableCell>
                                 <TableCell className="text-sm text-muted-foreground">{r.rolle || "—"}</TableCell>
                                 <TableCell className="text-sm text-muted-foreground">
-                                  {r.verfuegbar_ab
-                                    ? new Date(r.verfuegbar_ab).toLocaleDateString("de-DE")
-                                    : "—"}
+                                  {(() => {
+                                    if (r.hat_beauftragt_link) {
+                                      const b = beauftragungen.find((b) => b.ressource_id === r.id)
+                                      return b?.end_date
+                                        ? new Date(b.end_date).toLocaleDateString("de-DE")
+                                        : "—"
+                                    }
+                                    return r.verfuegbar_ab
+                                      ? new Date(r.verfuegbar_ab).toLocaleDateString("de-DE")
+                                      : "—"
+                                  })()}
                                 </TableCell>
                                 <TableCell>
                                   <div className="flex flex-col gap-0.5 text-sm">
@@ -1368,14 +1400,20 @@ export default function RessourcenPage() {
                                   </div>
                                 </TableCell>
                                 <TableCell>
-                                  <Badge variant="outline" className={verfuegbarkeitColors[r.verfuegbarkeit]}>
-                                    {verfuegbarkeitLabel[r.verfuegbarkeit]}
-                                  </Badge>
+                                  {r.hat_beauftragt_link ? (
+                                    <Badge variant="outline" className="bg-teal-100 text-teal-700 border-teal-200">
+                                      Beauftragt
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className={verfuegbarkeitColors[r.verfuegbarkeit]}>
+                                      {verfuegbarkeitLabel[r.verfuegbarkeit]}
+                                    </Badge>
+                                  )}
                                 </TableCell>
                                 <TableCell>
                                   {r.ek_tagesrate != null ? `${r.ek_tagesrate.toLocaleString("de-DE")} €` : <span className="text-muted-foreground">—</span>}
                                 </TableCell>
-                                <TableCell onClick={(e) => { if (linkCount > 0) handleToggleExpand(r.id, e) }}>
+                                <TableCell onClick={(e) => { e.stopPropagation(); if (linkCount > 0) handleToggleExpand(r.id, e) }}>
                                   {linkCount > 0 ? (
                                     <button
                                       className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
@@ -1412,7 +1450,7 @@ export default function RessourcenPage() {
                               </TableRow>
                               {isExpanded && (
                                 <TableRow className="bg-muted/30 hover:bg-muted/30">
-                                  <TableCell colSpan={9} className="px-6 py-0">
+                                  <TableCell colSpan={10} className="px-6 py-0">
                                     {isLoadingLinks ? (
                                       <div className="py-2">
                                         {[1, 2].map((i) => (
@@ -1495,5 +1533,13 @@ export default function RessourcenPage() {
         ressource={selectedRessource}
       />
     </SidebarProvider>
+  )
+}
+
+export default function RessourcenPageWrapper() {
+  return (
+    <Suspense>
+      <RessourcenPage />
+    </Suspense>
   )
 }

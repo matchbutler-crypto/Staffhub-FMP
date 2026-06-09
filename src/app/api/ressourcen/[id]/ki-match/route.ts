@@ -101,7 +101,7 @@ export async function POST(
   // Vakanz laden
   const { data: vakanz, error: vakanzError } = await supabase
     .from('vakanzen_data')
-    .select('id, titel, rolle, beschreibung, skills, erfahrungslevel')
+    .select('id, titel, rolle, beschreibung, skills, skills_nice_have, erfahrungslevel')
     .eq('id', vakanz_id)
     .single()
   if (vakanzError || !vakanz) {
@@ -122,6 +122,7 @@ export async function POST(
         titel: vakanz.titel || vakanz.rolle,
         beschreibung: vakanz.beschreibung ?? '',
         skills: vakanz.skills ?? [],
+        skills_nice_have: vakanz.skills_nice_have ?? [],
         erfahrungslevel: vakanz.erfahrungslevel,
       },
       {

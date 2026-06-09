@@ -2,8 +2,10 @@
 
 import * as React from 'react'
 import {
+  IconBook,
   IconBrandSlack,
   IconBriefcase,
+  IconBug,
   IconBuilding,
   IconBulb,
   IconClipboardList,
@@ -21,6 +23,7 @@ import { NavMain } from '@/components/nav-main'
 import { NavSecondary } from '@/components/nav-secondary'
 import { NavUser } from '@/components/nav-user'
 import { useUser } from '@/context/user-context'
+import { usePendingFeedback } from '@/hooks/use-pending-feedback'
 import { useUnreadNotes } from '@/hooks/use-unread-notes'
 import {
   Sidebar,
@@ -97,6 +100,12 @@ const ALL_NAV_SECONDARY = [
     roles: ['Admin', 'Staffhub Manager', 'Agentur', 'Controller'],
   },
   {
+    title: 'Wiki',
+    url: '/wiki',
+    icon: IconBook,
+    roles: ['Admin', 'Staffhub Manager', 'Agentur', 'Controller'],
+  },
+  {
     title: 'Einstellungen',
     url: '/settings',
     icon: IconSettingsCog,
@@ -108,19 +117,28 @@ const ALL_NAV_SECONDARY = [
     icon: IconSettings,
     roles: ['Admin'],
   },
+  {
+    title: 'Feedback',
+    url: '/feedback',
+    icon: IconBug,
+    roles: ['Admin'],
+  },
 ]
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { user } = useUser()
   const rolle = user?.rolle ?? 'Agentur'
   const unreadNotes = useUnreadNotes()
+  const pendingFeedback = usePendingFeedback()
 
   const navMain = ALL_NAV_MAIN.filter((item) => item.roles.includes(rolle))
   const navSecondary = ALL_NAV_SECONDARY.filter((item) =>
     item.roles.includes(rolle)
-  ).map((item) =>
-    item.url === '/release-notes' ? { ...item, badge: unreadNotes } : item
-  )
+  ).map((item) => {
+    if (item.url === '/release-notes') return { ...item, badge: unreadNotes }
+    if (item.url === '/feedback') return { ...item, badge: pendingFeedback }
+    return item
+  })
 
   const initials = user?.name
     ? user.name

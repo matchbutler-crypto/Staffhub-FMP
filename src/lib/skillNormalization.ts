@@ -303,7 +303,13 @@ export async function normalizeSkills(
     }
   }
 
-  return results;
+  const seenMatchedSkillIds = new Set<string>();
+  return results.filter((skill) => {
+    if (skill.matchType === 'pending') return true;
+    if (seenMatchedSkillIds.has(skill.id)) return false;
+    seenMatchedSkillIds.add(skill.id);
+    return true;
+  });
 }
 
 /**

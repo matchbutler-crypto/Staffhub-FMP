@@ -30,11 +30,17 @@ export const ERFAHRUNGSLEVEL = ['Junior', 'Mid', 'Senior', 'Expert'] as const
 
 export type Erfahrungslevel = typeof ERFAHRUNGSLEVEL[number]
 
-// ── Arbeitsmodell ──────────────────────────────────────────────────────────────
+// ── Arbeitsmodell (Vakanzen) ───────────────────────────────────────────────────
 
 export const ARBEITSMODELL = ['Remote', 'Hybrid', 'Onsite'] as const
 
 export type Arbeitsmodell = typeof ARBEITSMODELL[number]
+
+// ── Arbeitsmodell (Ressourcen) ────────────────────────────────────────────────
+
+export const ARBEITSMODELL_RESSOURCE = ['Onshore', 'Nearshore', 'Offshore'] as const
+
+export type ArbeitsmodellRessource = typeof ARBEITSMODELL_RESSOURCE[number]
 
 // ── Rollen ─────────────────────────────────────────────────────────────────────
 
@@ -66,6 +72,7 @@ export const BRANCHEN = [
   'Öffentlicher Sektor',
   'Energie / Utilities',
   'Medien / Entertainment',
+  'Verteidigungsindustrie',
   'Sonstige',
 ] as const
 
