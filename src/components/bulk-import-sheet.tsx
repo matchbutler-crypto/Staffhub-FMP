@@ -55,6 +55,7 @@ export interface BulkImportSheetProps {
   onSuccess: () => void
   isManagerOrAdmin: boolean
   agenturId: string | null
+  agenturen?: { id: string; name: string }[]
 }
 
 // ---------------------------------------------------------------------------
@@ -81,9 +82,10 @@ interface UploadPhaseProps {
   onFilesChange: (files: File[]) => void
   onStart: () => void
   maxFiles: number
+  disabled?: boolean
 }
 
-function UploadPhase({ files, onFilesChange, onStart, maxFiles }: UploadPhaseProps) {
+function UploadPhase({ files, onFilesChange, onStart, maxFiles, disabled }: UploadPhaseProps) {
   const [validationError, setValidationError] = React.useState<string | null>(null)
 
   const onDrop = useCallback(
@@ -181,7 +183,7 @@ function UploadPhase({ files, onFilesChange, onStart, maxFiles }: UploadPhasePro
       <Button
         type="button"
         className="w-full"
-        disabled={files.length === 0}
+        disabled={files.length === 0 || disabled}
         onClick={onStart}
       >
         {files.length > 0 ? `${files.length} PDF(s) importieren` : 'Importieren'}
@@ -274,7 +276,7 @@ function WizardForm({
     defaultValues: {
       name: '',
       rolle: '',
-      erfahrungslevel: 'Mid',
+      erfahrungslevel: 'Senior',
       verfuegbar_ab: getFirstOfNextMonth(),
       arbeitsmodell: 'Onshore',
       ek_tagesrate: '',
@@ -525,6 +527,7 @@ export function BulkImportSheet({
   onSuccess,
   isManagerOrAdmin,
   agenturId,
+  agenturen = [],
 }: BulkImportSheetProps) {
   const [phase, setPhase] = React.useState<Phase>('upload')
   const [files, setFiles] = React.useState<File[]>([])
@@ -534,8 +537,12 @@ export function BulkImportSheet({
   const [confirmedCount, setConfirmedCount] = React.useState(0)
   const [skippedPaths, setSkippedPaths] = React.useState<string[]>([])
   const [closeConfirmOpen, setCloseConfirmOpen] = React.useState(false)
+  const [selectedAgenturId, setSelectedAgenturId] = React.useState<string>(agenturId ?? '')
   const extractionAbortRef = React.useRef<AbortController | null>(null)
   const extractionResultsRef = React.useRef<ExtractedItem[]>([])
+
+  const effectiveAgenturId = selectedAgenturId || agenturId
+  const needsAgenturSelect = isManagerOrAdmin && !agenturId && agenturen.length > 0
 
   const maxFiles = isManagerOrAdmin ? 30 : 10
 
@@ -600,8 +607,8 @@ export function BulkImportSheet({
           method: 'POST',
           body: fd,
           signal: abortController.signal,
-          ...(isManagerOrAdmin && agenturId
-            ? { headers: { 'x-agentur-id': agenturId } }
+          ...(isManagerOrAdmin && effectiveAgenturId
+            ? { headers: { 'x-agentur-id': effectiveAgenturId } }
             : {}),
         })
         if (abortController.signal.aborted) return
@@ -692,12 +699,34 @@ export function BulkImportSheet({
             </SheetDescription>
           </SheetHeader>
           <div className="mt-6">
+            {needsAgenturSelect && (
+              <div className="mb-5 space-y-1.5">
+                <Label htmlFor="bulk-agentur">Agentur *</Label>
+                <Select
+                  value={selectedAgenturId}
+                  onValueChange={setSelectedAgenturId}
+                  disabled={phase !== 'upload'}
+                >
+                  <SelectTrigger id="bulk-agentur">
+                    <SelectValue placeholder="Agentur wählen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {agenturen.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             {phase === 'upload' && (
               <UploadPhase
                 files={files}
                 onFilesChange={setFiles}
                 onStart={handleStartExtraction}
                 maxFiles={maxFiles}
+                disabled={needsAgenturSelect && !selectedAgenturId}
               />
             )}
             {phase === 'extracting' && (
@@ -709,7 +738,7 @@ export function BulkImportSheet({
                 item={currentItem}
                 index={wizardIndex}
                 total={extractedItems.length}
-                agenturId={agenturId}
+                agenturId={effectiveAgenturId}
                 isManagerOrAdmin={isManagerOrAdmin}
                 onConfirm={handleConfirm}
                 onSkip={handleSkip}

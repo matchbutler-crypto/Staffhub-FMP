@@ -2737,6 +2737,7 @@ export default function PoolPage() {
         onSuccess={fetchRessourcen}
         isManagerOrAdmin={isManager}
         agenturId={user?.agentur_id ?? null}
+        agenturen={agenturen}
       />
 
       <ResourcePoolFormSheet
