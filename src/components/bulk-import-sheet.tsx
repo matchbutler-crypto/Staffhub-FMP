@@ -35,7 +35,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { ERFAHRUNGSLEVEL } from '@/lib/constants'
+import { ERFAHRUNGSLEVEL, ARBEITSMODELL_RESSOURCE } from '@/lib/constants'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -62,9 +62,6 @@ export interface BulkImportSheetProps {
 // ---------------------------------------------------------------------------
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024
-
-// API-level arbeitsmodell values (different from UI constants)
-const ARBEITSMODELL_API = ['Onshore', 'Nearshore', 'Offshore'] as const
 
 // ---------------------------------------------------------------------------
 // Helper functions
@@ -237,7 +234,10 @@ const wizardSchema = z.object({
   erfahrungslevel: z.enum(['Junior', 'Mid', 'Senior', 'Expert']),
   verfuegbar_ab: z.string().min(1, 'Datum ist erforderlich'),
   arbeitsmodell: z.enum(['Onshore', 'Nearshore', 'Offshore']),
-  ek_tagesrate: z.string().optional(),
+  ek_tagesrate: z.string().optional().refine(
+    (v) => !v || parseFloat(v) > 0,
+    'Muss größer als 0 sein'
+  ),
 })
 type WizardFormData = z.infer<typeof wizardSchema>
 
@@ -247,7 +247,7 @@ interface WizardFormProps {
   total: number
   agenturId: string | null
   isManagerOrAdmin: boolean
-  onConfirm: (tempCvPfad: string) => void
+  onConfirm: () => void
   onSkip: (tempCvPfad: string) => void
 }
 
@@ -333,7 +333,7 @@ function WizardForm({
         return
       }
 
-      onConfirm(item.tempCvPfad)
+      onConfirm()
     } finally {
       setIsSubmitting(false)
     }
@@ -392,7 +392,7 @@ function WizardForm({
           control={control}
           name="erfahrungslevel"
           render={({ field }) => (
-            <Select onValueChange={field.onChange} defaultValue={field.value}>
+            <Select onValueChange={field.onChange} value={field.value}>
               <SelectTrigger>
                 <SelectValue placeholder="Level wählen" />
               </SelectTrigger>
@@ -465,12 +465,12 @@ function WizardForm({
           control={control}
           name="arbeitsmodell"
           render={({ field }) => (
-            <Select onValueChange={field.onChange} defaultValue={field.value}>
+            <Select onValueChange={field.onChange} value={field.value}>
               <SelectTrigger>
                 <SelectValue placeholder="Modell wählen" />
               </SelectTrigger>
               <SelectContent>
-                {ARBEITSMODELL_API.map((modell) => (
+                {ARBEITSMODELL_RESSOURCE.map((modell) => (
                   <SelectItem key={modell} value={modell}>
                     {modell}
                   </SelectItem>
@@ -492,6 +492,7 @@ function WizardForm({
           placeholder="z.B. 650"
           {...register('ek_tagesrate')}
         />
+        {errors.ek_tagesrate && <p className="text-xs text-destructive">{errors.ek_tagesrate.message}</p>}
       </div>
 
       {/* Buttons */}
@@ -533,10 +534,13 @@ export function BulkImportSheet({
   const [confirmedCount, setConfirmedCount] = React.useState(0)
   const [skippedPaths, setSkippedPaths] = React.useState<string[]>([])
   const [closeConfirmOpen, setCloseConfirmOpen] = React.useState(false)
+  const extractionAbortRef = React.useRef<AbortController | null>(null)
 
   const maxFiles = isManagerOrAdmin ? 30 : 10
 
   const resetState = () => {
+    extractionAbortRef.current?.abort()
+    extractionAbortRef.current = null
     setPhase('upload')
     setFiles([])
     setExtractedItems([])
@@ -575,6 +579,9 @@ export function BulkImportSheet({
     setPhase('extracting')
     setExtractionProgress(0)
 
+    const abortController = new AbortController()
+    extractionAbortRef.current = abortController
+
     const results: ExtractedItem[] = []
 
     for (let i = 0; i < files.length; i++) {
@@ -583,7 +590,12 @@ export function BulkImportSheet({
       fd.append('file', files[i])
       fd.append('index', String(i))
       try {
-        const res = await fetch('/api/ressourcen/bulk-extract', { method: 'POST', body: fd })
+        const res = await fetch('/api/ressourcen/bulk-extract', {
+          method: 'POST',
+          body: fd,
+          signal: abortController.signal,
+        })
+        if (abortController.signal.aborted) return
         if (res.ok) {
           const data = await res.json()
           results.push({
@@ -595,6 +607,7 @@ export function BulkImportSheet({
           toast.error(`Fehler bei ${files[i].name} — wird übersprungen`)
         }
       } catch {
+        if (abortController.signal.aborted) return
         toast.error(`Fehler bei ${files[i].name} — wird übersprungen`)
       }
     }
@@ -610,8 +623,7 @@ export function BulkImportSheet({
     setPhase('wizard')
   }
 
-  const handleConfirm = (tempCvPfad: string) => {
-    void tempCvPfad
+  const handleConfirm = () => {
     const newConfirmedCount = confirmedCount + 1
     setConfirmedCount(newConfirmedCount)
     const nextIndex = wizardIndex + 1
@@ -633,15 +645,15 @@ export function BulkImportSheet({
     }
   }
 
-  const handleSheetOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen && phase === 'wizard') {
+  const handleSheetOpenChange = (open: boolean) => {
+    if (!open && phase === 'wizard') {
       setCloseConfirmOpen(true)
       return
     }
-    if (!nextOpen) {
+    if (!open) {
       resetState()
     }
-    onOpenChange(nextOpen)
+    onOpenChange(open)
   }
 
   const handleForceClose = () => {
@@ -684,6 +696,7 @@ export function BulkImportSheet({
             )}
             {phase === 'wizard' && currentItem && (
               <WizardForm
+                key={currentItem.tempCvPfad}
                 item={currentItem}
                 index={wizardIndex}
                 total={extractedItems.length}
