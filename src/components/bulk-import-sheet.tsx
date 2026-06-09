@@ -262,7 +262,7 @@ function WizardForm({
   onConfirm,
   onSkip,
 }: WizardFormProps) {
-  const [skills, setSkills] = React.useState<string[]>(item.skills)
+  const [skills, setSkills] = React.useState<string[]>(item.skills.slice(0, 30))
   const [skillInput, setSkillInput] = React.useState('')
   const [isSubmitting, setIsSubmitting] = React.useState(false)
 
@@ -285,7 +285,7 @@ function WizardForm({
 
   const addSkill = () => {
     const trimmed = skillInput.trim()
-    if (trimmed && !skills.includes(trimmed)) {
+    if (trimmed && !skills.includes(trimmed) && skills.length < 30) {
       setSkills((prev) => [...prev, trimmed])
     }
     setSkillInput('')
