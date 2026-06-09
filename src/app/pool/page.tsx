@@ -12,6 +12,7 @@ import {
   IconClock,
   IconDownload,
   IconDotsVertical,
+  IconFileImport,
   IconFileText,
   IconLink,
   IconMessage,
@@ -30,6 +31,7 @@ import type { Erfahrungslevel, RessourceVerfuegbarkeit } from "@/lib/constants"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { TagInput } from "@/components/tag-input"
+import { BulkImportSheet } from "@/components/bulk-import-sheet"
 import { ResourcePoolFormSheet } from "@/components/resource-pool-form-sheet"
 import {
   AlertDialog,
@@ -2087,6 +2089,7 @@ export default function PoolPage() {
   const [editingRessource, setEditingRessource] = React.useState<Ressource | null>(null)
 
   const [poolFormSheetOpen, setPoolFormSheetOpen] = React.useState(false)
+  const [bulkImportOpen, setBulkImportOpen] = React.useState(false)
 
   const [deaktivierenOpen, setDeaktivierenOpen] = React.useState(false)
   const [deaktivierenRessource, setDeaktivierenRessource] = React.useState<Ressource | null>(null)
@@ -2290,15 +2293,25 @@ export default function PoolPage() {
                     {loading ? "Lädt…" : `${filtered.length} Ressource${filtered.length !== 1 ? "n" : ""}`}
                   </p>
                 </div>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setPoolFormSheetOpen(true)
-                  }}
-                >
-                  <IconPlus className="size-4" />
-                  Neue Ressource
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setBulkImportOpen(true)}
+                  >
+                    <IconFileImport className="size-4" />
+                    Bulk Import
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setPoolFormSheetOpen(true)
+                    }}
+                  >
+                    <IconPlus className="size-4" />
+                    Neue Ressource
+                  </Button>
+                </div>
               </div>
 
               {/* Filter Bar */}
@@ -2716,6 +2729,14 @@ export default function PoolPage() {
         onOpenChange={setProfilEinreichenOpen}
         ressource={profilEinreichenRessource}
         onSuccess={fetchRessourcen}
+      />
+
+      <BulkImportSheet
+        open={bulkImportOpen}
+        onOpenChange={setBulkImportOpen}
+        onSuccess={fetchRessourcen}
+        isManagerOrAdmin={isManager}
+        agenturId={user?.agentur_id ?? null}
       />
 
       <ResourcePoolFormSheet
