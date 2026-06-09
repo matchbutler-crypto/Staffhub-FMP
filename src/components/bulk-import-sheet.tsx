@@ -236,6 +236,7 @@ const wizardSchema = z.object({
   erfahrungslevel: z.enum(['Junior', 'Mid', 'Senior', 'Expert']),
   verfuegbar_ab: z.string().min(1, 'Datum ist erforderlich'),
   arbeitsmodell: z.enum(['Onshore', 'Nearshore', 'Offshore']),
+  location: z.string().max(200).optional(),
   ek_tagesrate: z.string().optional().refine(
     (v) => !v || parseFloat(v) > 0,
     'Muss größer als 0 sein'
@@ -279,6 +280,7 @@ function WizardForm({
       erfahrungslevel: 'Senior',
       verfuegbar_ab: getFirstOfNextMonth(),
       arbeitsmodell: 'Onshore',
+      location: '',
       ek_tagesrate: '',
     },
   })
@@ -318,6 +320,7 @@ function WizardForm({
         verfuegbarkeit: 'Verfügbar ab',
         verfuegbar_ab: data.verfuegbar_ab,
         arbeitsmodell: data.arbeitsmodell,
+        ...(data.location ? { location: data.location } : {}),
         tempCvPfad: item.tempCvPfad,
         ...(data.ek_tagesrate ? { ek_tagesrate: parseFloat(data.ek_tagesrate) } : {}),
         ...(isManagerOrAdmin && agenturId ? { agentur_id: agenturId } : {}),
@@ -486,6 +489,16 @@ function WizardForm({
               </SelectContent>
             </Select>
           )}
+        />
+      </div>
+
+      {/* Location */}
+      <div className="space-y-1.5">
+        <Label htmlFor="wiz-location">Location (optional)</Label>
+        <Input
+          id="wiz-location"
+          placeholder="z.B. München, Remote"
+          {...register('location')}
         />
       </div>
 

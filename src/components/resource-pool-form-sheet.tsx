@@ -342,7 +342,7 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess, isManager
           name: savedName,
           rolle: savedRolle ?? null,
           skills: normalizeSkillNames(extractedSkills).slice(0, 30),
-          erfahrungslevel: 'Mid',
+          erfahrungslevel: 'Senior',
           verfuegbarkeit: savedVerfuegbarAb ? 'Verfügbar ab' : 'Jetzt verfügbar',
           verfuegbar_ab: savedVerfuegbarAb ?? null,
           ek_tagesrate: savedEkTagesrate ?? null,

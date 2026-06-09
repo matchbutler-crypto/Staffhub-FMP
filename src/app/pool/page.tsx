@@ -303,7 +303,7 @@ function RessourceFormSheet({
     try {
       const url =
         mode === "create" ? "/api/ressourcen" : `/api/ressourcen/${ressource!.id}`
-      const method = mode === "create" ? "POST" : "PUT"
+      const method = mode === "create" ? "POST" : "PATCH"
 
       const res = await fetch(url, {
         method,

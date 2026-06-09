@@ -241,7 +241,7 @@ export function ProfilEinreichenSheet({
       verfuegbar_ab: '',
       verkaufspreis: undefined,
       skills: [],
-      erfahrungslevel: undefined,
+      erfahrungslevel: 'Senior',
       profiltext: '',
       kommentar_agentur: '',
     },
@@ -269,7 +269,7 @@ export function ProfilEinreichenSheet({
         verfuegbar_ab: '',
         verkaufspreis: undefined,
         skills: [],
-        erfahrungslevel: undefined,
+        erfahrungslevel: 'Senior',
         profiltext: '',
         kommentar_agentur: '',
       })
