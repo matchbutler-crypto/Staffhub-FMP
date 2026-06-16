@@ -530,7 +530,7 @@ function VakanzCard({
                 <p className="text-xs font-medium">{new Date(vakanz.published_at).toLocaleDateString("de-DE")}</p>
               </div>
             )}
-            {vakanz.kunde && (
+            {!isAgentur && vakanz.kunde && (
               <div>
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Kunde</p>
                 <p className="text-xs font-medium">{vakanz.kunde}</p>
