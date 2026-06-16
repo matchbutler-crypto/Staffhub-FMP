@@ -7,6 +7,11 @@ const PUBLIC_ROUTES = ['/login', '/api/ollama-health', '/api/test-ollama']
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  // ── External API routes — skip session check entirely ──────────────────────
+  if (pathname.startsWith('/api/external/')) {
+    return NextResponse.next({ request })
+  }
+
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
