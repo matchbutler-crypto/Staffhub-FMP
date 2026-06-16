@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { isAllowedRoute, isSafeRedirect } from '@/lib/rbac'
+import { validateExternalApiKey } from '@/lib/external-api-auth'
 
 const PUBLIC_ROUTES = ['/login', '/api/ollama-health', '/api/test-ollama']
 
@@ -9,6 +10,8 @@ export async function middleware(request: NextRequest) {
 
   // ── External API routes — skip session check entirely ──────────────────────
   if (pathname.startsWith('/api/external/')) {
+    const keyError = validateExternalApiKey(request)
+    if (keyError) return keyError
     return NextResponse.next({ request })
   }
 
