@@ -19,6 +19,7 @@ const bodySchema = z.object({
 function buildDetailBlocks(
   vakanz: {
     id: string
+    vakanz_nr?: string | null
     titel: string
     rolle: string
     beschreibung: string
@@ -65,14 +66,14 @@ function buildDetailBlocks(
   }
 
   const ctaText =
-    `@channel If your profile matches the vacancy, submit your CV directly: ${vakanzUrl}\n\n\n\n\n GOOD LUCK :V:\n\n\n\n\n`
+    `@channel If your profile matches the vacancy, submit your CV directly: <${vakanzUrl}|go to vacancy>\n\n\n\n\n GOOD LUCK :V:\n\n\n\n\n`
 
   return [
     {
       type: 'header',
       text: {
         type: 'plain_text',
-        text: `:mega:  ${vakanz.titel} | NEW`,
+        text: `:mega:  ${vakanz.vakanz_nr ? `${vakanz.vakanz_nr} | ` : ''}${vakanz.titel} | NEW`,
       },
     },
     { type: 'divider' },
@@ -158,7 +159,7 @@ export async function POST(
   // ── Vakanz laden ────────────────────────────────────────────────────────────
   const { data: vakanz, error: vakanzError } = await supabase
     .from('vakanzen')
-    .select('id, titel, rolle, beschreibung, skills, erfahrungslevel, startdatum, enddatum, auslastung, arbeitsmodell, standort, branche, teamgroesse, budget_intern')
+    .select('id, vakanz_nr, titel, rolle, beschreibung, skills, erfahrungslevel, startdatum, enddatum, auslastung, arbeitsmodell, standort, branche, teamgroesse, budget_intern')
     .eq('id', id)
     .single()
 
