@@ -49,8 +49,9 @@ export async function PATCH(
   const body = await request.json().catch(() => null)
   const parsed = updateVakanzSchema.safeParse(body ?? {})
   if (!parsed.success) {
+    const flat = parsed.error.flatten()
     return NextResponse.json(
-      { error: 'Validierungsfehler', details: parsed.error.flatten().fieldErrors },
+      { error: flat.formErrors[0] ?? 'Validierungsfehler', details: flat.fieldErrors },
       { status: 400 }
     )
   }
