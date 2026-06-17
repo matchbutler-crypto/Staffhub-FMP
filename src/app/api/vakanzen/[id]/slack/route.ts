@@ -66,7 +66,7 @@ function buildDetailBlocks(
   }
 
   const ctaText =
-    `@channel If your profile matches the vacancy, submit your CV directly: <${vakanzUrl}|go to vacancy>\n\n\n\n\n GOOD LUCK :V:\n\n\n\n\n`
+    `@channel If your profile matches the vacancy, submit your CV directly: <${vakanzUrl}|LINK>\n\n\n\n\n GOOD LUCK :V:\n\n\n\n\n`
 
   return [
     {

@@ -51,7 +51,7 @@ function statusToLine(
   const start = startdatum
     ? new Date(startdatum).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
     : '–'
-  const link = `<${appUrl}/vakanzen/${id}|go to vacancy>`
+  const link = `<${appUrl}/vakanzen/${id}|LINK>`
 
   if (status === 'Geschlossen') return `~${prefix} | ${start} | CLOSED~ | ${link}`
   const label = status === 'Offen' ? 'NEW' : 'OPEN'
