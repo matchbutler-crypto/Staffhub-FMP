@@ -48,7 +48,7 @@ export async function validateExternalApiKey(
     .from('external_api_keys')
     .update({ last_used_at: new Date().toISOString() })
     .eq('id', data.id)
-    .then(() => {})
+    .then(() => {}, () => {})
 
   return null
 }

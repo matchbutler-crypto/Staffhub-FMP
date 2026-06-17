@@ -14,7 +14,7 @@ export async function PATCH(
   const authError = await validateExternalApiKey(request, 'vorschlaege:update')
   if (authError) return authError
 
-  const { matchId } = await params
+  const { id: vakanzId, matchId } = await params
   const body = await request.json().catch(() => null)
   const parsed = statusSchema.safeParse(body)
   if (!parsed.success) {
@@ -30,6 +30,7 @@ export async function PATCH(
     .from('ressource_vakanz_links')
     .select('id, status')
     .eq('id', matchId)
+    .eq('vakanz_id', vakanzId)
     .single()
 
   if (fetchError || !link) {

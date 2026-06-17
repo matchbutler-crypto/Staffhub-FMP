@@ -8,7 +8,9 @@ vi.mock('@/lib/supabase/service-role', () => ({
   createServiceRoleClient: vi.fn(() => ({
     from: vi.fn(() => ({
       select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({ single: mockFetch }),
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({ single: mockFetch }),
+        }),
       }),
       update: vi.fn().mockReturnValue({
         eq: vi.fn().mockReturnValue({
