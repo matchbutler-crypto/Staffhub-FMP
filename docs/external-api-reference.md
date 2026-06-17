@@ -1,6 +1,7 @@
 # Staffhub External API — Referenz
 
-**Base URL:** `https://api.staffhub.digital/api/external/v1`  
+**Base URL Demand:** `https://api.staffhub.digital/demand/v1.0`  
+**Base URL Supply:** `https://api.staffhub.digital/supply/v1.0`  
 **Auth:** Header `X-API-Key: <key>`
 
 ---
@@ -20,11 +21,6 @@ X-API-Key: sfhub_<dein-key>
 | `401` | Key fehlt, ungültig oder deaktiviert |
 | `403` | Key gültig, aber fehlende Berechtigung für diesen Endpunkt |
 
-```json
-{ "error": "Nicht autorisiert" }
-{ "error": "Fehlende Berechtigung" }
-```
-
 ---
 
 ## Berechtigungen
@@ -40,330 +36,93 @@ X-API-Key: sfhub_<dein-key>
 
 ---
 
-## Endpunkte
+## Demand API — `api.staffhub.digital/demand/v1.0`
 
-### Vakanzen
-
-#### `GET /vakanzen`
-Liste aller Vakanzen.
-
-**Permission:** `vakanzen:read`
+### `GET /vakanzen`
+Liste aller Vakanzen. Permission: `vakanzen:read`
 
 ```bash
-curl https://api.staffhub.digital/api/external/v1/vakanzen \
+curl https://api.staffhub.digital/demand/v1.0/vakanzen \
   -H "X-API-Key: sfhub_..."
 ```
 
-**Response `200`:**
-```json
-{
-  "vakanzen": [
-    {
-      "id": "uuid",
-      "vakanz_nr": 42,
-      "branche": "IT",
-      "kunde": "ACME GmbH",
-      "rolle": "Frontend Engineer",
-      "status": "Offen",
-      "published": true,
-      "published_at": "2026-06-16T10:00:00Z",
-      "startdatum": "2026-07-01",
-      "enddatum": "2026-12-31",
-      "fte_anzahl": 1,
-      "arbeitsmodell": "Remote",
-      "erfahrungslevel": "Senior",
-      "created_at": "2026-06-16T09:00:00Z",
-      "updated_at": "2026-06-16T09:00:00Z"
-    }
-  ]
-}
-```
+Response `200`: `{ "vakanzen": [{ "id", "vakanz_nr", "branche", "kunde", "rolle", "status", "published", ... }] }`
 
 ---
 
-#### `POST /vakanzen`
-Neue Vakanz anlegen.
+### `POST /vakanzen`
+Neue Vakanz anlegen. Permission: `vakanzen:create`
 
-**Permission:** `vakanzen:create`
+Pflichtfelder: `branche`, `rolle`, `beschreibung`, `skills` (min. 1), `erfahrungslevel` (Junior/Mid/Senior/Expert), `startdatum` (YYYY-MM-DD), `enddatum` (YYYY-MM-DD), `fte_anzahl` (min. 0.1), `arbeitsmodell` (Remote/Hybrid/Onsite), `budget_intern`
 
-```bash
-curl -X POST https://api.staffhub.digital/api/external/v1/vakanzen \
-  -H "X-API-Key: sfhub_..." \
-  -H "Content-Type: application/json" \
-  -d '{
-    "branche": "IT",
-    "rolle": "Backend Engineer",
-    "beschreibung": "Node.js Projekt für Fintech-Kunde",
-    "skills": ["Node.js", "TypeScript", "PostgreSQL"],
-    "erfahrungslevel": "Senior",
-    "startdatum": "2026-08-01",
-    "enddatum": "2026-12-31",
-    "fte_anzahl": 1,
-    "arbeitsmodell": "Hybrid",
-    "budget_intern": 850
-  }'
-```
-
-**Pflichtfelder:**
-| Feld | Typ | Werte |
-|------|-----|-------|
-| `branche` | string | frei |
-| `rolle` | string | frei |
-| `beschreibung` | string | frei |
-| `skills` | string[] | min. 1, max. 20 |
-| `erfahrungslevel` | enum | `"Junior"` `"Mid"` `"Senior"` `"Expert"` |
-| `startdatum` | string | `YYYY-MM-DD` |
-| `enddatum` | string | `YYYY-MM-DD` |
-| `fte_anzahl` | number | min. 0.1 |
-| `arbeitsmodell` | enum | `"Remote"` `"Hybrid"` `"Onsite"` |
-| `budget_intern` | number | EK-Tagesrate in € |
-
-**Response `201`:**
-```json
-{
-  "vakanz": {
-    "id": "uuid",
-    "vakanz_nr": 43,
-    "rolle": "Backend Engineer",
-    "status": "Offen",
-    "created_at": "2026-06-16T10:00:00Z"
-  }
-}
-```
+Response `201`: `{ "vakanz": { "id", "vakanz_nr", "rolle", "status", "created_at" } }`
 
 ---
 
-#### `GET /vakanzen/{id}`
-Einzelne Vakanz lesen.
+### `GET /vakanzen/{id}`
+Einzelne Vakanz. Permission: `vakanzen:read`
 
-**Permission:** `vakanzen:read`
+Response `200`: `{ "vakanz": { alle Felder } }`  
+Response `404`: Vakanz nicht gefunden
+
+---
+
+### `PATCH /vakanzen/{id}`
+Vakanz aktualisieren. Permission: `vakanzen:update`
+
+Optionale Felder: `status` (Offen/Besetzt/Storniert), `beschreibung`, `budget_intern`, `skills`, `sourcing_erlaubt`
+
+Response `200`: `{ "vakanz": { "id", "status", "updated_at", ... } }`
+
+---
+
+### `PATCH /vakanzen/{id}/publish`
+Vakanz veröffentlichen/zurückziehen. Permission: `vakanzen:update`
+
+Body: `{ "published": true | false }`  
+Response `200`: `{ "published": true }`  
+Response `422`: Besetzte Vakanz kann nicht veröffentlicht werden
+
+---
+
+### `GET /vakanzen/{id}/vorschlaege`
+Vorgeschlagene Profile für eine Vakanz. Permission: `vorschlaege:read`
+
+Response `200`: `{ "vorschlaege": [{ "match_id", "status", "name", "agentur", "ek_tagesrate", "matching_score" }] }`
+
+Status-Werte: `Gespielt` · `Interview geplant` · `Zugesagt` · `Beauftragt` · `Abgesagt` · `Abgelehnt` · `Zurückgezogen`
+
+---
+
+### `PATCH /vakanzen/{id}/vorschlaege/{matchId}`
+Entscheidung zum Vorschlag setzen. Permission: `vorschlaege:update`
+
+Body: `{ "status": "Zugesagt" | "Abgelehnt" }`  
+Response `200`: `{ "vorschlag": { "id", "status", "updated_at" } }`
+
+---
+
+## Supply API — `api.staffhub.digital/supply/v1.0`
+
+### `GET /profiles`
+Alle verfügbaren Entwickler. Permission: `profile:read`
 
 ```bash
-curl https://api.staffhub.digital/api/external/v1/vakanzen/uuid \
+curl https://api.staffhub.digital/supply/v1.0/profiles \
   -H "X-API-Key: sfhub_..."
 ```
 
-**Response `200`:**
-```json
-{
-  "vakanz": {
-    "id": "uuid",
-    "vakanz_nr": 42,
-    "branche": "IT",
-    "kunde": "ACME GmbH",
-    "rolle": "Frontend Engineer",
-    "status": "Offen",
-    "beschreibung": "...",
-    "skills": ["React", "TypeScript"],
-    "erfahrungslevel": "Senior",
-    "startdatum": "2026-07-01",
-    "enddatum": "2026-12-31",
-    "fte_anzahl": 1,
-    "arbeitsmodell": "Remote",
-    "budget_intern": 850,
-    "sourcing_erlaubt": true,
-    "published": true,
-    "created_at": "2026-06-16T09:00:00Z",
-    "updated_at": "2026-06-16T09:00:00Z"
-  }
-}
-```
+Response `200`: `{ "profiles": [{ "id", "name", "skills", "erfahrungslevel", "verfuegbar_ab", "verfuegbarkeit", "arbeitsmodell" }] }`
+
+`verfuegbarkeit`-Werte: `"Jetzt verfügbar"` · `"Verfügbar ab"` · `"Nicht verfügbar"`
 
 ---
 
-#### `PATCH /vakanzen/{id}`
-Vakanz aktualisieren.
+### `GET /profiles/{id}`
+Profil-Details. Permission: `profile:read`
 
-**Permission:** `vakanzen:update`
-
-```bash
-curl -X PATCH https://api.staffhub.digital/api/external/v1/vakanzen/uuid \
-  -H "X-API-Key: sfhub_..." \
-  -H "Content-Type: application/json" \
-  -d '{
-    "status": "Besetzt",
-    "budget_intern": 900
-  }'
-```
-
-**Aktualisierbare Felder (alle optional):**
-| Feld | Typ | Werte |
-|------|-----|-------|
-| `status` | enum | `"Offen"` `"Besetzt"` `"Storniert"` |
-| `beschreibung` | string | frei |
-| `budget_intern` | number | EK-Tagesrate in € |
-| `skills` | string[] | max. 20 |
-| `sourcing_erlaubt` | boolean | |
-
-**Response `200`:**
-```json
-{
-  "vakanz": {
-    "id": "uuid",
-    "status": "Besetzt",
-    "updated_at": "2026-06-16T11:00:00Z"
-  }
-}
-```
-
----
-
-#### `PATCH /vakanzen/{id}/publish`
-Vakanz veröffentlichen oder zurückziehen.
-
-**Permission:** `vakanzen:update`
-
-```bash
-curl -X PATCH https://api.staffhub.digital/api/external/v1/vakanzen/uuid/publish \
-  -H "X-API-Key: sfhub_..." \
-  -H "Content-Type: application/json" \
-  -d '{ "published": true }'
-```
-
-**Response `200`:**
-```json
-{ "published": true }
-```
-
-**Fehler `422`** wenn Vakanz-Status `"Besetzt"`:
-```json
-{ "error": "Besetzte Vakanzen können nicht veröffentlicht werden" }
-```
-
----
-
-### Vorschläge
-
-#### `GET /vakanzen/{id}/vorschlaege`
-Vorgeschlagene Profile für eine Vakanz lesen.
-
-**Permission:** `vorschlaege:read`
-
-```bash
-curl https://api.staffhub.digital/api/external/v1/vakanzen/uuid/vorschlaege \
-  -H "X-API-Key: sfhub_..."
-```
-
-**Response `200`:**
-```json
-{
-  "vorschlaege": [
-    {
-      "match_id": "uuid",
-      "status": "Gespielt",
-      "name": "Anna Beispiel",
-      "agentur": "Agentur GmbH",
-      "ek_tagesrate": 850,
-      "matching_score": 87
-    }
-  ]
-}
-```
-
-**Status-Werte:** `Gespielt` · `Interview geplant` · `Zugesagt` · `Beauftragt` · `Abgesagt` · `Abgelehnt` · `Zurückgezogen`
-
----
-
-#### `PATCH /vakanzen/{id}/vorschlaege/{matchId}`
-Entscheidung zum vorgeschlagenen Profil setzen.
-
-**Permission:** `vorschlaege:update`
-
-```bash
-# Annehmen
-curl -X PATCH https://api.staffhub.digital/api/external/v1/vakanzen/uuid/vorschlaege/match-uuid \
-  -H "X-API-Key: sfhub_..." \
-  -H "Content-Type: application/json" \
-  -d '{ "status": "Zugesagt" }'
-
-# Ablehnen
-curl -X PATCH https://api.staffhub.digital/api/external/v1/vakanzen/uuid/vorschlaege/match-uuid \
-  -H "X-API-Key: sfhub_..." \
-  -H "Content-Type: application/json" \
-  -d '{ "status": "Abgelehnt" }'
-```
-
-**Erlaubte Werte:** `"Zugesagt"` · `"Abgelehnt"`
-
-**Response `200`:**
-```json
-{
-  "vorschlag": {
-    "id": "match-uuid",
-    "status": "Zugesagt",
-    "updated_at": "2026-06-16T12:00:00Z"
-  }
-}
-```
-
----
-
-### Kandidaten (Legacy)
-
-#### `GET /vakanzen/{id}/kandidaten`
-Alias für `/vorschlaege` — bleibt aus Abwärtskompatibilität erhalten.
-
-```bash
-curl https://api.staffhub.digital/api/external/v1/vakanzen/uuid/kandidaten \
-  -H "X-API-Key: sfhub_..."
-```
-
-**Permission:** `vorschlaege:read` — Response-Format analog zu `/vorschlaege`, Feld heißt `kandidaten`.
-
----
-
-#### `PATCH /vakanzen/{id}/kandidaten/{linkId}`
-Alias für `/vorschlaege/{matchId}` — bleibt aus Abwärtskompatibilität erhalten.
-
-**Permission:** `vorschlaege:update`
-
----
-
-### Profile
-
-#### `GET /profiles`
-Alle verfügbaren Profile/Entwickler abrufen.
-
-**Permission:** `profile:read`
-
-```bash
-curl https://api.staffhub.digital/api/external/v1/profiles \
-  -H "X-API-Key: sfhub_..."
-```
-
-**Response `200`:**
-```json
-{
-  "profiles": [
-    {
-      "id": "uuid",
-      "name": "Max Mustermann",
-      "skills": ["React", "TypeScript", "Node.js"],
-      "erfahrungslevel": "Senior",
-      "verfuegbar_ab": "2026-07-01",
-      "verfuegbarkeit": "Verfügbar ab",
-      "arbeitsmodell": "Remote"
-    }
-  ]
-}
-```
-
-**`verfuegbarkeit`-Werte:** `"Jetzt verfügbar"` · `"Verfügbar ab"` · `"Nicht verfügbar"`  
-(Deaktivierte Profile werden nicht zurückgegeben.)
-
----
-
-#### `GET /profiles/{id}`
-Profil-Details eines einzelnen Entwicklers.
-
-**Permission:** `profile:read`
-
-```bash
-curl https://api.staffhub.digital/api/external/v1/profiles/uuid \
-  -H "X-API-Key: sfhub_..."
-```
-
-**Response `200`:** Gleiche Felder wie in der Listansicht, für ein einzelnes Profil.
+Response `200`: `{ "profile": { alle Felder } }`  
+Response `404`: Profil nicht gefunden
 
 ---
 
@@ -378,22 +137,23 @@ curl https://api.staffhub.digital/api/external/v1/profiles/uuid \
 | `422` | Logikfehler (z.B. besetzte Vakanz veröffentlichen) |
 | `500` | Datenbankfehler |
 
-Alle Fehler als: `{ "error": "Beschreibung" }`
+Alle Fehler: `{ "error": "Beschreibung" }`
 
 ---
 
 ## Lokale Entwicklung
 
 ```bash
-# Dev-Server starten
 npm run dev
 
-BASE="http://localhost:3000/api/external/v1"
-KEY="sfhub_<dein-lokaler-key>"  # Im Admin Panel anlegen
+KEY="sfhub_<dein-lokaler-key>"   # Im Admin Panel anlegen
 
-# Vakanzen abrufen
-curl -H "X-API-Key: $KEY" $BASE/vakanzen | jq '.vakanzen | length'
-
-# Profile abrufen
-curl -H "X-API-Key: $KEY" $BASE/profiles | jq '.profiles | length'
+curl -H "X-API-Key: $KEY" http://localhost:3000/demand/v1.0/vakanzen | jq '.vakanzen | length'
+curl -H "X-API-Key: $KEY" http://localhost:3000/supply/v1.0/profiles | jq '.profiles | length'
 ```
+
+---
+
+## Vercel Custom Domain (einmaliger Setup-Schritt)
+
+`api.staffhub.digital` im Vercel-Projekt als Custom Domain eintragen und DNS-CNAME auf `cname.vercel-dns.com` setzen. Kein separates Deployment nötig.
