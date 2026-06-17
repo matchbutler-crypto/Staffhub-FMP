@@ -15,6 +15,14 @@ vi.mock('@/lib/supabase/service-role', () => ({
             }),
           }),
         }),
+        neq: vi.fn().mockReturnValue({
+          order: vi.fn().mockReturnValue({
+            limit: vi.fn().mockReturnValue({
+              then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
+                mockProfiles().then(resolve, reject),
+            }),
+          }),
+        }),
       }),
     })),
   })),

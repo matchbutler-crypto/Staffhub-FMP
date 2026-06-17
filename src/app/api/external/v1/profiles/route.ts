@@ -11,8 +11,8 @@ export async function GET(request: NextRequest) {
   // Spalten gegen Supabase Table Editor prüfen falls Fehler auftreten
   const { data, error } = await supabase
     .from('ressourcen')
-    .select('id, name, skills, erfahrungslevel, verfuegbar_ab, arbeitsmodell, aktiv')
-    .eq('aktiv', true)
+    .select('id, name, skills, erfahrungslevel, verfuegbar_ab, verfuegbarkeit, arbeitsmodell')
+    .neq('verfuegbarkeit', 'Deaktiviert')
     .order('name', { ascending: true })
     .limit(500)
 
