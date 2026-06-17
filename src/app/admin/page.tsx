@@ -12,7 +12,6 @@ import {
   IconKey,
   IconCopy,
   IconCheck,
-  IconEye,
 } from "@tabler/icons-react"
 import { toast } from "sonner"
 
