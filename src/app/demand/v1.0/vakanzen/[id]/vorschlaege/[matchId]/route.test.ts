@@ -16,7 +16,9 @@ vi.mock('@/lib/supabase/service-role', () => ({
       }),
       update: vi.fn().mockReturnValue({
         eq: vi.fn().mockReturnValue({
-          select: vi.fn().mockReturnValue({ single: mockUpdate }),
+          eq: vi.fn().mockReturnValue({
+            select: vi.fn().mockReturnValue({ single: mockUpdate }),
+          }),
         }),
       }),
     })),

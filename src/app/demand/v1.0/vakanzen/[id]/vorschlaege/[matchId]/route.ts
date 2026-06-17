@@ -41,6 +41,7 @@ export async function PATCH(
     .from('ressource_vakanz_links')
     .update({ status: parsed.data.status })
     .eq('id', matchId)
+    .eq('vakanz_id', vakanzId)
     .select('id, status, updated_at')
     .single()
 
