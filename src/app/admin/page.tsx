@@ -15,7 +15,6 @@ import {
 } from "@tabler/icons-react"
 import { toast } from "sonner"
 
-import { Checkbox } from "@/components/ui/checkbox"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import {
@@ -119,6 +118,11 @@ const ALL_PERMISSIONS: ApiPermission[] = [
   'vakanzen:read', 'vakanzen:create', 'vakanzen:update',
   'vorschlaege:read', 'vorschlaege:update', 'profile:read',
 ]
+
+const LAYER_PERMISSIONS: Record<'demand' | 'supply', ApiPermission[]> = {
+  demand: ['vakanzen:read', 'vakanzen:create', 'vakanzen:update', 'vorschlaege:read', 'vorschlaege:update'],
+  supply: ['profile:read'],
+}
 
 // ── Color maps ─────────────────────────────────────────────────────────────────
 
@@ -559,37 +563,86 @@ interface NeuerApiKeySheetProps {
   onSuccess: () => void
 }
 
+const LAYER_ENDPOINTS: Record<'demand' | 'supply', { method: string; path: string; desc: string }[]> = {
+  demand: [
+    { method: 'POST',  path: '/demand/v1.0/vakanzen',                                    desc: 'Vakanz anlegen' },
+    { method: 'GET',   path: '/demand/v1.0/vakanzen',                                    desc: 'Vakanzen abrufen' },
+    { method: 'GET',   path: '/demand/v1.0/vakanzen/{id}',                               desc: 'Vakanz-Details' },
+    { method: 'GET',   path: '/demand/v1.0/vakanzen/{id}/vorschlaege',                   desc: 'Vorschläge abrufen' },
+    { method: 'PATCH', path: '/demand/v1.0/vakanzen/{id}/vorschlaege/{matchId}',         desc: 'Match-Status setzen' },
+  ],
+  supply: [
+    { method: 'GET', path: '/supply/v1.0/profiles',      desc: 'Profile abrufen' },
+    { method: 'GET', path: '/supply/v1.0/profiles/{id}', desc: 'Profil-Details' },
+  ],
+}
+
+const BASE_URL = 'https://api.staffhub.digital'
+
+function buildUebergabeText(keyName: string, key: string, activeLayers: Set<'demand' | 'supply'>): string {
+  const lines: string[] = [
+    `=== Staffhub API – Zugangsdaten für „${keyName}" ===`,
+    '',
+    `Base-URL : ${BASE_URL}`,
+    `API-Key  : ${key}`,
+    `Header   : Authorization: Bearer <API-Key>`,
+    '',
+  ]
+  for (const layer of ['demand', 'supply'] as const) {
+    if (!activeLayers.has(layer)) continue
+    lines.push(`--- ${layer === 'demand' ? 'Demand-Layer' : 'Supply-Layer'} ---`)
+    for (const ep of LAYER_ENDPOINTS[layer]) {
+      lines.push(`${ep.method.padEnd(6)} ${BASE_URL}${ep.path}`)
+    }
+    lines.push('')
+  }
+  return lines.join('\n').trimEnd()
+}
+
 function NeuerApiKeySheet({ open, onOpenChange, onSuccess }: NeuerApiKeySheetProps) {
   const [name, setName] = React.useState("")
-  const [permissions, setPermissions] = React.useState<ApiPermission[]>([])
+  const [layers, setLayers] = React.useState<Set<'demand' | 'supply'>>(new Set())
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [generatedKey, setGeneratedKey] = React.useState<string | null>(null)
+  const [generatedLayers, setGeneratedLayers] = React.useState<Set<'demand' | 'supply'>>(new Set())
   const [copied, setCopied] = React.useState(false)
+  const [copiedAll, setCopiedAll] = React.useState(false)
 
   React.useEffect(() => {
-    if (open) { setName(""); setPermissions([]); setError(null); setGeneratedKey(null); setCopied(false) }
+    if (open) { setName(""); setLayers(new Set()); setError(null); setGeneratedKey(null); setGeneratedLayers(new Set()); setCopied(false); setCopiedAll(false) }
   }, [open])
 
-  function togglePermission(p: ApiPermission) {
-    setPermissions(prev =>
-      prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]
-    )
+  function toggleLayer(layer: 'demand' | 'supply') {
+    setLayers(prev => {
+      const next = new Set(prev)
+      next.has(layer) ? next.delete(layer) : next.add(layer)
+      return next
+    })
+  }
+
+  function permissionsFromLayers(): ApiPermission[] {
+    const perms = new Set<ApiPermission>()
+    for (const layer of layers) {
+      for (const p of LAYER_PERMISSIONS[layer]) perms.add(p)
+    }
+    return Array.from(perms)
   }
 
   async function handleSubmit() {
     if (!name) { setError("Bitte einen Namen eingeben."); return }
-    if (permissions.length === 0) { setError("Bitte mindestens eine Berechtigung auswählen."); return }
+    if (layers.size === 0) { setError("Bitte mindestens einen Layer auswählen."); return }
     setSaving(true); setError(null)
     try {
       const res = await fetch("/api/admin/api-keys", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, permissions }),
+        body: JSON.stringify({ name, permissions: permissionsFromLayers() }),
       })
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error ?? "Fehler beim Anlegen") }
       const data = await res.json()
       setGeneratedKey(data.plaintext_key)
+      setGeneratedLayers(new Set(layers))
       onSuccess()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unbekannter Fehler")
@@ -603,16 +656,24 @@ function NeuerApiKeySheet({ open, onOpenChange, onSuccess }: NeuerApiKeySheetPro
     setTimeout(() => setCopied(false), 2000)
   }
 
+  async function copyAll() {
+    if (!generatedKey) return
+    await navigator.clipboard.writeText(buildUebergabeText(name, generatedKey, generatedLayers))
+    setCopiedAll(true)
+    setTimeout(() => setCopiedAll(false), 2000)
+  }
+
   return (
     <Sheet open={open} onOpenChange={(o) => { if (!generatedKey) onOpenChange(o) }}>
-      <SheetContent side="right" className="flex w-[480px] flex-col gap-0 overflow-hidden p-0">
+      <SheetContent side="right" className="flex w-[520px] flex-col gap-0 overflow-hidden p-0">
         <SheetHeader className="border-b px-6 py-4">
           <SheetTitle>Neuen API-Key anlegen</SheetTitle>
-          <SheetDescription>Legen Sie einen Key an und weisen Sie Berechtigungen zu.</SheetDescription>
+          <SheetDescription>Legen Sie einen Key an und wählen Sie den Zugriffs-Layer.</SheetDescription>
         </SheetHeader>
 
         {generatedKey ? (
           <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-6 py-4">
+            {/* Key-Box */}
             <div className="rounded-md border border-green-200 bg-green-50 p-4">
               <p className="mb-2 text-sm font-medium text-green-800">Key wurde erstellt — bitte jetzt kopieren!</p>
               <p className="mb-3 text-xs text-green-700">Dieser Key wird nicht erneut angezeigt.</p>
@@ -623,30 +684,92 @@ function NeuerApiKeySheet({ open, onOpenChange, onSuccess }: NeuerApiKeySheetPro
                 </Button>
               </div>
             </div>
+
+            {/* Übergabe-Zusammenfassung */}
+            <div className="rounded-md border bg-muted/40 p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-foreground">Übergabe-Info für den Client</p>
+                <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={copyAll}>
+                  {copiedAll
+                    ? <><IconCheck className="size-3 text-green-600" />Kopiert</>
+                    : <><IconCopy className="size-3" />Alles kopieren</>}
+                </Button>
+              </div>
+
+              {/* Verbindung */}
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Verbindung</p>
+                <div className="rounded-md border bg-background p-3 space-y-2 font-mono text-xs">
+                  <div className="flex items-center gap-3">
+                    <span className="w-16 shrink-0 text-muted-foreground">Base-URL</span>
+                    <span className="text-foreground">{BASE_URL}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="w-16 shrink-0 text-muted-foreground">Header</span>
+                    <span className="text-foreground">Authorization: Bearer &lt;API-Key&gt;</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Endpunkte je Layer */}
+              {(['demand', 'supply'] as const).filter(l => generatedLayers.has(l)).map(layer => (
+                <div key={layer} className="space-y-1.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {layer === 'demand' ? 'Demand – Vakanzen & Vorschläge' : 'Supply – Kandidaten-Profile'}
+                  </p>
+                  <div className="rounded-md border bg-background divide-y">
+                    {LAYER_ENDPOINTS[layer].map((ep) => (
+                      <div key={ep.path} className="flex items-center gap-3 px-3 py-2">
+                        <Badge variant="outline" className={`shrink-0 font-mono text-[10px] w-12 justify-center ${
+                          ep.method === 'POST'  ? 'bg-blue-100  text-blue-700  border-blue-200'  :
+                          ep.method === 'PATCH' ? 'bg-amber-100 text-amber-700 border-amber-200' :
+                                                  'bg-green-100 text-green-700 border-green-200'
+                        }`}>{ep.method}</Badge>
+                        <span className="flex-1 font-mono text-xs text-muted-foreground truncate">{ep.path}</span>
+                        <span className="text-xs text-muted-foreground/70 shrink-0">{ep.desc}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         ) : (
           <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-6 py-4">
             {error && <div className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="key-name">Name *</Label>
-              <Input id="key-name" placeholder="z.B. Backoffice Sören" value={name} onChange={(e) => setName(e.target.value)} />
+              <Input id="key-name" placeholder="z.B. Magenta OS – Sandbox" value={name} onChange={(e) => setName(e.target.value)} />
             </div>
             <div className="flex flex-col gap-2">
-              <Label>Berechtigungen *</Label>
-              <div className="flex flex-col gap-2 rounded-md border p-3">
-                {ALL_PERMISSIONS.map((p) => (
-                  <div key={p} className="flex items-center gap-2">
-                    <Checkbox
-                      id={`perm-${p}`}
-                      checked={permissions.includes(p)}
-                      onCheckedChange={() => togglePermission(p)}
-                    />
-                    <label htmlFor={`perm-${p}`} className="text-sm cursor-pointer select-none">
-                      {PERMISSION_LABELS[p]}
-                      <span className="ml-2 font-mono text-xs text-muted-foreground">{p}</span>
-                    </label>
-                  </div>
-                ))}
+              <Label>Zugriffs-Layer *</Label>
+              <div className="grid grid-cols-2 gap-3">
+                {(['demand', 'supply'] as const).map((layer) => {
+                  const active = layers.has(layer)
+                  const label = layer === 'demand' ? 'Demand' : 'Supply'
+                  const desc = layer === 'demand' ? 'Vakanzen & Vorschläge' : 'Kandidaten-Profile'
+                  const perms = LAYER_PERMISSIONS[layer]
+                  return (
+                    <button
+                      key={layer}
+                      type="button"
+                      onClick={() => toggleLayer(layer)}
+                      className={`flex flex-col gap-1.5 rounded-lg border-2 p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                        active
+                          ? 'border-primary bg-accent'
+                          : 'border-border bg-background hover:bg-accent/50'
+                      }`}
+                    >
+                      <span className={`text-sm font-semibold ${active ? 'text-foreground' : 'text-foreground'}`}>{label}</span>
+                      <span className="text-xs text-muted-foreground">{desc}</span>
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {perms.map((p) => (
+                          <Badge key={p} variant="outline" className="font-mono text-[10px]">{p}</Badge>
+                        ))}
+                      </div>
+                    </button>
+                  )
+                })}
               </div>
             </div>
           </div>
@@ -678,36 +801,53 @@ interface ApiKeyBearbeitenSheetProps {
   onSuccess: () => void
 }
 
+function layersFromPermissions(permissions: ApiPermission[]): Set<'demand' | 'supply'> {
+  const result = new Set<'demand' | 'supply'>()
+  if (LAYER_PERMISSIONS.demand.some(p => permissions.includes(p))) result.add('demand')
+  if (LAYER_PERMISSIONS.supply.some(p => permissions.includes(p))) result.add('supply')
+  return result
+}
+
 function ApiKeyBearbeitenSheet({ open, onOpenChange, apiKey, onSuccess }: ApiKeyBearbeitenSheetProps) {
   const [name, setName] = React.useState("")
-  const [permissions, setPermissions] = React.useState<ApiPermission[]>([])
+  const [layers, setLayers] = React.useState<Set<'demand' | 'supply'>>(new Set())
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     if (open && apiKey) {
       setName(apiKey.name)
-      setPermissions(apiKey.permissions)
+      setLayers(layersFromPermissions(apiKey.permissions))
       setError(null)
     }
   }, [open, apiKey])
 
-  function togglePermission(p: ApiPermission) {
-    setPermissions(prev =>
-      prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]
-    )
+  function toggleLayer(layer: 'demand' | 'supply') {
+    setLayers(prev => {
+      const next = new Set(prev)
+      next.has(layer) ? next.delete(layer) : next.add(layer)
+      return next
+    })
+  }
+
+  function permissionsFromLayers(): ApiPermission[] {
+    const perms = new Set<ApiPermission>()
+    for (const layer of layers) {
+      for (const p of LAYER_PERMISSIONS[layer]) perms.add(p)
+    }
+    return Array.from(perms)
   }
 
   async function handleSubmit() {
     if (!name) { setError("Name darf nicht leer sein."); return }
-    if (permissions.length === 0) { setError("Mindestens eine Berechtigung erforderlich."); return }
+    if (layers.size === 0) { setError("Mindestens ein Layer erforderlich."); return }
     if (!apiKey) return
     setSaving(true); setError(null)
     try {
       const res = await fetch(`/api/admin/api-keys/${apiKey.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, permissions }),
+        body: JSON.stringify({ name, permissions: permissionsFromLayers() }),
       })
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error ?? "Fehler") }
       toast.success(`Key „${name}" aktualisiert`)
@@ -722,7 +862,7 @@ function ApiKeyBearbeitenSheet({ open, onOpenChange, apiKey, onSuccess }: ApiKey
       <SheetContent side="right" className="flex w-[480px] flex-col gap-0 overflow-hidden p-0">
         <SheetHeader className="border-b px-6 py-4">
           <SheetTitle>API-Key bearbeiten</SheetTitle>
-          <SheetDescription>Name und Berechtigungen von <span className="font-medium text-foreground">{apiKey?.name}</span> ändern.</SheetDescription>
+          <SheetDescription>Name und Layer von <span className="font-medium text-foreground">{apiKey?.name}</span> ändern.</SheetDescription>
         </SheetHeader>
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-6 py-4">
           {error && <div className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
@@ -731,21 +871,34 @@ function ApiKeyBearbeitenSheet({ open, onOpenChange, apiKey, onSuccess }: ApiKey
             <Input id="edit-key-name" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div className="flex flex-col gap-2">
-            <Label>Berechtigungen *</Label>
-            <div className="flex flex-col gap-2 rounded-md border p-3">
-              {ALL_PERMISSIONS.map((p) => (
-                <div key={p} className="flex items-center gap-2">
-                  <Checkbox
-                    id={`edit-perm-${p}`}
-                    checked={permissions.includes(p)}
-                    onCheckedChange={() => togglePermission(p)}
-                  />
-                  <label htmlFor={`edit-perm-${p}`} className="text-sm cursor-pointer select-none">
-                    {PERMISSION_LABELS[p]}
-                    <span className="ml-2 font-mono text-xs text-muted-foreground">{p}</span>
-                  </label>
-                </div>
-              ))}
+            <Label>Zugriffs-Layer *</Label>
+            <div className="grid grid-cols-2 gap-3">
+              {(['demand', 'supply'] as const).map((layer) => {
+                const active = layers.has(layer)
+                const label = layer === 'demand' ? 'Demand' : 'Supply'
+                const desc = layer === 'demand' ? 'Vakanzen & Vorschläge' : 'Kandidaten-Profile'
+                const perms = LAYER_PERMISSIONS[layer]
+                return (
+                  <button
+                    key={layer}
+                    type="button"
+                    onClick={() => toggleLayer(layer)}
+                    className={`flex flex-col gap-1 rounded-lg border-2 p-4 text-left transition-colors ${
+                      active
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border bg-transparent hover:border-muted-foreground/40'
+                    }`}
+                  >
+                    <span className="font-semibold text-sm">{label}</span>
+                    <span className="text-xs text-muted-foreground">{desc}</span>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {perms.map((p) => (
+                        <span key={p} className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">{p}</span>
+                      ))}
+                    </div>
+                  </button>
+                )
+              })}
             </div>
           </div>
         </div>
