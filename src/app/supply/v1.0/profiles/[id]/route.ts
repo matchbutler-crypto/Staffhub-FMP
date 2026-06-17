@@ -14,14 +14,29 @@ export async function GET(
 
   const { data, error } = await supabase
     .from('ressourcen')
-    .select('id, name, skills, erfahrungslevel, verfuegbar_ab, verfuegbarkeit, arbeitsmodell, created_at')
+    .select('id, name, skills, erfahrungslevel, verfuegbar_ab, verfuegbarkeit, arbeitsmodell, wohnort, ek_tagesrate')
     .eq('id', id)
     .single()
 
   if (error) {
-    if (error.code === 'PGRST116') return NextResponse.json({ error: 'Profil nicht gefunden' }, { status: 404 })
-    return NextResponse.json({ error: 'Fehler beim Laden' }, { status: 500 })
+    if (error.code === 'PGRST116') return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Profil nicht gefunden' } }, { status: 404 })
+    return NextResponse.json({ error: { code: 'DB_ERROR', message: 'Fehler beim Laden' } }, { status: 500 })
   }
 
-  return NextResponse.json({ profile: data })
+  const profile = {
+    profileId:     data.id,
+    displayName:   data.name,
+    seniority:     data.erfahrungslevel ?? null,
+    skills:        data.skills ?? [],
+    availableFrom: data.verfuegbar_ab ?? null,
+    location: {
+      mode: data.arbeitsmodell ?? null,
+      city: data.wohnort ?? null,
+    },
+    rate: data.ek_tagesrate != null
+      ? { amount: data.ek_tagesrate, currency: 'EUR', per: 'DAY' }
+      : null,
+  }
+
+  return NextResponse.json({ profile })
 }

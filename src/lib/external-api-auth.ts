@@ -21,7 +21,9 @@ export async function validateExternalApiKey(
   request: NextRequest,
   permission: ApiPermission
 ): Promise<NextResponse | null> {
-  const key = request.headers.get('x-api-key')
+  const authHeader = request.headers.get('authorization')
+  const key = authHeader?.match(/^Bearer\s+(.+)$/i)?.[1]
+           ?? request.headers.get('x-api-key')
   if (!key) {
     return NextResponse.json({ error: 'Nicht autorisiert' }, { status: 401 })
   }

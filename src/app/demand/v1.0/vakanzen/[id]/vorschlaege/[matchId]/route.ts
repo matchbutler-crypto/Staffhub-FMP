@@ -4,8 +4,15 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { validateExternalApiKey } from '@/lib/external-api-auth'
 
 const statusSchema = z.object({
-  status: z.enum(['Zugesagt', 'Abgelehnt']),
+  status: z.enum(['SHORTLISTED', 'REJECTED', 'ACCEPTED']),
+  note:   z.string().max(1000).optional(),
 })
+
+const STATUS_MAP: Record<string, string> = {
+  ACCEPTED:    'Zugesagt',
+  REJECTED:    'Abgelehnt',
+  SHORTLISTED: 'Shortlist',
+}
 
 export async function PATCH(
   request: NextRequest,
@@ -19,7 +26,7 @@ export async function PATCH(
   const parsed = statusSchema.safeParse(body)
   if (!parsed.success) {
     return NextResponse.json(
-      { error: 'Ungültiger Status. Erlaubt: "Zugesagt" oder "Abgelehnt"' },
+      { error: { code: 'VALIDATION_ERROR', message: 'Erlaubte Status-Werte: SHORTLISTED, REJECTED, ACCEPTED' } },
       { status: 400 }
     )
   }
@@ -34,20 +41,28 @@ export async function PATCH(
     .single()
 
   if (fetchError || !link) {
-    return NextResponse.json({ error: 'Vorschlag nicht gefunden' }, { status: 404 })
+    return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Vorschlag nicht gefunden' } }, { status: 404 })
   }
 
+  const dbStatus = STATUS_MAP[parsed.data.status]
   const { data: updated, error: updateError } = await supabase
     .from('ressource_vakanz_links')
-    .update({ status: parsed.data.status })
+    .update({
+      status: dbStatus,
+      ...(parsed.data.note !== undefined ? { note: parsed.data.note } : {}),
+    })
     .eq('id', matchId)
     .eq('vakanz_id', vakanzId)
     .select('id, status, updated_at')
     .single()
 
   if (updateError) {
-    return NextResponse.json({ error: 'Fehler beim Aktualisieren' }, { status: 500 })
+    return NextResponse.json({ error: { code: 'UPDATE_FAILED', message: 'Fehler beim Aktualisieren' } }, { status: 500 })
   }
 
-  return NextResponse.json({ vorschlag: updated })
+  return NextResponse.json({
+    matchId:   updated.id,
+    status:    parsed.data.status,
+    updatedAt: updated.updated_at,
+  })
 }
