@@ -14,9 +14,9 @@ const bodySchema = z.object({
   channel: z.enum(['testing', 'germany', 'global']),
 })
 
-// ── Updatepost Block Builder (AppScript-faithful) ─────────────────────────────
-// Format: Header ":eyes: UPDATE DD/MM/YYYY", Divider, then one section per vacancy.
-// Status mapping: Offen→NEW, In Auswahl/Besetzt→OPEN, Geschlossen→~titel~ | CLOSED
+// ── Updatepost Block Builder ───────────────────────────────────────────────────
+// Format per line: D3X00013 | Titel | Startdatum | STATUS | <link>
+// CLOSED lines use strikethrough: ~D3X00013 | Titel | Startdatum | CLOSED~ | <link>
 // Slack block limit is 50 — keep 2 for header+divider → max 48 lines per message.
 
 const CHUNK_SIZE = 48
@@ -38,11 +38,24 @@ function buildUpdateBlocks(lines: string[], updateDate: string): object[] {
   ]
 }
 
-function statusToLine(titel: string, status: string): string {
-  if (status === 'Offen') return `${titel} | NEW`
-  if (status === 'In Auswahl' || status === 'Besetzt') return `${titel} | OPEN`
-  if (status === 'Geschlossen') return `~${titel}~ | CLOSED`
-  return `${titel} | ${status.toUpperCase()}`
+function statusToLine(
+  id: string,
+  vakanz_nr: string | null,
+  titel: string,
+  startdatum: string | null,
+  status: string,
+  appUrl: string
+): string {
+  const nr = vakanz_nr ?? ''
+  const prefix = nr ? `${nr} | ${titel}` : titel
+  const start = startdatum
+    ? new Date(startdatum).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : '–'
+  const link = `<${appUrl}/vakanzen/${id}|go to vacancy>`
+
+  if (status === 'Geschlossen') return `~${prefix} | ${start} | CLOSED~ | ${link}`
+  const label = status === 'Offen' ? 'NEW' : 'OPEN'
+  return `${prefix} | ${start} | ${label} | ${link}`
 }
 
 // ── POST /api/slack/updatepost ────────────────────────────────────────────────
@@ -91,7 +104,7 @@ export async function POST(request: NextRequest) {
   // ── Alle relevanten Vakanzen laden ─────────────────────────────────────────
   const { data: vakanzen, error: vakanzError } = await supabase
     .from('vakanzen')
-    .select('id, titel, status, budget_intern')
+    .select('id, vakanz_nr, titel, status, startdatum')
     .in('status', ['Offen', 'In Auswahl', 'Besetzt', 'Geschlossen'])
     .order('created_at', { ascending: false })
     .limit(200)
@@ -116,7 +129,8 @@ export async function POST(request: NextRequest) {
   )
 
   // ── Zeilen bauen ────────────────────────────────────────────────────────────
-  const lines = sorted.map((v) => statusToLine(v.titel, v.status))
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
+  const lines = sorted.map((v) => statusToLine(v.id, v.vakanz_nr ?? null, v.titel, v.startdatum ?? null, v.status, appUrl))
 
   // ── In Chunks à 48 Zeilen aufteilen und senden ─────────────────────────────
   const now = new Date()
