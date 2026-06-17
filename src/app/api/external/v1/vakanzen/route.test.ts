@@ -35,7 +35,7 @@ vi.mock('@/lib/supabase/service-role', () => ({
 }))
 
 vi.mock('@/lib/external-api-auth', () => ({
-  validateExternalApiKey: vi.fn(() => null),
+  validateExternalApiKey: vi.fn().mockResolvedValue(null),
 }))
 
 import { GET, POST } from './route'
@@ -68,7 +68,7 @@ describe('GET /api/external/v1/vakanzen', () => {
 
   it('gibt 401 zurück bei fehlendem API-Key', async () => {
     const { NextResponse } = await import('next/server')
-    vi.mocked(validateExternalApiKey).mockReturnValueOnce(
+    vi.mocked(validateExternalApiKey).mockResolvedValueOnce(
       NextResponse.json({ error: 'Nicht autorisiert' }, { status: 401 })
     )
     const res = await GET(makeGetRequest())

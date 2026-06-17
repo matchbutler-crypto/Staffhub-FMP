@@ -26,7 +26,7 @@ const createVakanzSchema = z.object({
 })
 
 export async function GET(request: NextRequest) {
-  const authError = validateExternalApiKey(request)
+  const authError = await validateExternalApiKey(request, 'vakanzen:read')
   if (authError) return authError
 
   const supabase = createServiceRoleClient()
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const authError = validateExternalApiKey(request)
+  const authError = await validateExternalApiKey(request, 'vakanzen:create')
   if (authError) return authError
 
   const body = await request.json().catch(() => null)

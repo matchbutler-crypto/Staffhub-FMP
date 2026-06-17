@@ -10,7 +10,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const authError = validateExternalApiKey(request)
+  const authError = await validateExternalApiKey(request, 'vakanzen:update')
   if (authError) return authError
 
   const { id } = await params

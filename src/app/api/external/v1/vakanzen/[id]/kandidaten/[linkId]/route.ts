@@ -11,7 +11,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; linkId: string }> }
 ) {
-  const authError = validateExternalApiKey(request)
+  const authError = await validateExternalApiKey(request, 'vorschlaege:update')
   if (authError) return authError
 
   const { linkId } = await params
