@@ -22,13 +22,19 @@ export async function PATCH(
   const supabase = createServiceRoleClient()
 
   if (parsed.data.published === true) {
-    const { data: vakanz } = await supabase
+    const { data: vakanz, error: statusError } = await supabase
       .from('vakanzen_data')
       .select('status')
       .eq('id', id)
       .single()
 
-    if (vakanz?.status === 'Besetzt') {
+    if (statusError) {
+      if (statusError.code === 'PGRST116')
+        return NextResponse.json({ error: 'Vakanz nicht gefunden' }, { status: 404 })
+      return NextResponse.json({ error: 'Fehler beim Abrufen der Vakanz' }, { status: 500 })
+    }
+
+    if (vakanz.status === 'Besetzt') {
       return NextResponse.json({ error: 'Besetzte Vakanzen können nicht veröffentlicht werden' }, { status: 422 })
     }
   }

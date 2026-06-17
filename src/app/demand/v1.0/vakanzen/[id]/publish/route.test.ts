@@ -51,6 +51,12 @@ describe('PATCH /demand/v1.0/vakanzen/{id}/publish', () => {
     expect(res.status).toBe(422)
   })
 
+  it('gibt 404 zurück wenn Vakanz beim Status-Abruf nicht gefunden', async () => {
+    mockStatusSelect.mockResolvedValue({ data: null, error: { code: 'PGRST116' } })
+    const res = await PATCH(makeRequest({ published: true }), { params })
+    expect(res.status).toBe(404)
+  })
+
   it('veröffentlicht Vakanz', async () => {
     mockStatusSelect.mockResolvedValue({ data: { status: 'Offen' }, error: null })
     mockUpdate.mockResolvedValue({ data: { id: 'vakanz-uuid' }, error: null })
