@@ -365,7 +365,7 @@ function ManagerDashboard({ data }: { data: ManagerData }) {
                   <TableHead>Rolle</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Statusupdate</TableHead>
-                  <TableHead className="text-right">EK-Rate</TableHead>
+                  <TableHead className="text-right">Tagesrate</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -579,7 +579,7 @@ function AgenturDashboard({ data }: { data: AgenturData }) {
                   <TableHead>Rolle</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Statusupdate</TableHead>
-                  <TableHead className="text-right">EK-Rate</TableHead>
+                  <TableHead className="text-right">Tagesrate</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
