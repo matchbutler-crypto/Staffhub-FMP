@@ -730,19 +730,6 @@ export default function RessourceDetailPage() {
 
                 {!loading && ressource && (
                   <div className="flex items-center gap-1.5">
-                    {/* Copy Stammdaten */}
-                    <button
-                      onClick={handleCopyStammdaten}
-                      title="Stammdaten kopieren"
-                      className="inline-flex items-center justify-center size-7 rounded-md border border-border bg-background hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-                    >
-                      {copied ? (
-                        <IconCheck className="size-3.5 text-green-600" />
-                      ) : (
-                        <IconClipboard className="size-3.5" />
-                      )}
-                    </button>
-
                     {/* CV Download */}
                     {ressource.cv_pfad && (
                       <button
@@ -866,7 +853,29 @@ export default function RessourceDetailPage() {
 
                 {/* ── Tab: Stammdaten ─────────────────────────────────────── */}
                 <TabsContent value="stammdaten">
-                  <div className="max-w-xl space-y-1 rounded-lg border p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
+                      Stammdaten
+                    </p>
+                    <button
+                      onClick={handleCopyStammdaten}
+                      title="Stammdaten kopieren"
+                      className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {copied ? (
+                        <>
+                          <IconCheck className="size-3.5 text-green-600" />
+                          <span className="text-green-600">Kopiert</span>
+                        </>
+                      ) : (
+                        <>
+                          <IconClipboard className="size-3.5" />
+                          Kopieren
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <div className="space-y-1 rounded-lg border p-4">
                     <InfoRow label="Vorname" value={ressource.vorname} />
                     <InfoRow label="Nachname" value={ressource.nachname} />
                     {ressource.titel && (
