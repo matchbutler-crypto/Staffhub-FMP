@@ -1349,7 +1349,7 @@ export default function RessourcenPage() {
                             <React.Fragment key={r.id}>
                               <TableRow
                                 className="cursor-pointer"
-                                onClick={() => { setSelectedRessource(r); setDetailOpen(true) }}
+                                onClick={() => router.push(`/ressourcen/${r.id}`)}
                               >
                                 <TableCell className="font-medium">{r.name}</TableCell>
                                 <TableCell className="text-sm text-muted-foreground">{r.agentur_name ?? "—"}</TableCell>

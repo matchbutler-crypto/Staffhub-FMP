@@ -36,15 +36,19 @@ export const ROLE_ROUTES: Record<string, string[]> = {
     '/settings',
     '/api',
   ],
-  Agentur: ['/dashboard', '/vakanzen', '/meine-profile', '/pool', '/beauftragungen', '/abrechnung', '/ideen', '/release-notes', '/settings', '/api'],
+  Agentur: ['/dashboard', '/vakanzen', '/meine-profile', '/pool', '/ressourcen/', '/beauftragungen', '/abrechnung', '/ideen', '/release-notes', '/settings', '/api'],
 }
 
 /** Returns true if the given pathname is accessible for the given role */
 export function isAllowedRoute(pathname: string, rolle: string): boolean {
   const allowed = ROLE_ROUTES[rolle] ?? []
-  return allowed.some(
-    (route) => pathname === route || pathname.startsWith(route + '/')
-  )
+  return allowed.some((route) => {
+    if (route.endsWith('/')) {
+      // trailing slash = only sub-paths, not the exact parent
+      return pathname.startsWith(route)
+    }
+    return pathname === route || pathname.startsWith(route + '/')
+  })
 }
 
 /** Returns true if the url is a safe relative redirect (prevents Open Redirect) */

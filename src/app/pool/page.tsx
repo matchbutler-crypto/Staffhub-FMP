@@ -2411,10 +2411,7 @@ export default function PoolPage() {
                           <React.Fragment key={r.id}>
                           <TableRow
                             className="cursor-pointer"
-                            onClick={() => {
-                              setDetailRessource(r)
-                              setDetailOpen(true)
-                            }}
+                            onClick={() => router.push(`/ressourcen/${r.id}`)}
                           >
                             <TableCell className="font-medium">{r.name}</TableCell>
                             {isAdmin && (
