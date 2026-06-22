@@ -113,12 +113,6 @@ interface Beauftragung {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const VERFUEGBARKEIT_COLORS: Record<string, string> = {
-  "Jetzt verfügbar": "bg-green-100 text-green-700 border-green-200",
-  "Verfügbar ab": "bg-blue-100 text-blue-700 border-blue-200",
-  "Nicht verfügbar": "bg-orange-100 text-orange-700 border-orange-200",
-  Deaktiviert: "bg-gray-100 text-gray-500 border-gray-200",
-}
 
 const LINK_STATUS_COLORS: Record<string, string> = {
   Eingereicht: "bg-blue-100 text-blue-700 border-blue-200",
@@ -130,12 +124,6 @@ const LINK_STATUS_COLORS: Record<string, string> = {
   Zurückgezogen: "bg-gray-100 text-gray-500 border-gray-200",
 }
 
-const LEVEL_COLORS: Record<string, string> = {
-  Junior: "bg-sky-100 text-sky-700 border-sky-200",
-  Mid: "bg-violet-100 text-violet-700 border-violet-200",
-  Senior: "bg-amber-100 text-amber-700 border-amber-200",
-  Expert: "bg-rose-100 text-rose-700 border-rose-200",
-}
 
 function fmt(iso: string | null | undefined) {
   if (!iso) return "–"
@@ -701,6 +689,16 @@ export default function RessourceDetailPage() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
+  // Verfügbar-ab-Datum: Enddatum der letzten Beauftragung hat Vorrang
+  const latestBeauftragungEnddatum = React.useMemo(() => {
+    return (
+      beauftragungen
+        .filter((b) => b.enddatum)
+        .sort((a, b) => new Date(b.enddatum!).getTime() - new Date(a.enddatum!).getTime())[0]
+        ?.enddatum ?? null
+    )
+  }, [beauftragungen])
+
   const backUrl = isAgentur ? "/pool" : "/ressourcen"
   const backLabel = isAgentur ? "Zurück zu Mein Pool" : "Zurück zu Ressourcen"
 
@@ -769,26 +767,16 @@ export default function RessourceDetailPage() {
                 </div>
               ) : ressource ? (
                 <div className="space-y-2.5">
-                  {/* Name + Badges */}
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  {/* Name + Subtitle */}
+                  <div>
                     <h1 className="text-lg font-semibold leading-tight">{ressource.name}</h1>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <Badge
-                        variant="outline"
-                        className={`text-xs ${VERFUEGBARKEIT_COLORS[ressource.verfuegbarkeit] ?? ""}`}
-                      >
-                        {ressource.verfuegbarkeit}
-                        {ressource.verfuegbarkeit === "Verfügbar ab" && ressource.verfuegbar_ab
-                          ? ` ${fmt(ressource.verfuegbar_ab)}`
-                          : ""}
-                      </Badge>
-                      <Badge
-                        variant="outline"
-                        className={`text-xs ${LEVEL_COLORS[ressource.erfahrungslevel] ?? ""}`}
-                      >
-                        {ressource.erfahrungslevel}
-                      </Badge>
-                    </div>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      {ressource.erfahrungslevel}
+                      {" · "}
+                      {ressource.verfuegbarkeit === "Verfügbar ab"
+                        ? `Verfügbar ab ${fmt(latestBeauftragungEnddatum ?? ressource.verfuegbar_ab)}`
+                        : ressource.verfuegbarkeit}
+                    </p>
                   </div>
 
                   {/* 2-Spalten Meta-Grid */}
