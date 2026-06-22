@@ -35,6 +35,7 @@ export function NavSecondary({
               <SidebarMenuButton
                 asChild
                 isActive={pathname === item.url}
+                tooltip={item.title}
               >
                 <Link href={item.url}>
                   <item.icon />
