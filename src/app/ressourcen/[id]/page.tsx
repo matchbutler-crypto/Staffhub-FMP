@@ -274,9 +274,9 @@ function StammdatenEditSheet({
         const err = await res.json().catch(() => ({}))
         throw new Error(err.error ?? "Fehler beim Speichern")
       }
-      const data = await res.json()
+      await res.json()
       toast.success("Stammdaten gespeichert")
-      onSuccess(data.ressource ?? { ...ressource, ...body })
+      onSuccess({ ...ressource, ...body } as Ressource)
       onOpenChange(false)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Unbekannter Fehler")
@@ -699,6 +699,11 @@ export default function RessourceDetailPage() {
     )
   }, [beauftragungen])
 
+  // Stammdaten-Pflichtfelder ausstehend (für Agentur-Banner)
+  const PFLICHTFELDER = ['nachname', 'vorname', 'geburtsdatum', 'geschlecht', 'firma', 'email_geschaeftlich', 'telefon_geschaeftlich', 'wohnort'] as const
+  const hatBeauftragtenLink = links.some((l) => l.status === 'Beauftragt')
+  const stammdatenAusstehend = ressource != null && hatBeauftragtenLink && PFLICHTFELDER.some((f) => !ressource[f])
+
   const backUrl = isAgentur ? "/pool" : "/ressourcen"
   const backLabel = isAgentur ? "Zurück zu Mein Pool" : "Zurück zu Ressourcen"
 
@@ -841,27 +846,45 @@ export default function RessourceDetailPage() {
 
                 {/* ── Tab: Stammdaten ─────────────────────────────────────── */}
                 <TabsContent value="stammdaten">
+                  {/* Agentur-Hinweis wenn Pflichtfelder fehlen */}
+                  {isAgentur && stammdatenAusstehend && (
+                    <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                      <span className="font-medium">Stammdaten ausstehend</span> — Diese Ressource ist beauftragt. Bitte vervollständige Vorname, Nachname, Geburtsdatum, Geschlecht, Firma, E-Mail, Telefon und Wohnort.
+                    </div>
+                  )}
+
                   <div className="mb-3 flex items-center justify-between">
                     <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
                       Stammdaten
                     </p>
-                    <button
-                      onClick={handleCopyStammdaten}
-                      title="Stammdaten kopieren"
-                      className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      {copied ? (
-                        <>
-                          <IconCheck className="size-3.5 text-green-600" />
-                          <span className="text-green-600">Kopiert</span>
-                        </>
-                      ) : (
-                        <>
-                          <IconClipboard className="size-3.5" />
-                          Kopieren
-                        </>
-                      )}
-                    </button>
+                    <div className="flex items-center gap-3">
+                      {/* Bearbeiten */}
+                      <button
+                        onClick={() => setEditOpen(true)}
+                        className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        <IconPencil className="size-3.5" />
+                        Bearbeiten
+                      </button>
+                      {/* Kopieren */}
+                      <button
+                        onClick={handleCopyStammdaten}
+                        title="Stammdaten kopieren"
+                        className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {copied ? (
+                          <>
+                            <IconCheck className="size-3.5 text-green-600" />
+                            <span className="text-green-600">Kopiert</span>
+                          </>
+                        ) : (
+                          <>
+                            <IconClipboard className="size-3.5" />
+                            Kopieren
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
                   <div className="space-y-1 rounded-lg border p-4">
                     <InfoRow label="Vorname" value={ressource.vorname} />
