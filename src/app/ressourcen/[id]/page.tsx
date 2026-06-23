@@ -803,7 +803,7 @@ export default function RessourceDetailPage() {
                     )}
                     {!isAgentur && ressource.ek_tagesrate != null && (
                       <MetaCell
-                        label="EK/Tag"
+                        label="Tagesrate"
                         value={`${ressource.ek_tagesrate.toLocaleString("de-DE")} €`}
                       />
                     )}

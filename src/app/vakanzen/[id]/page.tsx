@@ -423,7 +423,7 @@ export default function VakanzDetailPage() {
                     )}
                     {!isAgentur && vakanz.budget_intern != null && (
                       <div>
-                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">EK/Tag</p>
+                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Tagesrate</p>
                         <p className="text-xs font-medium">{vakanz.budget_intern.toLocaleString("de-DE")} €</p>
                       </div>
                     )}

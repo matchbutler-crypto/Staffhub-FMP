@@ -290,7 +290,7 @@ export default function BeauftragungPage() {
                       <TableHead>Kandidat</TableHead>
                       {isManager && <TableHead>Agentur</TableHead>}
                       <TableHead>Vakanz</TableHead>
-                      <TableHead className="text-right">{isManager ? "EK/Tag" : "Tagesrate"}</TableHead>
+                      <TableHead className="text-right">{"Tagesrate"}</TableHead>
                       {isManager && <TableHead className="text-right">Marge</TableHead>}
                       {isManager && <TableHead className="text-right">Hays Fee</TableHead>}
                       {isManager && <TableHead className="text-right">Gesamt</TableHead>}

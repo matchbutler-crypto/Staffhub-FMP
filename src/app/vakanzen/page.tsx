@@ -538,7 +538,7 @@ function VakanzCard({
             )}
             {vakanz.budget_intern != null && (
               <div>
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">EK/Tag</p>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Tagesrate</p>
                 <p className="text-xs font-medium">{vakanz.budget_intern.toLocaleString("de-DE")} €</p>
               </div>
             )}
@@ -832,6 +832,7 @@ export default function VakanzenPage() {
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [statusFilter, setStatusFilter] = React.useState("alle")
+  const [kundeFilter, setKundeFilter] = React.useState("alle")
   const [searchQuery, setSearchQuery] = React.useState("")
   const [sortBy, setSortBy] = React.useState<"newest" | "oldest">("newest")
 
@@ -862,11 +863,18 @@ export default function VakanzenPage() {
 
   React.useEffect(() => { fetchVakanzen() }, [])
 
+  const kundenListe = React.useMemo(() => {
+    const names = vakanzen.map((v) => v.kunde).filter((k): k is string => !!k)
+    return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b, "de"))
+  }, [vakanzen])
+
   const filtered = vakanzen
     .filter((v) => {
       const matchesStatus = statusFilter === "alle" || v.status === statusFilter
-      const matchesSearch = searchQuery === "" || v.rolle.toLowerCase().includes(searchQuery.toLowerCase())
-      return matchesStatus && matchesSearch
+      const matchesKunde = kundeFilter === "alle" || (v.kunde ?? "") === kundeFilter
+      const q = searchQuery.toLowerCase()
+      const matchesSearch = q === "" || v.rolle.toLowerCase().includes(q) || (v.kunde ?? "").toLowerCase().includes(q)
+      return matchesStatus && matchesKunde && matchesSearch
     })
     .sort((a, b) => {
       const aDate = a.published_at ?? a.created_at
@@ -952,7 +960,7 @@ export default function VakanzenPage() {
               <div className="flex flex-wrap items-center gap-3 px-4 lg:px-6">
                 <div className="relative min-w-[200px] flex-1 max-w-sm">
                   <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input className="pl-9" placeholder="Vakanz suchen…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                  <Input className="pl-9" placeholder="Rolle oder Kunde suchen…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                 </div>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger className="w-[160px]"><SelectValue placeholder="Status" /></SelectTrigger>
@@ -965,6 +973,17 @@ export default function VakanzenPage() {
                     <SelectItem value="Geschlossen">Geschlossen</SelectItem>
                   </SelectContent>
                 </Select>
+                {kundenListe.length > 0 && (
+                  <Select value={kundeFilter} onValueChange={setKundeFilter}>
+                    <SelectTrigger className="w-[180px]"><SelectValue placeholder="Kunde" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="alle">Alle Kunden</SelectItem>
+                      {kundenListe.map((k) => (
+                        <SelectItem key={k} value={k}>{k}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 <Select value={sortBy} onValueChange={(v) => setSortBy(v as "newest" | "oldest")}>
                   <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
                   <SelectContent>

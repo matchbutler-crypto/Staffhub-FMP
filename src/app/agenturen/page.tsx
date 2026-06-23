@@ -158,7 +158,7 @@ export default function AgenturenPage() {
                         <TableHead className="text-right">h/Woche</TableHead>
                         <TableHead className="text-right">
                           <span className="inline-flex items-center gap-1">
-                            <IconLock className="size-3 text-muted-foreground" />EK €/Tag
+                            <IconLock className="size-3 text-muted-foreground" />Tagesrate
                           </span>
                         </TableHead>
                         <TableHead className="text-right">
