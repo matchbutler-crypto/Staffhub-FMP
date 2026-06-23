@@ -10,7 +10,7 @@ vi.mock('next/navigation', () => ({
 }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
-import { buildSlackText } from './page'
+import { buildSlackText } from '@/lib/slack-text'
 
 const baseVakanz = {
   id: 'abc-123',
