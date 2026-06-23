@@ -36,7 +36,7 @@ export async function POST(
     return NextResponse.json({ error: { code: 'LOCKED', message: 'Gebuchtes Profil kann nicht verändert werden' } }, { status: 409 })
   }
 
-  void supabase
+  await supabase
     .from('ressource_vakanz_links')
     .update({ status: 'Interview geplant', interview_datum: null })
     .eq('id', link.id)

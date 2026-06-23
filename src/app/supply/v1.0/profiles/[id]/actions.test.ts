@@ -91,6 +91,7 @@ describe('POST reserve', () => {
     mockLinkSelect.mockResolvedValue({ data: gespielterLink, error: null })
     mockLinkUpdate.mockResolvedValue({ data: { id: 'lnk-1' }, error: null })
     mockHistorieInsert.mockResolvedValue({ error: null })
+    mockLinkCount.mockResolvedValue({ data: {}, error: null })
     const res = await reserve(makeRequest('r-1', 'vak-1', 'reserve'), params('r-1'))
     expect(res.status).toBe(200)
     const json = await res.json()
