@@ -440,7 +440,7 @@ export default function VakanzDetailPage() {
                     {isManager && vakanz.external_ref && (
                       <div>
                         <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Quelle</p>
-                        <p className="text-xs font-medium">MagentaOS · {vakanz.external_ref}</p>
+                        <p className="text-xs font-medium">MagentaOS</p>
                       </div>
                     )}
                   </div>
