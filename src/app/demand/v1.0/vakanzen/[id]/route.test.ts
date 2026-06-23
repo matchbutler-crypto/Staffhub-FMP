@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
 const { mockSelect, mockUpdate } = vi.hoisted(() => ({
   mockSelect: vi.fn(),
@@ -100,5 +100,45 @@ describe('PATCH /demand/v1.0/vakanzen/{id}', () => {
     mockUpdate.mockResolvedValue({ data: null, error: { code: 'PGRST116' } })
     const res = await PATCH(makeRequest('PATCH', { status: 'Offen' }), { params })
     expect(res.status).toBe(404)
+  })
+})
+
+describe('PATCH /demand/v1.0/vakanzen/{id} — Dual-Permission', () => {
+  // Für diese Tests brauchen wir permission-spezifische Mocks
+  // Der bestehende validateExternalApiKey-Mock returnt immer null.
+  // Wir überschreiben ihn per mockImplementation in einzelnen Tests.
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockUpdate.mockResolvedValue({ data: { id: 'vakanz-uuid', rolle: 'Dev', status: 'Offen', updated_at: '2026-06-23T00:00:00Z' }, error: null })
+  })
+
+  it('akzeptiert demand:write wenn vakanzen:update fehlt', async () => {
+    const { validateExternalApiKey } = await import('@/lib/external-api-auth')
+    vi.mocked(validateExternalApiKey).mockImplementation(async (_req, permission) => {
+      if (permission === 'demand:write') return null
+      return NextResponse.json({ error: 'Fehlende Berechtigung' }, { status: 403 })
+    })
+    const res = await PATCH(makeRequest('PATCH', { role: 'Dev' }), { params })
+    expect(res.status).toBe(200)
+  })
+
+  it('akzeptiert vakanzen:update wenn demand:write fehlt', async () => {
+    const { validateExternalApiKey } = await import('@/lib/external-api-auth')
+    vi.mocked(validateExternalApiKey).mockImplementation(async (_req, permission) => {
+      if (permission === 'vakanzen:update') return null
+      return NextResponse.json({ error: 'Fehlende Berechtigung' }, { status: 403 })
+    })
+    const res = await PATCH(makeRequest('PATCH', { skills: ['TypeScript'] }), { params })
+    expect(res.status).toBe(200)
+  })
+
+  it('gibt 403 zurück wenn beide Permissions fehlen', async () => {
+    const { validateExternalApiKey } = await import('@/lib/external-api-auth')
+    vi.mocked(validateExternalApiKey).mockResolvedValue(
+      NextResponse.json({ error: 'Nicht autorisiert' }, { status: 403 })
+    )
+    const res = await PATCH(makeRequest('PATCH', { status: 'Offen' }), { params })
+    expect(res.status).toBe(403)
   })
 })
