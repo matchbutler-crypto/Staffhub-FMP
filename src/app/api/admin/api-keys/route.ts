@@ -11,6 +11,9 @@ const VALID_PERMISSIONS: ApiPermission[] = [
   'vorschlaege:read',
   'vorschlaege:update',
   'profile:read',
+  'demand:write',
+  'supply:read',
+  'supply:write',
 ]
 
 const createKeySchema = z.object({
@@ -18,6 +21,7 @@ const createKeySchema = z.object({
   permissions: z.array(z.enum([
     'vakanzen:read', 'vakanzen:create', 'vakanzen:update',
     'vorschlaege:read', 'vorschlaege:update', 'profile:read',
+    'demand:write', 'supply:read', 'supply:write',
   ])).min(1),
 })
 

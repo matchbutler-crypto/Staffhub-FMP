@@ -1,20 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const mockProfilesSelect = vi.hoisted(() => vi.fn())
-
-function makeChainable(resolveFn: () => Promise<unknown>) {
-  const chain: Record<string, unknown> = {}
-  const methods = ['select', 'neq', 'order', 'limit', 'eq', 'overlaps', 'lte', 'gte']
-  for (const m of methods) chain[m] = vi.fn(() => chain)
-  chain['then'] = (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
-    resolveFn().then(resolve, reject)
-  return chain
-}
+const { mockSelect } = vi.hoisted(() => ({ mockSelect: vi.fn() }))
 
 vi.mock('@/lib/supabase/service-role', () => ({
   createServiceRoleClient: vi.fn(() => ({
-    from: vi.fn(() => makeChainable(mockProfilesSelect)),
+    from: vi.fn((table: string) => {
+      if (table === 'ressource_vakanz_links') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({ then: (r: (v: unknown) => unknown) => mockSelect().then(r) }),
+            }),
+          }),
+        }
+      }
+      return {}
+    }),
   })),
 }))
 
@@ -23,81 +25,59 @@ vi.mock('@/lib/external-api-auth', () => ({
 }))
 
 import { GET } from './route'
-import { validateExternalApiKey } from '@/lib/external-api-auth'
 
-function makeRequest(search = '') {
-  return new NextRequest(`http://localhost/supply/v1.0/profiles${search}`, {
-    headers: { 'Authorization': 'Bearer test-key' },
+function makeRequest(vakanzId: string) {
+  return new NextRequest(`http://localhost/supply/v1.0/profiles?vakanz=${vakanzId}`, {
+    headers: { Authorization: 'Bearer test-key' },
   })
 }
 
-const sampleProfile = {
-  id: 'r1',
-  name: 'Anna M.',
-  skills: ['Kubernetes', 'Docker'],
-  erfahrungslevel: 'Senior',
-  verfuegbar_ab: '2026-08-01',
-  verfuegbarkeit: 'Vollzeit',
-  arbeitsmodell: 'Remote',
-  wohnort: 'Berlin',
-  ek_tagesrate: 800,
+const mockLink = {
+  id: 'lnk-1',
+  status: 'Gespielt',
+  ressourcen: {
+    id: 'r-1',
+    name: 'Anna Beispiel',
+    erfahrungslevel: 'Senior',
+    skills: ['Python'],
+    email_geschaeftlich: 'anna@test.de',
+    telefon_geschaeftlich: null,
+  },
 }
 
 describe('GET /supply/v1.0/profiles', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('gibt 401 bei fehlendem Key zurück', async () => {
-    const { NextResponse } = await import('next/server')
-    vi.mocked(validateExternalApiKey).mockResolvedValueOnce(
-      NextResponse.json({ error: 'Nicht autorisiert' }, { status: 401 })
-    )
-    const res = await GET(makeRequest())
-    expect(res.status).toBe(401)
+  it('gibt 400 zurück wenn vakanz-Parameter fehlt', async () => {
+    const res = await GET(new NextRequest('http://localhost/supply/v1.0/profiles', {
+      headers: { Authorization: 'Bearer test-key' },
+    }))
+    expect(res.status).toBe(400)
   })
 
-  it('gibt Profile als data-Array mit nextCursor zurück', async () => {
-    mockProfilesSelect.mockResolvedValue({
-      data: [sampleProfile],
-      error: null,
-    })
-    const res = await GET(makeRequest())
+  it('gibt Profile mit AVAILABLE-Status zurück', async () => {
+    mockSelect.mockResolvedValue({ data: [mockLink], error: null })
+    const res = await GET(makeRequest('vak-1'))
     expect(res.status).toBe(200)
     const json = await res.json()
     expect(json.data).toHaveLength(1)
-    expect(json.nextCursor).toBeNull()
+    expect(json.data[0]).toMatchObject({
+      id: 'r-1', firstName: 'Anna', lastName: 'Beispiel',
+      status: 'AVAILABLE', email: null, phone: null,
+    })
   })
 
-  it('mappt DB-Felder auf Profil-Objekt-Schema', async () => {
-    mockProfilesSelect.mockResolvedValue({ data: [sampleProfile], error: null })
-    const res = await GET(makeRequest())
+  it('liefert Kontaktdaten nur bei BOOKED', async () => {
+    mockSelect.mockResolvedValue({ data: [{ ...mockLink, status: 'Beauftragt' }], error: null })
+    const res = await GET(makeRequest('vak-1'))
     const json = await res.json()
-    const p = json.data[0]
-    expect(p.profileId).toBe('r1')
-    expect(p.displayName).toBe('Anna M.')
-    expect(p.seniority).toBe('Senior')
-    expect(p.skills).toEqual(['Kubernetes', 'Docker'])
-    expect(p.availableFrom).toBe('2026-08-01')
-    expect(p.location).toEqual({ mode: 'Remote', city: 'Berlin' })
-    expect(p.rate).toEqual({ amount: 800, currency: 'EUR', per: 'DAY' })
-  })
-
-  it('setzt nextCursor wenn mehr Ergebnisse vorhanden', async () => {
-    // limit default = 50, wir simulieren 51 Einträge
-    const profiles = Array.from({ length: 51 }, (_, i) => ({
-      ...sampleProfile,
-      id: `r${i}`,
-      name: `User ${String(i).padStart(3, '0')}`,
-    }))
-    mockProfilesSelect.mockResolvedValue({ data: profiles, error: null })
-    const res = await GET(makeRequest('?limit=50'))
-    const json = await res.json()
-    expect(json.data).toHaveLength(50)
-    expect(json.nextCursor).not.toBeNull()
+    expect(json.data[0].status).toBe('BOOKED')
+    expect(json.data[0].email).toBe('anna@test.de')
   })
 
   it('gibt 500 bei DB-Fehler zurück', async () => {
-    mockProfilesSelect.mockResolvedValue({ data: null, error: { message: 'DB-Fehler' } })
-    const res = await GET(makeRequest())
+    mockSelect.mockResolvedValue({ data: null, error: { message: 'DB-Fehler' } })
+    const res = await GET(makeRequest('vak-1'))
     expect(res.status).toBe(500)
   })
 })

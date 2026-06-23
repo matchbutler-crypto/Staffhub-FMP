@@ -2,77 +2,65 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { validateExternalApiKey } from '@/lib/external-api-auth'
 
-const SENIORITY_MAP: Record<string, string> = {
-  JUNIOR: 'Junior',
-  MID:    'Mid',
-  SENIOR: 'Senior',
-  LEAD:   'Expert',
-  EXPERT: 'Expert',
+const INTERNAL_TO_SUPPLY: Record<string, string> = {
+  Gespielt:          'AVAILABLE',
+  'Interview geplant': 'RESERVED',
+  Zugesagt:          'RESERVED',
+  Beauftragt:        'BOOKED',
+  Abgelehnt:         'UNAVAILABLE',
+  Abgesagt:          'UNAVAILABLE',
+  Zurückgezogen:     'UNAVAILABLE',
+}
+
+function splitName(fullName: string): { firstName: string; lastName: string } {
+  const parts = fullName.trim().split(' ')
+  return { firstName: parts[0] ?? '', lastName: parts.slice(1).join(' ') }
 }
 
 export async function GET(request: NextRequest) {
-  const authError = await validateExternalApiKey(request, 'profile:read')
+  const authError = await validateExternalApiKey(request, 'supply:read')
   if (authError) return authError
 
-  const { searchParams } = request.nextUrl
-  const skillsParam    = searchParams.get('skills')
-  const seniorityParam = searchParams.get('seniority')
-  const availableFrom  = searchParams.get('availableFrom')
-  const limit = Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 100)
-  const cursor = searchParams.get('cursor') // ISO-Timestamp des letzten Eintrags
+  const vakanzId = request.nextUrl.searchParams.get('vakanz')
+  if (!vakanzId) {
+    return NextResponse.json({ error: { code: 'MISSING_PARAM', message: 'Parameter vakanz ist Pflicht' } }, { status: 400 })
+  }
 
   const supabase = createServiceRoleClient()
 
-  let query = supabase
-    .from('ressourcen')
-    .select('id, name, skills, erfahrungslevel, verfuegbar_ab, verfuegbarkeit, arbeitsmodell, wohnort, ek_tagesrate')
-    .neq('verfuegbarkeit', 'Deaktiviert')
-    .order('name', { ascending: true })
-    .limit(limit + 1) // +1 um nextCursor zu ermitteln
+  const { data, error } = await supabase
+    .from('ressource_vakanz_links')
+    .select(`
+      id, status,
+      ressourcen!inner(id, name, erfahrungslevel, skills, email_geschaeftlich, telefon_geschaeftlich)
+    `)
+    .eq('vakanz_id', vakanzId)
+    .order('created_at', { ascending: false })
 
-  if (skillsParam) {
-    const skills = skillsParam.split(',').map((s) => s.trim()).filter(Boolean)
-    if (skills.length > 0) {
-      query = query.overlaps('skills', skills)
+  if (error) {
+    return NextResponse.json({ error: { code: 'DB_ERROR', message: 'Fehler beim Laden der Profile' } }, { status: 500 })
+  }
+
+  const profiles = (data ?? []).map((link) => {
+    const r = link.ressourcen as unknown as {
+      id: string; name: string; erfahrungslevel: string | null
+      skills: string[] | null; email_geschaeftlich: string | null; telefon_geschaeftlich: string | null
     }
-  }
+    const supplyStatus = INTERNAL_TO_SUPPLY[link.status] ?? 'AVAILABLE'
+    const isBooked = supplyStatus === 'BOOKED'
+    const { firstName, lastName } = splitName(r.name)
 
-  if (seniorityParam) {
-    const dbSeniority = SENIORITY_MAP[seniorityParam.toUpperCase()] ?? seniorityParam
-    query = query.eq('erfahrungslevel', dbSeniority)
-  }
+    return {
+      id: r.id,
+      firstName,
+      lastName,
+      email: isBooked ? (r.email_geschaeftlich ?? null) : null,
+      phone: isBooked ? (r.telefon_geschaeftlich ?? null) : null,
+      status: supplyStatus,
+      seniority: r.erfahrungslevel ?? null,
+      skills: r.skills ?? [],
+    }
+  })
 
-  if (availableFrom) {
-    query = query.lte('verfuegbar_ab', availableFrom)
-  }
-
-  if (cursor) {
-    query = query.gte('name', cursor)
-  }
-
-  const { data, error } = await query
-
-  if (error) return NextResponse.json({ error: { code: 'DB_ERROR', message: 'Fehler beim Laden der Profile' } }, { status: 500 })
-
-  const rows = data ?? []
-  const hasMore = rows.length > limit
-  const pageData = hasMore ? rows.slice(0, limit) : rows
-  const nextCursor = hasMore ? pageData[pageData.length - 1].name : null
-
-  const profiles = pageData.map((r) => ({
-    profileId:     r.id,
-    displayName:   r.name,
-    seniority:     r.erfahrungslevel ?? null,
-    skills:        r.skills ?? [],
-    availableFrom: r.verfuegbar_ab ?? null,
-    location: {
-      mode: r.arbeitsmodell ?? null,
-      city: r.wohnort ?? null,
-    },
-    rate: r.ek_tagesrate != null
-      ? { amount: r.ek_tagesrate, currency: 'EUR', per: 'DAY' }
-      : null,
-  }))
-
-  return NextResponse.json({ data: profiles, nextCursor })
+  return NextResponse.json({ data: profiles })
 }

@@ -9,6 +9,7 @@ const updateKeySchema = z.object({
   permissions: z.array(z.enum([
     'vakanzen:read', 'vakanzen:create', 'vakanzen:update',
     'vorschlaege:read', 'vorschlaege:update', 'profile:read',
+    'demand:write', 'supply:read', 'supply:write',
   ])).optional(),
 }).refine(d => d.name !== undefined || d.aktiv !== undefined || d.permissions !== undefined, {
   message: 'Mindestens ein Feld muss angegeben werden',

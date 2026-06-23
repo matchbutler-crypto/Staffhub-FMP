@@ -9,6 +9,9 @@ export type ApiPermission =
   | 'vorschlaege:read'
   | 'vorschlaege:update'
   | 'profile:read'
+  | 'demand:write'
+  | 'supply:read'
+  | 'supply:write'
 
 export function generateApiKey(): { plaintext: string; hash: string; preview: string } {
   const plaintext = 'sfhub_' + randomBytes(16).toString('hex')
