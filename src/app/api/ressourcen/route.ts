@@ -76,11 +76,11 @@ export async function GET(request: NextRequest) {
   }
 
   // Separate query for link counts — RLS filters to own resources for Agentur
-  const [{ data: linkCountRows, error: linkCountError }, { data: beauftragtLinkRows, error: beauftragtError }] = await Promise.all([
+  const [{ data: linkCountRows, error: linkCountError }, { data: zugesagtLinkRows, error: zugesagtError }] = await Promise.all([
     supabase.from('ressource_vakanz_links').select('ressource_id'),
-    supabase.from('ressource_vakanz_links').select('ressource_id').eq('status', 'Beauftragt'),
+    supabase.from('ressource_vakanz_links').select('ressource_id').in('status', ['Zugesagt', 'Beauftragt']),
   ])
-  if (linkCountError || beauftragtError) {
+  if (linkCountError || zugesagtError) {
     return NextResponse.json({ error: 'Fehler beim Laden der Link-Informationen' }, { status: 500 })
   }
 
@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
     linkCountMap.set(rid, (linkCountMap.get(rid) ?? 0) + 1)
   }
 
-  const beauftragtSet = new Set((beauftragtLinkRows ?? []).map((l) => (l as { ressource_id: string }).ressource_id))
+  const zugesagtSet = new Set((zugesagtLinkRows ?? []).map((l) => (l as { ressource_id: string }).ressource_id))
 
   let result = (data ?? []).map((r) => {
     const { ek_tagesrate, notizen, nachname, vorname, geburtsdatum, geschlecht,
@@ -103,7 +103,7 @@ export async function GET(request: NextRequest) {
       ...rest,
       agentur_name,
       link_count: linkCountMap.get(r.id) ?? 0,
-      hat_beauftragt_link: beauftragtSet.has(r.id),
+      hat_beauftragt_link: zugesagtSet.has(r.id),
       ...(canSeePrivate ? {
         ek_tagesrate, notizen,
         nachname, vorname, geburtsdatum, geschlecht, firma,
