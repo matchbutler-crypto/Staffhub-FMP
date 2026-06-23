@@ -36,10 +36,14 @@ export async function POST(
     return NextResponse.json({ error: { code: 'LOCKED', message: 'Gebuchtes Profil kann nicht verändert werden' } }, { status: 409 })
   }
 
-  await supabase
+  const { error: updateError } = await supabase
     .from('ressource_vakanz_links')
     .update({ status: 'Interview geplant', interview_datum: null })
     .eq('id', link.id)
+
+  if (updateError) {
+    return NextResponse.json({ error: { code: 'UPDATE_FAILED', message: 'Status konnte nicht gesetzt werden' } }, { status: 500 })
+  }
 
   await supabase.from('ressource_historie').insert({
     ressource_id: profileId,

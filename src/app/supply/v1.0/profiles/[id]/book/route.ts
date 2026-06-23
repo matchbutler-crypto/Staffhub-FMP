@@ -40,7 +40,18 @@ export async function POST(
   const vakanz = vakanzResult.data
   const ressource = ressourceResult.data
 
-  await supabase.from('ressource_vakanz_links').update({ status: 'Beauftragt' }).eq('id', link.id)
+  if (ressourceResult.error || !ressource) {
+    return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Ressource nicht gefunden' } }, { status: 404 })
+  }
+
+  const { error: updateError } = await supabase
+    .from('ressource_vakanz_links')
+    .update({ status: 'Beauftragt' })
+    .eq('id', link.id)
+
+  if (updateError) {
+    return NextResponse.json({ error: { code: 'UPDATE_FAILED', message: 'Status konnte nicht gesetzt werden' } }, { status: 500 })
+  }
 
   if (vakanz?.enddatum) {
     await supabase

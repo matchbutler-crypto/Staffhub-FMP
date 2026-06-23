@@ -91,7 +91,7 @@ describe('POST reserve', () => {
     mockLinkSelect.mockResolvedValue({ data: gespielterLink, error: null })
     mockLinkUpdate.mockResolvedValue({ data: { id: 'lnk-1' }, error: null })
     mockHistorieInsert.mockResolvedValue({ error: null })
-    mockLinkCount.mockResolvedValue({ data: {}, error: null })
+    mockLinkCount.mockResolvedValue({ error: null })
     const res = await reserve(makeRequest('r-1', 'vak-1', 'reserve'), params('r-1'))
     expect(res.status).toBe(200)
     const json = await res.json()
@@ -112,7 +112,7 @@ describe('POST book', () => {
     mockLinkSelect.mockResolvedValue({ data: interviewLink, error: null })
     mockVakanzSelect.mockResolvedValue({ data: vakanz, error: null })
     mockRessourceSelect.mockResolvedValue({ data: ressource, error: null })
-    mockLinkUpdate.mockResolvedValue({ data: {}, error: null })
+    mockLinkUpdate.mockResolvedValue({ error: null })
     mockRessourceUpdate.mockResolvedValue({ error: null })
     mockHistorieInsert.mockResolvedValue({ error: null })
     mockVakanzUpdate.mockResolvedValue({ error: null })
@@ -141,7 +141,7 @@ describe('POST cancel', () => {
 
   it('setzt Status auf Abgelehnt und gibt UNAVAILABLE zurück', async () => {
     mockLinkSelect.mockResolvedValue({ data: gespielterLink, error: null })
-    mockLinkUpdate.mockResolvedValue({ data: {}, error: null })
+    mockLinkUpdate.mockResolvedValue({ error: null })
     mockHistorieInsert.mockResolvedValue({ error: null })
     const res = await cancel(makeRequest('r-1', 'vak-1', 'cancel'), params('r-1'))
     expect(res.status).toBe(200)

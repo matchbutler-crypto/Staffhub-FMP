@@ -36,7 +36,14 @@ export async function POST(
     return NextResponse.json({ error: { code: 'LOCKED', message: 'Gebuchtes Profil kann nicht abgelehnt werden' } }, { status: 409 })
   }
 
-  await supabase.from('ressource_vakanz_links').update({ status: 'Abgelehnt' }).eq('id', link.id)
+  const { error: updateError } = await supabase
+    .from('ressource_vakanz_links')
+    .update({ status: 'Abgelehnt' })
+    .eq('id', link.id)
+
+  if (updateError) {
+    return NextResponse.json({ error: { code: 'UPDATE_FAILED', message: 'Status konnte nicht gesetzt werden' } }, { status: 500 })
+  }
 
   await supabase.from('ressource_historie').insert({
     ressource_id: profileId,
