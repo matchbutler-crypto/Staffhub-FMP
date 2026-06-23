@@ -314,6 +314,19 @@ function RessourceFormSheet({
           notizen: data.notizen || null,
           arbeitsmodell: data.arbeitsmodell ?? 'Onshore',
           location: data.location || null,
+          // Stammdaten beim Bearbeiten erhalten – sonst werden sie vom API auf null gesetzt
+          ...(mode === "edit" && ressource ? {
+            nachname: ressource.nachname ?? null,
+            vorname: ressource.vorname ?? null,
+            geburtsdatum: ressource.geburtsdatum ?? null,
+            geschlecht: ressource.geschlecht ?? null,
+            firma: ressource.firma ?? null,
+            email_geschaeftlich: ressource.email_geschaeftlich ?? null,
+            telefon_geschaeftlich: ressource.telefon_geschaeftlich ?? null,
+            wohnort: ressource.wohnort ?? null,
+            namenszusatz: ressource.namenszusatz ?? null,
+            titel: ressource.titel ?? null,
+          } : {}),
           ...(isAdmin && mode === "create" ? { agentur_id: adminAgenturId } : {}),
         }),
       })

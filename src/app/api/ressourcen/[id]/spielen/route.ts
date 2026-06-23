@@ -19,24 +19,13 @@ async function getUserProfile(supabase: Awaited<ReturnType<typeof createClient>>
 
 async function validateResourceAvailability(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  ressourceId: string
+  ressourceId: string,
+  verfuegbarkeit: string
 ): Promise<{ available: boolean; reason?: string }> {
-  // Check resource status
-  const { data: ressource, error: resError } = await supabase
-    .from('ressourcen')
-    .select('status')
-    .eq('id', ressourceId)
-    .single()
-
-  if (resError || !ressource) {
-    return { available: false, reason: 'Ressource nicht gefunden' }
-  }
-
-  if (ressource.status === 'nicht_verfügbar') {
+  if (verfuegbarkeit === 'Nicht verfügbar') {
     return { available: false, reason: 'Diese Ressource ist derzeit nicht verfügbar' }
   }
 
-  // Check for active beauftragungen for this resource
   const { data: beauftragungen, error: baufError } = await supabase
     .from('beauftragungen')
     .select('id, start_date, end_date')
@@ -47,7 +36,6 @@ async function validateResourceAvailability(
     return { available: false, reason: 'Fehler bei der Verfügbarkeitsprüfung' }
   }
 
-  // Convert to Beauftragung type and check availability
   const convertedBeauftragungen: Beauftragung[] = (beauftragungen || []).map((b) => ({
     id: b.id,
     ressource_id: ressourceId,
@@ -55,7 +43,7 @@ async function validateResourceAvailability(
     end_date: b.end_date,
   }))
 
-  if (isResourceUnavailable(ressourceId, convertedBeauftragungen, ressource.status)) {
+  if (isResourceUnavailable(ressourceId, convertedBeauftragungen, null)) {
     return { available: false, reason: 'Diese Ressource ist derzeit beauftragt' }
   }
 
@@ -115,7 +103,7 @@ export async function POST(
   }
 
   // Validate resource availability
-  const validation = await validateResourceAvailability(supabase, ressourceId)
+  const validation = await validateResourceAvailability(supabase, ressourceId, ressource.verfuegbarkeit)
   if (!validation.available) {
     return NextResponse.json(
       { error: validation.reason || 'Ressource nicht verfügbar' },

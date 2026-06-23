@@ -52,9 +52,7 @@ export async function GET(request: NextRequest) {
   }
 
   const isAgentur = profile.rolle === 'Agentur'
-
-  // Besetzt-Vakanzen nach 3 Tagen ausblenden
-  const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
+  const isManagerOrAdmin = profile.rolle === 'Staffhub Manager' || profile.rolle === 'Admin'
 
   // Vakanzen laden + Profil-Anzahl per JOIN
   let query = supabase
@@ -91,13 +89,21 @@ export async function GET(request: NextRequest) {
       kandidaten_profile(count),
       ressource_vakanz_links(count)
     `)
-    .or(`status.neq.Besetzt,besetzt_seit.gt.${threeDaysAgo},besetzt_seit.is.null`)
     .order('created_at', { ascending: false })
     .limit(200)
 
-  // Agenturen sehen nur veröffentlichte Vakanzen
+  // Agenturen: nur veröffentlichte Vakanzen + Besetzt-Vakanzen nach 3 Tagen ausblenden
   if (isAgentur) {
-    query = query.eq('published', true)
+    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
+    query = query
+      .eq('published', true)
+      .or(`status.neq.Besetzt,besetzt_seit.gt.${threeDaysAgo},besetzt_seit.is.null`)
+  }
+
+  // Manager/Admin: Geschlossene Vakanzen nach 30 Tagen ausblenden (Übersicht entlasten)
+  if (isManagerOrAdmin) {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+    query = query.or(`status.neq.Geschlossen,created_at.gt.${thirtyDaysAgo}`)
   }
 
   const { data: vakanzen, error } = await query

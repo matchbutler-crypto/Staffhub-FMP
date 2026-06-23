@@ -66,6 +66,8 @@ interface Beauftragung {
   id: string
   profil_id: string | null
   ressource_link_id?: string | null
+  ressource_id?: string | null
+  vakanz_id?: string | null
   is_pool?: boolean
   agentur_id: string
   kandidatenname: string
@@ -321,7 +323,13 @@ export default function BeauftragungPage() {
                         <TableRow key={b.id} className={b.aktiv ? "" : "opacity-50"}>
                           <TableCell className="font-medium">
                             {b.is_pool ? (
-                              <span>{b.kandidatenname}</span>
+                              b.ressource_id ? (
+                                <Link href={`/ressourcen/${b.ressource_id}`} className="hover:underline">
+                                  {b.kandidatenname}
+                                </Link>
+                              ) : (
+                                <span>{b.kandidatenname}</span>
+                              )
                             ) : (
                               <Link href={`/profile/${b.profil_id}`} className="hover:underline">
                                 {b.kandidatenname}
@@ -330,7 +338,13 @@ export default function BeauftragungPage() {
                           </TableCell>
                           {isManager && <TableCell className="text-sm">{b.agentur_name}</TableCell>}
                           <TableCell className="text-sm">
-                            <span className="font-medium">{b.vakanz_nr ?? b.vakanz_titel}</span>
+                            {b.vakanz_id ? (
+                              <Link href={`/vakanzen/${b.vakanz_id}`} className="font-medium hover:underline">
+                                {b.vakanz_nr ?? b.vakanz_titel}
+                              </Link>
+                            ) : (
+                              <span className="font-medium">{b.vakanz_nr ?? b.vakanz_titel}</span>
+                            )}
                           </TableCell>
                           <TableCell className="text-right tabular-nums text-sm whitespace-nowrap">{fmtEur(ek)}</TableCell>
                           {isManager && <TableCell className="text-right tabular-nums text-sm whitespace-nowrap">{fmtEur(marge)}</TableCell>}

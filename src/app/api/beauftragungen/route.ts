@@ -157,6 +157,7 @@ export async function GET(request: NextRequest) {
       vakanz_id,
       vakanzen_data!vakanz_id(vakanz_nr),
       kandidaten_profile(kandidatenname, erfahrungslevel, vakanz_id, vakanzen(titel, vakanz_nr)),
+      ressource_vakanz_links!ressource_link_id(ressource_id),
       agenturen!inner(name)
     `, { count: 'exact' })
     .order('created_at', { ascending: false })
@@ -176,15 +177,20 @@ export async function GET(request: NextRequest) {
     const { kandidaten_profile, agenturen, einkaufspreis, margenaufschlag, verkaufspreis, ...rest } = b as typeof b & {
       vakanzen_data: { vakanz_nr: string | null } | null
       kandidaten_profile: { kandidatenname: string; erfahrungslevel: string; vakanz_id: string; vakanzen: { titel: string; vakanz_nr: string | null } | null } | null
+      ressource_vakanz_links: { ressource_id: string } | null
       agenturen: { name: string } | null
     }
-    const bTyped = b as typeof b & { vakanzen_data: { vakanz_nr: string | null } | null }
+    const bTyped = b as typeof b & {
+      vakanzen_data: { vakanz_nr: string | null } | null
+      ressource_vakanz_links: { ressource_id: string } | null
+    }
     const marge_euro = Number(margenaufschlag)
     const vk = Number(verkaufspreis)
     const isPool = !b.profil_id
 
     // Use direct vakanz_id join first (works for pool entries), fall back to kandidaten_profile path
     const vakanzNr = bTyped.vakanzen_data?.vakanz_nr ?? (kandidaten_profile?.vakanzen?.vakanz_nr ?? null)
+    const ressourceId = bTyped.ressource_vakanz_links?.ressource_id ?? null
 
     const base = {
       ...rest,
@@ -193,6 +199,7 @@ export async function GET(request: NextRequest) {
       erfahrungslevel: isPool ? (b.erfahrungslevel_pool ?? '–') : (kandidaten_profile?.erfahrungslevel ?? '–'),
       vakanz_titel: isPool ? (b.vakanz_titel ?? '–') : (kandidaten_profile?.vakanzen?.titel ?? '–'),
       vakanz_nr: vakanzNr,
+      ressource_id: ressourceId,
       agentur_name: agenturen?.name ?? '–',
       einkaufspreis: Number(einkaufspreis),
     }
