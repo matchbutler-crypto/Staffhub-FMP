@@ -443,11 +443,15 @@ export default function AbrechnungPage() {
                           <TableRow key={b.id}>
                             <TableCell className="font-medium">{b.kandidatenname}</TableCell>
                             <TableCell className="text-sm text-muted-foreground">{b.agentur_name}</TableCell>
-                            <TableCell className="text-sm max-w-[180px]">
-                              {b.vakanz_nr && (
-                                <span className="font-mono text-[11px] text-muted-foreground mr-1.5">{b.vakanz_nr}</span>
-                              )}
-                              <span className="text-muted-foreground truncate">{b.vakanz_titel}</span>
+                            <TableCell className="max-w-[200px]">
+                              <div className="flex flex-col gap-0.5">
+                                {b.vakanz_nr ? (
+                                  <span className="font-mono text-sm font-medium text-foreground">{b.vakanz_nr}</span>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">–</span>
+                                )}
+                                <span className="text-xs text-muted-foreground truncate">{b.vakanz_titel}</span>
+                              </div>
                             </TableCell>
                             <TableCell className="text-right text-sm">{fmt(margeTg)}</TableCell>
                             <TableCell className="text-right text-sm">20</TableCell>
