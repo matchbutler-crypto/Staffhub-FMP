@@ -362,15 +362,10 @@ export default function VakanzDetailPage() {
               ) : vakanz ? (
                 <div className="space-y-2.5">
 
-                  {/* Row 1: Title + Status-Badges */}
+                  {/* Row 1: Title + Status-Badge */}
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                     <h1 className="text-lg font-semibold leading-tight">{vakanz.rolle}</h1>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <Badge variant="outline" className={`text-xs ${STATUS_COLORS[vakanzStatus] ?? ""}`}>{vakanzStatus}</Badge>
-                      <Badge variant="outline" className="text-xs">{vakanz.erfahrungslevel}</Badge>
-                      <Badge variant="outline" className="text-xs">{vakanz.arbeitsmodell}{vakanz.onsite_anteil != null ? ` · ${vakanz.onsite_anteil}% Onsite` : ""}</Badge>
-                      {vakanz.branche && <Badge variant="outline" className="text-xs">{vakanz.branche}</Badge>}
-                    </div>
+                    <Badge variant="outline" className={`text-xs ${STATUS_COLORS[vakanzStatus] ?? ""}`}>{vakanzStatus}</Badge>
                   </div>
 
                   {/* Row 2: Meta-Grid */}
@@ -379,6 +374,20 @@ export default function VakanzDetailPage() {
                       <div>
                         <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">ID</p>
                         <p className="text-xs font-medium">{vakanz.vakanz_nr}</p>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Level</p>
+                      <p className="text-xs font-medium">{vakanz.erfahrungslevel}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Arbeitsmodell</p>
+                      <p className="text-xs font-medium">{vakanz.arbeitsmodell}{vakanz.onsite_anteil != null ? ` · ${vakanz.onsite_anteil}% Onsite` : ""}</p>
+                    </div>
+                    {vakanz.branche && (
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Branche</p>
+                        <p className="text-xs font-medium">{vakanz.branche}</p>
                       </div>
                     )}
                     <div>
