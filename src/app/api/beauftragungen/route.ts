@@ -322,11 +322,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Fehler beim Anlegen der Beauftragung' }, { status: 500 })
     }
 
-    // Verfügbarkeit automatisch auf Enddatum setzen (wenn angegeben)
-    if (link?.ressource_id && parsed.data.enddatum) {
+    // Verfügbarkeit automatisch auf "Nicht verfügbar" setzen, verfuegbar_ab auf Enddatum
+    if (link?.ressource_id) {
       await supabase
         .from('ressourcen')
-        .update({ verfuegbarkeit: 'Verfügbar ab', verfuegbar_ab: parsed.data.enddatum })
+        .update({ verfuegbarkeit: 'Nicht verfügbar', verfuegbar_ab: parsed.data.enddatum ?? null })
         .eq('id', link.ressource_id)
     }
 
