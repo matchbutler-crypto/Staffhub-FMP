@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { isResourceUnavailable, type Beauftragung } from '@/lib/resource-availability'
+import { sendProfileProposed } from '@/lib/magenta-webhook'
 
 const spielenSchema = z.object({
   vakanz_id: z.string().uuid('Ungültige Vakanz-ID'),
@@ -99,7 +100,7 @@ export async function POST(
   // Ressource prüfen (existiert + nicht deaktiviert + Ownership für Agentur)
   const { data: ressource } = await supabase
     .from('ressourcen')
-    .select('id, name, verfuegbarkeit, agentur_id')
+    .select('id, name, verfuegbarkeit, agentur_id, email_geschaeftlich, telefon_geschaeftlich')
     .eq('id', ressourceId)
     .single()
 
@@ -166,6 +167,14 @@ export async function POST(
     text: `Auf Vakanz "${vakanz.rolle}" gespielt`,
     erstellt_von: user.id,
   })
+
+  // fire-and-forget — kein await, kein Fehler für den User
+  sendProfileProposed(vakanz_id, {
+    id: ressource.id,
+    name: ressource.name,
+    email: ressource.email_geschaeftlich ?? null,
+    phone: ressource.telefon_geschaeftlich ?? null,
+  }).catch((e) => console.error('MagentaOS webhook error:', e))
 
   return NextResponse.json({ link }, { status: 201 })
 }

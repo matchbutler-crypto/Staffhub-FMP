@@ -177,3 +177,47 @@ describe('POST /api/ressourcen/[id]/spielen', () => {
     expect(mockHistorieInsert).toHaveBeenCalledOnce()
   })
 })
+
+// ── Webhook-Mock ───────────────────────────────────────────────────────────────
+vi.mock('@/lib/magenta-webhook', () => ({
+  sendProfileProposed: vi.fn().mockResolvedValue(undefined),
+}))
+
+import { sendProfileProposed } from '@/lib/magenta-webhook'
+
+describe('POST /api/ressourcen/[id]/spielen — Webhook', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('feuert sendProfileProposed nach erfolgreichem Spielen', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u-1' } }, error: null })
+    mockProfileSelect.mockResolvedValue({ data: managerProfile, error: null })
+    mockRessourceSelect.mockResolvedValue({
+      data: { id: 'res-1', name: 'Max M.', verfuegbarkeit: 'Jetzt verfügbar', agentur_id: 'ag-1', email_geschaeftlich: 'max@test.de', telefon_geschaeftlich: null },
+      error: null,
+    })
+    mockBeauftragungSelect.mockReturnValue({ data: [], error: null })
+    mockVakanzSelect.mockResolvedValue({ data: offeneVakanz, error: null })
+    mockLinkInsert.mockResolvedValue({
+      data: { id: 'lnk-1', ressource_id: 'res-1', vakanz_id: VAKANZ_UUID, status: 'Gespielt', created_at: '2026-06-23T00:00:00Z' },
+      error: null,
+    })
+    mockHistorieInsert.mockResolvedValue({ error: null })
+
+    await POST(makeRequest({ vakanz_id: VAKANZ_UUID }), { params: Promise.resolve({ id: 'res-1' }) })
+
+    expect(sendProfileProposed).toHaveBeenCalledWith(
+      VAKANZ_UUID,
+      expect.objectContaining({ id: 'res-1', name: 'Max M.', email: 'max@test.de', phone: null })
+    )
+  })
+
+  it('feuert keinen Webhook wenn Spielen fehlschlägt', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u-1' } }, error: null })
+    mockProfileSelect.mockResolvedValue({ data: managerProfile, error: null })
+    mockRessourceSelect.mockResolvedValue({ data: null, error: { message: 'not found' } })
+
+    await POST(makeRequest({ vakanz_id: VAKANZ_UUID }), { params: Promise.resolve({ id: 'res-1' }) })
+
+    expect(sendProfileProposed).not.toHaveBeenCalled()
+  })
+})
