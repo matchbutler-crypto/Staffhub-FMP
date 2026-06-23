@@ -3,12 +3,22 @@ import { z } from 'zod'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { validateExternalApiKey } from '@/lib/external-api-auth'
 
+const STATUS_MAP: Record<string, string> = { closed: 'Geschlossen', open: 'Offen' }
+
 const updateVakanzSchema = z.object({
-  status: z.enum(['Offen', 'Besetzt', 'Storniert']).optional(),
+  status: z.string().optional(),  // Akzeptiert Offen, Besetzt, Storniert, closed, open (siehe STATUS_MAP)
   beschreibung: z.string().min(1).optional(),
   budget_intern: z.number().positive().optional(),
   skills: z.array(z.string()).min(1).max(20).optional(),
   sourcing_erlaubt: z.boolean().optional(),
+  // MagentaOS-Felder (demand:write)
+  rolle: z.string().min(1).optional(),
+  role: z.string().min(1).optional(),
+  description: z.string().min(1).optional(),
+  startdatum: z.string().optional(),
+  startDate: z.string().optional(),
+  enddatum: z.string().optional(),
+  endDate: z.string().optional(),
 }).refine(
   d => Object.values(d).some(v => v !== undefined),
   { message: 'Mindestens ein Feld muss angegeben werden' }
@@ -42,8 +52,10 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const authError = await validateExternalApiKey(request, 'vakanzen:update')
-  if (authError) return authError
+  // Dual-Permission-Check: vakanzen:update ODER demand:write
+  const authError1 = await validateExternalApiKey(request, 'vakanzen:update')
+  const authError2 = await validateExternalApiKey(request, 'demand:write')
+  if (authError1 && authError2) return authError1  // beide fehlgeschlagen
 
   const { id } = await params
   const body = await request.json().catch(() => null)
@@ -56,10 +68,40 @@ export async function PATCH(
     )
   }
 
+  const d = parsed.data
+  const updatePayload: Record<string, unknown> = {}
+
+  // Status-Mapping anwenden
+  if (d.status !== undefined) {
+    updatePayload.status = STATUS_MAP[d.status] ?? d.status
+  }
+  // MagentaOS-Felder mit Fallback auf Alt-Namen
+  if (d.rolle ?? d.role) {
+    updatePayload.rolle = d.rolle ?? d.role
+  }
+  if (d.beschreibung ?? d.description) {
+    updatePayload.beschreibung = d.beschreibung ?? d.description
+  }
+  if (d.startdatum ?? d.startDate) {
+    updatePayload.startdatum = d.startdatum ?? d.startDate
+  }
+  if (d.enddatum ?? d.endDate) {
+    updatePayload.enddatum = d.enddatum ?? d.endDate
+  }
+  if (d.skills !== undefined) {
+    updatePayload.skills = d.skills
+  }
+  if (d.budget_intern !== undefined) {
+    updatePayload.budget_intern = d.budget_intern
+  }
+  if (d.sourcing_erlaubt !== undefined) {
+    updatePayload.sourcing_erlaubt = d.sourcing_erlaubt
+  }
+
   const supabase = createServiceRoleClient()
   const { data, error } = await supabase
     .from('vakanzen_data')
-    .update(parsed.data)
+    .update(updatePayload)
     .eq('id', id)
     .select('id, vakanz_nr, rolle, status, published, updated_at')
     .single()

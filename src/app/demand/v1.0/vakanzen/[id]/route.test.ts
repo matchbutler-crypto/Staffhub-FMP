@@ -79,4 +79,26 @@ describe('PATCH /demand/v1.0/vakanzen/{id}', () => {
     const json = await res.json()
     expect(json.vakanz.status).toBe('Besetzt')
   })
+
+  it('mapped status:closed auf Geschlossen', async () => {
+    mockUpdate.mockResolvedValue({ data: { id: 'vakanz-uuid', status: 'Geschlossen' }, error: null })
+    const res = await PATCH(makeRequest('PATCH', { status: 'closed' }), { params })
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.vakanz.status).toBe('Geschlossen')
+  })
+
+  it('aktualisiert Vakanz mit role (MagentaOS-Alias)', async () => {
+    mockUpdate.mockResolvedValue({ data: { id: 'vakanz-uuid', rolle: 'Senior Dev' }, error: null })
+    const res = await PATCH(makeRequest('PATCH', { role: 'Senior Dev' }), { params })
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.vakanz.rolle).toBe('Senior Dev')
+  })
+
+  it('gibt 404 zurück wenn Vakanz nicht gefunden', async () => {
+    mockUpdate.mockResolvedValue({ data: null, error: { code: 'PGRST116' } })
+    const res = await PATCH(makeRequest('PATCH', { status: 'Offen' }), { params })
+    expect(res.status).toBe(404)
+  })
 })
