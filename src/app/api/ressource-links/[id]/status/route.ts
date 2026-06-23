@@ -133,19 +133,28 @@ export async function PATCH(
     erstellt_von: user.id,
   })
 
-  // Bei Beauftragt: Verfügbarkeit automatisch auf Enddatum der Vakanz setzen
-  if (newStatus === 'Beauftragt' && vakanzEnddatum) {
+  // Bei Beauftragt: Verfügbarkeit auf "Nicht verfügbar" setzen, verfuegbar_ab auf Enddatum der Vakanz
+  if (newStatus === 'Beauftragt') {
+    const updatePayload: { verfuegbarkeit: string; verfuegbar_ab?: string | null } = {
+      verfuegbarkeit: 'Nicht verfügbar',
+      verfuegbar_ab: vakanzEnddatum ?? null,
+    }
     await supabase
       .from('ressourcen')
-      .update({ verfuegbarkeit: 'Verfügbar ab', verfuegbar_ab: vakanzEnddatum })
+      .update(updatePayload)
       .eq('id', link.ressource_id)
 
-    const dateLabel = new Date(vakanzEnddatum).toLocaleDateString('de-DE')
+    const dateLabel = vakanzEnddatum
+      ? new Date(vakanzEnddatum).toLocaleDateString('de-DE')
+      : null
+    const histText2 = dateLabel
+      ? `Verfügbarkeit automatisch auf "Nicht verfügbar" gesetzt, verfügbar ab ${dateLabel} (Beauftragt für: "${vakanzRolle}")`
+      : `Verfügbarkeit automatisch auf "Nicht verfügbar" gesetzt (Beauftragt für: "${vakanzRolle}")`
     await supabase.from('ressource_historie').insert({
       ressource_id: link.ressource_id,
       link_id: id,
       typ: 'system',
-      text: `Verfügbarkeit automatisch auf "Verfügbar ab ${dateLabel}" aktualisiert (Beauftragt für: "${vakanzRolle}")`,
+      text: histText2,
       erstellt_von: user.id,
     })
   }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { createServiceRoleClient } from '@/lib/supabase/service-role'
 
 // ── GET /api/vakanzen/[id] ─────────────────────────────────────────────────────
 
@@ -39,12 +40,52 @@ export async function GET(
     `)
     .eq('id', id)
 
-  // Agentur darf nicht-veröffentlichte Vakanzen nicht einsehen
+  // Agentur: nur veröffentlichte Vakanzen, AUSSER sie haben eine Ressource auf dieser Vakanz eingereicht
   if (isAgentur) {
-    vakanzQuery = vakanzQuery.eq('published', true)
+    const { data: eigenerLink } = await supabase
+      .from('ressource_vakanz_links')
+      .select('id')
+      .eq('vakanz_id', id)
+      .limit(1)
+      .maybeSingle()
+
+    if (!eigenerLink) {
+      vakanzQuery = vakanzQuery.eq('published', true)
+    }
+    // Hat Link → Vakanz auch bei published=false anzeigen (z.B. nach Besetzt-Setzen)
   }
 
-  const { data: vakanz, error } = await vakanzQuery.single()
+  let { data: vakanz, error } = await vakanzQuery.single()
+
+  // Fallback für Agentur mit Link: RLS könnte published=false blockieren → Service Role
+  if ((error || !vakanz) && isAgentur) {
+    const { data: eigenerLink } = await supabase
+      .from('ressource_vakanz_links')
+      .select('id')
+      .eq('vakanz_id', id)
+      .limit(1)
+      .maybeSingle()
+
+    if (eigenerLink) {
+      const serviceSupabase = createServiceRoleClient()
+      const { data: vakanzSR, error: errSR } = await serviceSupabase
+        .from('vakanzen')
+        .select(`
+          id, titel, branche, kunde, rolle, beschreibung, skills, skills_nice_have,
+          erfahrungslevel, startdatum, enddatum, teamgroesse, fte_anzahl, auslastung,
+          arbeitsmodell, onsite_anteil, ansprechpartner, status, standort, published, published_at,
+          budget_intern, slack_ts, slack_detail_posted_at, weitere_kommentare, created_at, vakanz_nr,
+          external_ref, kandidaten_profile(count)
+        `)
+        .eq('id', id)
+        .single()
+
+      if (!errSR && vakanzSR) {
+        vakanz = vakanzSR
+        error = null
+      }
+    }
+  }
 
   if (error || !vakanz) {
     return NextResponse.json({ error: 'Vakanz nicht gefunden' }, { status: 404 })

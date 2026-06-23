@@ -36,6 +36,7 @@ export interface PoolRessource {
   agentur_name?: string | null
   agentur_id?: string | null
   ek_tagesrate?: number | null
+  hat_beauftragt_link?: boolean
 }
 
 export const VERFUEGBARKEIT_COLORS: Record<string, string> = {
@@ -120,6 +121,7 @@ export function RessourceEinsetzenDialog({
   }, [open, vakanzId])
 
   const filteredWithScore = ressourcen
+    .filter((r) => !r.hat_beauftragt_link)
     .filter(
       (r) =>
         r.name.toLowerCase().includes(search.toLowerCase()) ||

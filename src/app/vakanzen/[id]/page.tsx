@@ -317,7 +317,7 @@ export default function VakanzDetailPage() {
         <div className="flex-1 overflow-y-auto">
 
           {/* ── STICKY VAKANZ-INFO ─────────────────────────────────────────── */}
-          <div className="sticky top-0 z-10 bg-background border-b">
+          <div className="sticky top-[var(--header-height)] z-10 bg-background border-b">
             <div className="px-6 py-3">
 
               {/* Top bar: back + actions */}

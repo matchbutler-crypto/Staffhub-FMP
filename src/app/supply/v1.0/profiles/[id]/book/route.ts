@@ -53,12 +53,10 @@ export async function POST(
     return NextResponse.json({ error: { code: 'UPDATE_FAILED', message: 'Status konnte nicht gesetzt werden' } }, { status: 500 })
   }
 
-  if (vakanz?.enddatum) {
-    await supabase
-      .from('ressourcen')
-      .update({ verfuegbarkeit: 'Verfügbar ab', verfuegbar_ab: vakanz.enddatum })
-      .eq('id', profileId)
-  }
+  await supabase
+    .from('ressourcen')
+    .update({ verfuegbarkeit: 'Nicht verfügbar', verfuegbar_ab: vakanz?.enddatum ?? null })
+    .eq('id', profileId)
 
   await supabase.from('ressource_historie').insert({
     ressource_id: profileId,
