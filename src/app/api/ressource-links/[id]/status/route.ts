@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { sendProfileUpdated } from '@/lib/magenta-webhook'
 
 const LINK_STATUS = ['Gespielt', 'Interview geplant', 'Zugesagt', 'Beauftragt', 'Abgesagt', 'Abgelehnt'] as const
 type LinkStatus = typeof LINK_STATUS[number]
@@ -147,6 +148,24 @@ export async function PATCH(
       text: `Verfügbarkeit automatisch auf "Verfügbar ab ${dateLabel}" aktualisiert (Beauftragt für: "${vakanzRolle}")`,
       erstellt_von: user.id,
     })
+  }
+
+  // Webhook an MagentaOS bei Beauftragt
+  if (newStatus === 'Beauftragt') {
+    const { data: ressource } = await supabase
+      .from('ressourcen')
+      .select('id, name, email_geschaeftlich, telefon_geschaeftlich')
+      .eq('id', link.ressource_id)
+      .single()
+
+    if (ressource) {
+      sendProfileUpdated(link.vakanz_id, {
+        id: ressource.id,
+        name: ressource.name,
+        email: ressource.email_geschaeftlich ?? null,
+        phone: ressource.telefon_geschaeftlich ?? null,
+      }, 'BOOKED').catch((e) => console.error('MagentaOS webhook error:', e))
+    }
   }
 
   // Pfad 1 — Vakanz automatisch auf "Besetzt" setzen wenn FTE-Ziel erreicht

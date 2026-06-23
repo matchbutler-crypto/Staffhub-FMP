@@ -9,12 +9,16 @@ const {
   mockLinkSelect,
   mockLinkUpdate,
   mockHistorieInsert,
+  mockRessourceSelect,
+  mockVakanzSelect,
 } = vi.hoisted(() => ({
   mockGetUser: vi.fn(),
   mockProfileSelect: vi.fn(),
   mockLinkSelect: vi.fn(),
   mockLinkUpdate: vi.fn(),
   mockHistorieInsert: vi.fn(),
+  mockRessourceSelect: vi.fn(),
+  mockVakanzSelect: vi.fn(),
 }))
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -26,7 +30,14 @@ vi.mock('@/lib/supabase/server', () => ({
       }
       if (table === 'ressource_vakanz_links') {
         return {
-          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: mockLinkSelect }) }),
+          select: vi.fn().mockImplementation((_cols: string, opts?: { count?: string; head?: boolean }) => {
+            if (opts?.count === 'exact') {
+              // FTE count query: .select('*', { count, head }).eq().eq() — return count result
+              const secondEq = vi.fn().mockResolvedValue({ count: 0, error: null })
+              return { eq: vi.fn().mockReturnValue({ eq: secondEq }) }
+            }
+            return { eq: vi.fn().mockReturnValue({ single: mockLinkSelect }) }
+          }),
           update: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
               select: vi.fn().mockReturnValue({ single: mockLinkUpdate }),
@@ -37,12 +48,33 @@ vi.mock('@/lib/supabase/server', () => ({
       if (table === 'ressource_historie') {
         return { insert: mockHistorieInsert }
       }
+      if (table === 'ressourcen') {
+        return {
+          update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }),
+          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: mockRessourceSelect }) }),
+        }
+      }
+      if (table === 'vakanzen') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({ single: mockVakanzSelect }),
+            count: 'exact',
+            head: true,
+          }),
+          update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }),
+        }
+      }
       return {}
     }),
   }),
 }))
 
+vi.mock('@/lib/magenta-webhook', () => ({
+  sendProfileUpdated: vi.fn().mockResolvedValue(undefined),
+}))
+
 import { PATCH } from './route'
+import { sendProfileUpdated } from '@/lib/magenta-webhook'
 
 function makeRequest(body: unknown): NextRequest {
   return new NextRequest('http://localhost/api/ressource-links/link-1/status', {
@@ -141,5 +173,47 @@ describe('PATCH /api/ressource-links/[id]/status', () => {
     expect(res.status).toBe(200)
     const json = await res.json()
     expect(json.link.status).toBe('Abgelehnt')
+  })
+})
+
+// ── Task 5: Beauftragt Webhook ─────────────────────────────────────────────────
+
+const managerProfileWebhook = { rolle: 'Staffhub Manager', aktiv: true }
+const interviewLink = {
+  id: 'lnk-1', ressource_id: 'r-1', vakanz_id: 'vak-1', status: 'Interview geplant',
+  vakanzen: { rolle: 'Senior Dev', enddatum: '2027-01-31' },
+}
+
+describe('PATCH /api/ressource-links/[id]/status — Beauftragt Webhook', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('feuert sendProfileUpdated mit BOOKED wenn auf Beauftragt gesetzt', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u-1' } }, error: null })
+    mockProfileSelect.mockResolvedValue({ data: managerProfileWebhook, error: null })
+    mockLinkSelect.mockResolvedValue({ data: interviewLink, error: null })
+    mockLinkUpdate.mockResolvedValue({ data: { id: 'lnk-1', ressource_id: 'r-1', vakanz_id: 'vak-1', status: 'Beauftragt', interview_datum: null, feedback: null, updated_at: '2026-06-23T00:00:00Z' }, error: null })
+    mockRessourceSelect.mockResolvedValue({ data: { id: 'r-1', name: 'Anna Beispiel', email_geschaeftlich: 'anna@test.de', telefon_geschaeftlich: null }, error: null })
+    mockHistorieInsert.mockResolvedValue({ error: null })
+    mockVakanzSelect.mockResolvedValue({ data: { status: 'Offen', fte_anzahl: 1 }, error: null })
+
+    await PATCH(makeRequest({ status: 'Beauftragt' }), { params: Promise.resolve({ id: 'lnk-1' }) })
+
+    expect(sendProfileUpdated).toHaveBeenCalledWith(
+      'vak-1',
+      expect.objectContaining({ id: 'r-1', name: 'Anna Beispiel' }),
+      'BOOKED'
+    )
+  })
+
+  it('feuert keinen Webhook bei anderem Status', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u-1' } }, error: null })
+    mockProfileSelect.mockResolvedValue({ data: managerProfileWebhook, error: null })
+    mockLinkSelect.mockResolvedValue({ data: { ...interviewLink, status: 'Gespielt' }, error: null })
+    mockLinkUpdate.mockResolvedValue({ data: { id: 'lnk-1', ressource_id: 'r-1', vakanz_id: 'vak-1', status: 'Interview geplant', interview_datum: '2026-07-01', feedback: null, updated_at: '2026-06-23T00:00:00Z' }, error: null })
+    mockHistorieInsert.mockResolvedValue({ error: null })
+
+    await PATCH(makeRequest({ status: 'Interview geplant', interview_datum: '2026-07-01' }), { params: Promise.resolve({ id: 'lnk-1' }) })
+
+    expect(sendProfileUpdated).not.toHaveBeenCalled()
   })
 })
