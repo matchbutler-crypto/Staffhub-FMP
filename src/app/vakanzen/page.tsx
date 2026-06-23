@@ -103,6 +103,7 @@ interface Vakanz {
   published?: boolean
   published_at?: string | null
   vakanz_nr?: string | null
+  external_ref?: string | null
 }
 
 type ProfilStatus =
@@ -152,18 +153,6 @@ const profilStatusColors: Record<ProfilStatus, string> = {
   Archiviert: "bg-gray-50 text-gray-500 border-gray-200",
 }
 
-const arbeitsmodellColors: Record<Arbeitsmodell, string> = {
-  Remote: "bg-teal-50 text-teal-700 border-teal-200",
-  Hybrid: "bg-indigo-50 text-indigo-700 border-indigo-200",
-  Onsite: "bg-amber-50 text-amber-700 border-amber-200",
-}
-
-const erfahrungsColors: Record<Erfahrungslevel, string> = {
-  Junior: "bg-sky-50 text-sky-700 border-sky-200",
-  Mid: "bg-violet-50 text-violet-700 border-violet-200",
-  Senior: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  Expert: "bg-rose-50 text-rose-700 border-rose-200",
-}
 
 // ── KI Score Badge ─────────────────────────────────────────────────────────────
 
@@ -473,25 +462,12 @@ function VakanzCard({
       >
         {/* Main content — 1:1 detail-style layout */}
         <div className="flex flex-1 flex-col gap-2.5 min-w-0">
-          {/* Row 1: Title + Badges (same line, like detail view) */}
+          {/* Row 1: Title + Status Badge */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span className="font-semibold text-sm text-foreground leading-tight">{vakanz.rolle}</span>
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className={`inline-flex shrink-0 items-center rounded border px-1.5 py-0.5 text-xs font-medium ${statusColors[vakanz.status]}`}>
-                {vakanz.status}
-              </span>
-              <span className={`inline-flex shrink-0 items-center rounded border px-1.5 py-0.5 text-xs font-medium ${erfahrungsColors[vakanz.erfahrungslevel]}`}>
-                {vakanz.erfahrungslevel}
-              </span>
-              <span className={`inline-flex shrink-0 items-center rounded border px-1.5 py-0.5 text-xs font-medium ${arbeitsmodellColors[vakanz.arbeitsmodell]}`}>
-                {vakanz.arbeitsmodell}{vakanz.onsite_anteil != null ? ` · ${vakanz.onsite_anteil}% Onsite` : ""}
-              </span>
-              {vakanz.branche && (
-                <span className="inline-flex shrink-0 items-center rounded border border-border/60 bg-muted/40 px-1.5 py-0.5 text-xs text-muted-foreground">
-                  {vakanz.branche}
-                </span>
-              )}
-            </div>
+            <span className={`inline-flex shrink-0 items-center rounded border px-1.5 py-0.5 text-xs font-medium ${statusColors[vakanz.status]}`}>
+              {vakanz.status}
+            </span>
           </div>
 
           {/* Row 2: Meta-Grid (CSS grid, like detail view) */}
@@ -500,6 +476,20 @@ function VakanzCard({
               <div>
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">ID</p>
                 <p className="text-xs font-medium">{vakanz.vakanz_nr}</p>
+              </div>
+            )}
+            <div>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Level</p>
+              <p className="text-xs font-medium">{vakanz.erfahrungslevel}</p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Arbeitsmodell</p>
+              <p className="text-xs font-medium">{vakanz.arbeitsmodell}{vakanz.onsite_anteil != null ? ` · ${vakanz.onsite_anteil}% Onsite` : ""}</p>
+            </div>
+            {vakanz.branche && (
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Branche</p>
+                <p className="text-xs font-medium">{vakanz.branche}</p>
               </div>
             )}
             <div>
@@ -540,6 +530,12 @@ function VakanzCard({
               <div>
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Tagesrate</p>
                 <p className="text-xs font-medium">{vakanz.budget_intern.toLocaleString("de-DE")} €</p>
+              </div>
+            )}
+            {isManagerOrAdmin && vakanz.external_ref && (
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Quelle</p>
+                <p className="text-xs font-medium">MagentaOS</p>
               </div>
             )}
           </div>

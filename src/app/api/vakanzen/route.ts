@@ -87,6 +87,7 @@ export async function GET(request: NextRequest) {
       slack_detail_posted_at,
       created_at,
       vakanz_nr,
+      external_ref,
       kandidaten_profile(count),
       ressource_vakanz_links(count)
     `)
