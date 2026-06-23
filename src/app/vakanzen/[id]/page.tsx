@@ -60,6 +60,7 @@ interface Vakanz {
   published?: boolean
   published_at?: string | null
   vakanz_nr?: string | null
+  external_ref?: string | null
 }
 
 type ProfilStatus = "Eingereicht" | "In Prüfung" | "Präsentiert" | "Interview" | "Beauftragt" | "Abgelehnt" | "Archiviert"
@@ -434,6 +435,12 @@ export default function VakanzDetailPage() {
                       <div>
                         <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Tagesrate</p>
                         <p className="text-xs font-medium">{vakanz.budget_intern.toLocaleString("de-DE")} €</p>
+                      </div>
+                    )}
+                    {isManager && vakanz.external_ref && (
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Quelle</p>
+                        <p className="text-xs font-medium">MagentaOS · {vakanz.external_ref}</p>
                       </div>
                     )}
                   </div>
