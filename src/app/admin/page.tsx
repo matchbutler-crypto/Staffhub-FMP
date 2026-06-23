@@ -94,6 +94,9 @@ type ApiPermission =
   | 'vorschlaege:read'
   | 'vorschlaege:update'
   | 'profile:read'
+  | 'demand:write'
+  | 'supply:read'
+  | 'supply:write'
 
 interface ApiKey {
   id: string
@@ -112,16 +115,20 @@ const PERMISSION_LABELS: Record<ApiPermission, string> = {
   'vorschlaege:read': 'Vorschläge lesen',
   'vorschlaege:update': 'Vorschlag-Status setzen',
   'profile:read': 'Profile lesen',
+  'demand:write': 'Vakanzen schreiben (MagentaOS)',
+  'supply:read': 'Kandidaten-Profile lesen',
+  'supply:write': 'Kandidaten reservieren/buchen',
 }
 
 const ALL_PERMISSIONS: ApiPermission[] = [
   'vakanzen:read', 'vakanzen:create', 'vakanzen:update',
   'vorschlaege:read', 'vorschlaege:update', 'profile:read',
+  'demand:write', 'supply:read', 'supply:write',
 ]
 
 const LAYER_PERMISSIONS: Record<'demand' | 'supply', ApiPermission[]> = {
-  demand: ['vakanzen:read', 'vakanzen:create', 'vakanzen:update', 'vorschlaege:read', 'vorschlaege:update'],
-  supply: ['profile:read'],
+  demand: ['vakanzen:read', 'vakanzen:create', 'vakanzen:update', 'vorschlaege:read', 'vorschlaege:update', 'demand:write'],
+  supply: ['profile:read', 'supply:read', 'supply:write'],
 }
 
 // ── Color maps ─────────────────────────────────────────────────────────────────
@@ -572,8 +579,11 @@ const LAYER_ENDPOINTS: Record<'demand' | 'supply', { method: string; path: strin
     { method: 'PATCH', path: '/demand/v1.0/vakanzen/{id}/vorschlaege/{matchId}',         desc: 'Match-Status setzen' },
   ],
   supply: [
-    { method: 'GET', path: '/supply/v1.0/profiles',      desc: 'Profile abrufen' },
-    { method: 'GET', path: '/supply/v1.0/profiles/{id}', desc: 'Profil-Details' },
+    { method: 'GET',  path: '/supply/v1.0/profiles',                    desc: 'Profile abrufen' },
+    { method: 'POST', path: '/supply/v1.0/profiles/{id}/reserve',       desc: 'Profil reservieren' },
+    { method: 'POST', path: '/supply/v1.0/profiles/{id}/book',          desc: 'Profil beauftragen' },
+    { method: 'POST', path: '/supply/v1.0/profiles/{id}/cancel',        desc: 'Profil ablehnen' },
+    { method: 'PATCH', path: '/demand/v1.0/vakanzen/{id}',              desc: 'Vakanz aktualisieren' },
   ],
 }
 
