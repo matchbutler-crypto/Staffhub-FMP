@@ -50,6 +50,15 @@ export async function POST(request: NextRequest) {
   }
 
   const d = parsed.data
+
+  // Fix 3: CV size check BEFORE any DB write
+  if (d.cvBase64) {
+    const cvBuffer = Buffer.from(d.cvBase64, 'base64')
+    if (cvBuffer.byteLength > MAX_CV_BYTES) {
+      return NextResponse.json({ error: { code: 'CV_TOO_LARGE', message: 'CV darf max. 5 MB groß sein' } }, { status: 413 })
+    }
+  }
+
   const supabase = createServiceRoleClient()
   const name = `${d.firstName} ${d.lastName}`.trim()
 
@@ -91,7 +100,7 @@ export async function POST(request: NextRequest) {
   } else {
     const { data: newRessource, error } = await supabase
       .from('ressourcen')
-      .insert({ ...ressourcePayload, verfuegbarkeit: AVAILABILITY_MAP[d.availability] })
+      .insert(ressourcePayload)
       .select('id')
       .single()
     if (error) {
@@ -101,12 +110,9 @@ export async function POST(request: NextRequest) {
     created = true
   }
 
-  // CV hochladen wenn vorhanden
+  // CV hochladen wenn vorhanden (size already checked above)
   if (d.cvBase64) {
     const buffer = Buffer.from(d.cvBase64, 'base64')
-    if (buffer.byteLength > MAX_CV_BYTES) {
-      return NextResponse.json({ error: { code: 'CV_TOO_LARGE', message: 'CV darf max. 5 MB groß sein' } }, { status: 413 })
-    }
 
     // Altes CV entfernen wenn vorhanden
     if (existing?.cv_pfad) {
@@ -133,7 +139,8 @@ export async function GET(request: NextRequest) {
   if (auth.error) return auth.error
 
   const { searchParams } = new URL(request.url)
-  const limit = Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200)
+  const rawLimit = parseInt(searchParams.get('limit') ?? '50', 10)
+  const limit = Math.min(isNaN(rawLimit) ? 50 : rawLimit, 200)
   const cursor = searchParams.get('cursor')
 
   const supabase = createServiceRoleClient()
@@ -162,14 +169,25 @@ export async function GET(request: NextRequest) {
     Junior: 'JUNIOR', Mid: 'MID', Senior: 'SENIOR', Expert: 'EXPERT',
   }
 
+  const AVAILABILITY_OUT: Record<string, string> = {
+    'Jetzt verfügbar': 'AVAILABLE_NOW',
+    'Verfügbar ab': 'AVAILABLE_FROM',
+    'Nicht verfügbar': 'UNAVAILABLE',
+  }
+
+  const WORKMODEL_OUT: Record<string, string> = {
+    Onshore: 'ONSHORE', Nearshore: 'NEARSHORE', Offshore: 'OFFSHORE', Onsite: 'ONSITE', Hybrid: 'HYBRID',
+  }
+
   const profiles = rows.map((r) => ({
     profileId: r.id,
     externalRef: r.external_ref ?? null,
     name: r.name,
     skills: r.skills ?? [],
     seniority: SENIORITY_OUT[r.erfahrungslevel ?? ''] ?? r.erfahrungslevel,
-    availability: r.verfuegbarkeit,
+    availability: AVAILABILITY_OUT[r.verfuegbarkeit ?? ''] ?? r.verfuegbarkeit,
     availableFrom: r.verfuegbar_ab ?? null,
+    workModel: WORKMODEL_OUT[r.arbeitsmodell ?? ''] ?? r.arbeitsmodell ?? null,
     location: r.wohnort ?? null,
   }))
 
