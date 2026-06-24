@@ -25,6 +25,7 @@ import {
 } from "@tabler/icons-react"
 
 import { useUser } from "@/context/user-context"
+import { useFeatures } from "@/hooks/use-features"
 import { ERFAHRUNGSLEVEL, RESSOURCE_VERFUEGBARKEIT } from "@/lib/constants"
 import type { Erfahrungslevel, RessourceVerfuegbarkeit } from "@/lib/constants"
 import { AppSidebar } from "@/components/app-sidebar"
@@ -2071,9 +2072,16 @@ function StammdatenModal({ ressource, open, onClose, onSaved }: StammdatenModalP
 
 export default function PoolPage() {
   const router = useRouter()
-  const { user } = useUser()
+  const { user, loading: userLoading } = useUser()
+  const { enabled } = useFeatures()
   const isManager = user?.rolle === "Staffhub Manager" || user?.rolle === "Admin"
   const isAdmin = user?.rolle === "Admin"
+
+  React.useEffect(() => {
+    if (!userLoading && user?.rolle === "Agentur" && !enabled('mein_pool')) {
+      router.replace('/dashboard')
+    }
+  }, [userLoading, user, enabled, router])
 
   const [ressourcen, setRessourcen] = React.useState<Ressource[]>([])
   const [beauftragungen, setBeauftragungen] = React.useState<Beauftragung[]>([])
