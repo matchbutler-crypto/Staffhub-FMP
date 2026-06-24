@@ -21,6 +21,7 @@ import {
 
 import { ERFAHRUNGSLEVEL, RESSOURCE_VERFUEGBARKEIT } from "@/lib/constants"
 import type { Erfahrungslevel, RessourceVerfuegbarkeit } from "@/lib/constants"
+import { effectiveVerfuegbarkeit } from "@/lib/resource-availability"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { Badge } from "@/components/ui/badge"
@@ -939,14 +940,18 @@ function RessourceDetailSheet({
                 <div className="flex flex-wrap gap-2">
                   <Badge
                     variant="outline"
-                    className={verfuegbarkeitColors[ressource.verfuegbarkeit]}
+                    className={verfuegbarkeitColors[effectiveVerfuegbarkeit(ressource.verfuegbarkeit, ressource.verfuegbar_ab) as RessourceVerfuegbarkeit]}
                   >
-                    {ressource.verfuegbarkeit}
+                    {effectiveVerfuegbarkeit(ressource.verfuegbarkeit, ressource.verfuegbar_ab)}
                     {ressource.verfuegbarkeit === "Verfügbar ab" &&
                       ressource.verfuegbar_ab &&
                       ` ${new Date(ressource.verfuegbar_ab).toLocaleDateString(
                         "de-DE"
                       )}`}
+                    {ressource.verfuegbarkeit === "Nicht verfügbar" &&
+                      ressource.verfuegbar_ab &&
+                      effectiveVerfuegbarkeit(ressource.verfuegbarkeit, ressource.verfuegbar_ab) === "Nicht verfügbar" &&
+                      ` (bis ${new Date(ressource.verfuegbar_ab).toLocaleDateString("de-DE")})`}
                   </Badge>
                   <Badge
                     variant="outline"
@@ -1368,8 +1373,8 @@ export default function RessourcenPage() {
                                   </div>
                                 </TableCell>
                                 <TableCell>
-                                  <Badge variant="outline" className={verfuegbarkeitColors[r.verfuegbarkeit]}>
-                                    {verfuegbarkeitLabel[r.verfuegbarkeit]}
+                                  <Badge variant="outline" className={verfuegbarkeitColors[effectiveVerfuegbarkeit(r.verfuegbarkeit, r.verfuegbar_ab) as RessourceVerfuegbarkeit]}>
+                                    {verfuegbarkeitLabel[effectiveVerfuegbarkeit(r.verfuegbarkeit, r.verfuegbar_ab) as RessourceVerfuegbarkeit]}
                                   </Badge>
                                 </TableCell>
                                 <TableCell>

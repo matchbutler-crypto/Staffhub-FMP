@@ -87,7 +87,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
-import { isResourceUnavailable, type Beauftragung } from "@/lib/resource-availability"
+import { isResourceUnavailable, effectiveVerfuegbarkeit, type Beauftragung } from "@/lib/resource-availability"
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -1547,9 +1547,9 @@ function AgenturDetailSheet({
               <div className="flex flex-wrap gap-2">
                 <Badge
                   variant="outline"
-                  className={verfuegbarkeitColors[ressource.verfuegbarkeit]}
+                  className={verfuegbarkeitColors[effectiveVerfuegbarkeit(ressource.verfuegbarkeit, ressource.verfuegbar_ab) as keyof typeof verfuegbarkeitColors]}
                 >
-                  {verfuegbarkeitLabel[ressource.verfuegbarkeit]}
+                  {verfuegbarkeitLabel[effectiveVerfuegbarkeit(ressource.verfuegbarkeit, ressource.verfuegbar_ab) as keyof typeof verfuegbarkeitLabel]}
                 </Badge>
                 <Badge
                   variant="outline"
@@ -2452,9 +2452,9 @@ export default function PoolPage() {
                               <div className="flex flex-col gap-1">
                                 <Badge
                                   variant="outline"
-                                  className={verfuegbarkeitColors[r.verfuegbarkeit]}
+                                  className={verfuegbarkeitColors[effectiveVerfuegbarkeit(r.verfuegbarkeit, r.verfuegbar_ab) as keyof typeof verfuegbarkeitColors]}
                                 >
-                                  {verfuegbarkeitLabel[r.verfuegbarkeit]}
+                                  {verfuegbarkeitLabel[effectiveVerfuegbarkeit(r.verfuegbarkeit, r.verfuegbar_ab) as keyof typeof verfuegbarkeitLabel]}
                                 </Badge>
                                 {stammdatenAusstehend(r) && (
                                   <span className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-700">

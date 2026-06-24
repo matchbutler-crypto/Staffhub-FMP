@@ -6,6 +6,17 @@ export interface Beauftragung {
   end_date: string
 }
 
+export function effectiveVerfuegbarkeit(verfuegbarkeit: string, verfuegbar_ab: string | null | undefined): string {
+  if (verfuegbarkeit === 'Nicht verfügbar' && verfuegbar_ab) {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    if (new Date(verfuegbar_ab) <= today) {
+      return 'Jetzt verfügbar'
+    }
+  }
+  return verfuegbarkeit
+}
+
 export function isResourceUnavailable(
   ressourceId: string,
   beauftragungen: Beauftragung[],

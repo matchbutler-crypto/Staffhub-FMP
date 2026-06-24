@@ -1,8 +1,0 @@
-{
-  "crons": [
-    {
-      "path": "/api/cron/availability-reset",
-      "schedule": "0 1 * * *"
-    }
-  ]
-}
