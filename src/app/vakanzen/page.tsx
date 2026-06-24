@@ -130,6 +130,7 @@ interface InlineProfile {
 const statusColors: Record<VakanzStatus, string> = {
   Offen: "bg-blue-100 text-blue-700 border-blue-200",
   "In Auswahl": "bg-orange-100 text-orange-700 border-orange-200",
+  "Ausreichend Profile": "bg-amber-100 text-amber-700 border-amber-200",
   Besetzt: "bg-green-100 text-green-700 border-green-200",
   Pausiert: "bg-gray-100 text-gray-600 border-gray-200",
   Geschlossen: "bg-red-100 text-red-700 border-red-200",
@@ -138,6 +139,7 @@ const statusColors: Record<VakanzStatus, string> = {
 const statusBorderLeft: Record<VakanzStatus, string> = {
   Offen: "border-l-blue-400",
   "In Auswahl": "border-l-orange-400",
+  "Ausreichend Profile": "border-l-amber-400",
   Besetzt: "border-l-green-500",
   Pausiert: "border-l-gray-300",
   Geschlossen: "border-l-red-400",
@@ -827,7 +829,7 @@ export default function VakanzenPage() {
   const [vakanzen, setVakanzen] = React.useState<Vakanz[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
-  const [statusFilter, setStatusFilter] = React.useState("alle")
+  const [statusFilter, setStatusFilter] = React.useState("Offen")
   const [kundeFilter, setKundeFilter] = React.useState("alle")
   const [searchQuery, setSearchQuery] = React.useState("")
   const [sortBy, setSortBy] = React.useState<"newest" | "oldest">("newest")
@@ -964,6 +966,7 @@ export default function VakanzenPage() {
                     <SelectItem value="alle">Alle Status</SelectItem>
                     <SelectItem value="Offen">Offen</SelectItem>
                     <SelectItem value="In Auswahl">In Auswahl</SelectItem>
+                    <SelectItem value="Ausreichend Profile">Ausreichend Profile</SelectItem>
                     <SelectItem value="Besetzt">Besetzt</SelectItem>
                     <SelectItem value="Pausiert">Pausiert</SelectItem>
                     <SelectItem value="Geschlossen">Geschlossen</SelectItem>

@@ -75,6 +75,24 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Fehler beim Laden der Ressourcen' }, { status: 500 })
   }
 
+  // Auto-Expiry: "Nicht verfügbar" Ressourcen mit abgelaufenem verfuegbar_ab → "Jetzt verfügbar"
+  const today = new Date().toISOString().slice(0, 10)
+  const expiredIds = (data ?? [])
+    .filter((r) => r.verfuegbarkeit === 'Nicht verfügbar' && r.verfuegbar_ab && r.verfuegbar_ab < today)
+    .map((r) => r.id)
+  if (expiredIds.length > 0) {
+    await supabase
+      .from('ressourcen')
+      .update({ verfuegbarkeit: 'Jetzt verfügbar', verfuegbar_ab: null })
+      .in('id', expiredIds)
+    for (const r of (data ?? [])) {
+      if (expiredIds.includes(r.id)) {
+        r.verfuegbarkeit = 'Jetzt verfügbar'
+        r.verfuegbar_ab = null
+      }
+    }
+  }
+
   // Separate query for link counts — RLS filters to own resources for Agentur
   const [{ data: linkCountRows, error: linkCountError }, { data: zugesagtLinkRows, error: zugesagtError }] = await Promise.all([
     supabase.from('ressource_vakanz_links').select('ressource_id'),
@@ -210,7 +228,8 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (error) {
-    return NextResponse.json({ error: 'Fehler beim Erstellen der Ressource' }, { status: 500 })
+    console.error('Ressource insert error:', { code: error.code, message: error.message, agenturId })
+    return NextResponse.json({ error: error.message || 'Fehler beim Erstellen der Ressource' }, { status: 500 })
   }
 
   return NextResponse.json({ ressource }, { status: 201 })

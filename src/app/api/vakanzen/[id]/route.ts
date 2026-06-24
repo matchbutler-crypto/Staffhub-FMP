@@ -119,7 +119,7 @@ const updateVakanzSchema = z.object({
   arbeitsmodell: z.enum(['Remote', 'Hybrid', 'Onsite']),
   onsite_anteil: z.number().int().min(0).max(100).nullable().optional(),
   ansprechpartner: z.string().nullable().optional(),
-  status: z.enum(['Offen', 'In Auswahl', 'Besetzt', 'Pausiert', 'Geschlossen']),
+  status: z.enum(['Offen', 'In Auswahl', 'Ausreichend Profile', 'Besetzt', 'Pausiert', 'Geschlossen']),
   standort: z.string().nullable().optional(),
   budget_intern: z.number({ invalid_type_error: 'Muss eine Zahl sein' }).positive('EK Tagesrate ist erforderlich'),
   weitere_kommentare: z.string().nullable().optional(),
@@ -233,7 +233,7 @@ export async function PUT(
       const ressourceIds = beauftragtLinks.map((l) => l.ressource_id)
       await supabase
         .from('ressourcen')
-        .update({ verfuegbarkeit: 'Verfügbar ab', verfuegbar_ab: parsed.data.enddatum })
+        .update({ verfuegbarkeit: 'Nicht verfügbar', verfuegbar_ab: parsed.data.enddatum })
         .in('id', ressourceIds)
     }
   }

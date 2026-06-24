@@ -214,6 +214,13 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess, isManager
     },
   })
 
+  React.useEffect(() => {
+    if (!open) {
+      handleResetForm()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
   const handleResetForm = () => {
     reset()
     setPdfFile(null)

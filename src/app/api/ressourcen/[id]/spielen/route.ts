@@ -121,8 +121,8 @@ export async function POST(
   if (!vakanz) {
     return NextResponse.json({ error: 'Vakanz nicht gefunden' }, { status: 404 })
   }
-  if (vakanz.status === 'Geschlossen' || vakanz.status === 'Besetzt') {
-    return NextResponse.json({ error: 'Ressource kann nur auf offene Vakanzen gespielt werden' }, { status: 400 })
+  if (vakanz.status === 'Geschlossen' || vakanz.status === 'Besetzt' || vakanz.status === 'Ausreichend Profile') {
+    return NextResponse.json({ error: 'Für diese Vakanz werden keine weiteren Profile angenommen' }, { status: 400 })
   }
 
   // Verknüpfung anlegen (unique constraint verhindert Duplikate)

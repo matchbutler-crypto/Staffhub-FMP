@@ -574,6 +574,7 @@ export function VakanzFormSheet({ open, onOpenChange, mode, vakanz, showBudget, 
                       <SelectContent>
                         <SelectItem value="Offen">Offen</SelectItem>
                         <SelectItem value="In Auswahl">In Auswahl</SelectItem>
+                        <SelectItem value="Ausreichend Profile">Ausreichend Profile</SelectItem>
                         <SelectItem value="Besetzt">Besetzt</SelectItem>
                         <SelectItem value="Pausiert">Pausiert</SelectItem>
                         <SelectItem value="Geschlossen">Geschlossen</SelectItem>

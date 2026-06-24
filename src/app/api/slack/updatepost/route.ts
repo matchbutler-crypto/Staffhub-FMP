@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
   const { data: vakanzen, error: vakanzError } = await supabase
     .from('vakanzen')
     .select('id, vakanz_nr, titel, status, startdatum')
-    .in('status', ['Offen', 'In Auswahl', 'Besetzt', 'Geschlossen'])
+    .in('status', ['Offen', 'In Auswahl', 'Ausreichend Profile', 'Besetzt', 'Geschlossen'])
     .order('created_at', { ascending: false })
     .limit(200)
 
@@ -121,8 +121,9 @@ export async function POST(request: NextRequest) {
   const statusOrder: Record<string, number> = {
     Offen: 0,
     'In Auswahl': 1,
-    Besetzt: 2,
-    Geschlossen: 3,
+    'Ausreichend Profile': 2,
+    Besetzt: 3,
+    Geschlossen: 4,
   }
   const sorted = [...vakanzen].sort(
     (a, b) => (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99)

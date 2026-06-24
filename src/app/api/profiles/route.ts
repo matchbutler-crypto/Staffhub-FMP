@@ -231,19 +231,40 @@ export async function POST(request: NextRequest) {
   const matchedSkills = getMatchedSkills(normalizedSkills)
   const pendingSkills = getPendingSkills(normalizedSkills)
 
+  // ── Pool-Upload: nur Skills zurückgeben, kein DB-Insert / Storage ─────────
+  // CV wird in Schritt 2 via POST /api/ressourcen/[id]/cv hochgeladen.
+  if (forPool) {
+    return NextResponse.json(
+      {
+        profile: {
+          id: uuidv4(),
+          extracted_skills: normalizedSkills.slice(0, 30).map((s) => ({
+            name: s.name,
+            category: s.category,
+            matchType: s.matchType || 'unknown',
+          })),
+          matched_skills: matchedSkills.length,
+          pending_skills: pendingSkills.length,
+          cv_length: cvText.length,
+        },
+      },
+      { status: 201 }
+    )
+  }
+
   // ── 9. Calculate KI-based Score with OpenAI ───────────────────────────────
 
   let kiScore = 0
   let kiDetails: Record<string, unknown> | null = null
 
-  if (!forPool && process.env.OPENAI_API_KEY) {
+  if (process.env.OPENAI_API_KEY) {
     try {
       const kiBewertung = await bewerteProfilMitOpenAI(
         {
-          titel: vacancy.titel || 'Unbekannt',
-          beschreibung: vacancy.beschreibung ?? '',
-          skills: vacancy.skills ?? [],
-          erfahrungslevel: vacancy.erfahrungslevel || 'Mid',
+          titel: vacancy!.titel || 'Unbekannt',
+          beschreibung: vacancy!.beschreibung ?? '',
+          skills: vacancy!.skills ?? [],
+          erfahrungslevel: vacancy!.erfahrungslevel || 'Mid',
         },
         {
           kandidatenname: parsed.data.candidate_name,
@@ -264,9 +285,9 @@ export async function POST(request: NextRequest) {
       console.error('KI-Scoring error:', error)
       const scoreResult = calculateInitialScore({
         extractedSkills: normalizedSkills.map((s) => s.name),
-        vacancySkills: vacancy.skills || [],
+        vacancySkills: vacancy!.skills || [],
         extractedLevel: 'Mid',
-        vacancyLevel: vacancy.erfahrungslevel || 'Junior',
+        vacancyLevel: vacancy!.erfahrungslevel || 'Junior',
         cvLength: cvText.length,
       })
       kiScore = scoreResult.initialScore
@@ -274,9 +295,9 @@ export async function POST(request: NextRequest) {
   } else {
     const scoreResult = calculateInitialScore({
       extractedSkills: normalizedSkills.map((s) => s.name),
-      vacancySkills: vacancy.skills || [],
+      vacancySkills: vacancy!.skills || [],
       extractedLevel: 'Mid',
-      vacancyLevel: vacancy.erfahrungslevel || 'Junior',
+      vacancyLevel: vacancy!.erfahrungslevel || 'Junior',
       cvLength: cvText.length,
     })
     kiScore = scoreResult.initialScore
@@ -313,7 +334,7 @@ export async function POST(request: NextRequest) {
     .from('kandidaten_profile')
     .insert({
       id: profileId,
-      vakanz_id: forPool ? null : parsed.data.vacancy_id,
+      vakanz_id: parsed.data.vacancy_id,
       agentur_id: targetAgencyId,
       kandidatenname: parsed.data.candidate_name,
       verfuegbarkeit_stunden: parsed.data.availability ? parseInt(parsed.data.availability, 10) : null,

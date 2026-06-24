@@ -61,7 +61,7 @@ interface Zeitnachweis {
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function fmt(n: number) {
-  return n.toLocaleString("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })
+  return n.toLocaleString("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 function monateListe() {
@@ -478,14 +478,14 @@ export default function AbrechnungPage() {
                                     title="Stunden manuell eingeben"
                                   >
                                     <span className={stundenIst === null ? 'text-muted-foreground' : ''}>
-                                      {isSaving ? '…' : (stundenIst !== null ? `${stundenIst} Std` : '–')}
+                                      {isSaving ? '…' : (stundenIst !== null ? `${stundenIst.toFixed(2)} Std` : '–')}
                                     </span>
                                     <IconPencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                                   </button>
                                 )
                               ) : (
                                 <span className={stundenIst === null ? 'text-muted-foreground' : ''}>
-                                  {stundenIst !== null ? `${stundenIst} Std` : '–'}
+                                  {stundenIst !== null ? `${stundenIst.toFixed(2)} Std` : '–'}
                                 </span>
                               )}
                             </TableCell>

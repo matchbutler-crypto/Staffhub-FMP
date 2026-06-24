@@ -248,9 +248,10 @@ export function GespielteRessourcenTable({
   return (
     <TooltipProvider>
       <div className="w-full border border-border rounded-lg overflow-hidden bg-background">
-        {/* Header — manager: 2+2+1+3+1+1+2=12 | agentur: 3+2+1+3+1+2=12 */}
+        {/* Header — manager: 2+1+2+1+2+1+1+2=12 | agentur: 2+1+2+1+3+1+2=12 */}
         <div className="grid grid-cols-12 gap-4 px-5 py-3 bg-muted border-b border-border">
-          <div className={`${isManager ? 'col-span-2' : 'col-span-3'} text-xs font-semibold text-muted-foreground uppercase tracking-wide`}>Name</div>
+          <div className="col-span-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Name</div>
+          <div className="col-span-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Rate</div>
           <div className="col-span-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Gespielt am</div>
           <div className="col-span-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
             Match
@@ -265,7 +266,7 @@ export function GespielteRessourcenTable({
               </TooltipContent>
             </Tooltip>
           </div>
-          <div className="col-span-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</div>
+          <div className={`${isManager ? 'col-span-2' : 'col-span-3'} text-xs font-semibold text-muted-foreground uppercase tracking-wide`}>Status</div>
           <div className="col-span-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Kommentar</div>
           {isManager && (
             <div className="col-span-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Agentur</div>
@@ -288,9 +289,20 @@ export function GespielteRessourcenTable({
               <div key={resource.id}>
                 <div className="grid grid-cols-12 gap-4 px-5 py-4 items-center hover:bg-accent/50 transition-colors group">
                   {/* Name */}
-                  <div className={isManager ? 'col-span-2' : 'col-span-3'}>
+                  <div className="col-span-2">
                     <p className="text-sm font-semibold text-foreground">{resource.name}</p>
                     <p className="text-xs text-muted-foreground">{resource.erfahrungslevel}</p>
+                  </div>
+
+                  {/* Tagesrate */}
+                  <div className="col-span-1 flex items-center">
+                    {resource.ek_tagesrate != null ? (
+                      <span className="text-xs font-medium tabular-nums text-foreground">
+                        {resource.ek_tagesrate.toLocaleString("de-DE")} €
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground/40">–</span>
+                    )}
                   </div>
 
                   {/* Gespielt am */}
@@ -313,7 +325,7 @@ export function GespielteRessourcenTable({
                   </div>
 
                   {/* Status */}
-                  <div className="col-span-3">
+                  <div className={isManager ? 'col-span-2' : 'col-span-3'}>
                     {isManager && currentStatus !== 'Zurückgezogen' && currentStatus !== 'Beauftragt' ? (
                       isUpdating ? (
                         <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">

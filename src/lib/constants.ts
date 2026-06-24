@@ -17,6 +17,7 @@ export type ProfilStatus = typeof PROFIL_STATUS[number]
 export const VAKANZ_STATUS = [
   'Offen',
   'In Auswahl',
+  'Ausreichend Profile',
   'Besetzt',
   'Pausiert',
   'Geschlossen',

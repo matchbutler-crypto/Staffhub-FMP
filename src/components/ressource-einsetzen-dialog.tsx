@@ -222,9 +222,10 @@ export function RessourceEinsetzenDialog({
             ) : (
               <table className="w-full text-sm table-fixed">
                 <colgroup>
-                  <col className="w-[46%]" />
-                  <col className="w-[26%]" />
-                  <col className="w-[16%]" />
+                  <col className="w-[34%]" />
+                  <col className="w-[20%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[20%]" />
                   <col className="w-[12%]" />
                 </colgroup>
                 <thead className="border-b bg-muted/50">
@@ -232,6 +233,7 @@ export function RessourceEinsetzenDialog({
                     <th className="px-3 py-2 text-left font-medium text-muted-foreground">Name</th>
                     <th className="px-3 py-2 text-left font-medium text-muted-foreground">Rolle</th>
                     <th className="px-3 py-2 text-left font-medium text-muted-foreground">Verfügbar ab</th>
+                    <th className="px-3 py-2 text-left font-medium text-muted-foreground">Tagesrate</th>
                     <th className="px-3 py-2 text-right font-medium text-muted-foreground">Match</th>
                   </tr>
                 </thead>
@@ -273,6 +275,15 @@ export function RessourceEinsetzenDialog({
                           {r.verfuegbar_ab
                             ? new Date(r.verfuegbar_ab).toLocaleDateString("de-DE")
                             : "—"}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          {r.ek_tagesrate != null ? (
+                            <span className="text-xs font-medium text-foreground">
+                              {r.ek_tagesrate.toLocaleString("de-DE")} €/Tag
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground/40">—</span>
+                          )}
                         </td>
                         <td className="px-3 py-2.5 text-right">
                           {r.isScoring ? (
