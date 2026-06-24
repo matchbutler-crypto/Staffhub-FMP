@@ -22,6 +22,8 @@ import { NavSecondary } from '@/components/nav-secondary'
 import { NavUser } from '@/components/nav-user'
 import { useUser } from '@/context/user-context'
 import { useUnreadNotes } from '@/hooks/use-unread-notes'
+import { useFeatures } from '@/hooks/use-features'
+import type { FeatureKey } from '@/lib/features'
 import {
   Sidebar,
   SidebarContent,
@@ -32,7 +34,13 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
 
-const ALL_NAV_MAIN = [
+const ALL_NAV_MAIN: {
+  title: string
+  url: string
+  icon: typeof IconLayoutDashboard
+  roles: string[]
+  featureKey?: FeatureKey
+}[] = [
   {
     title: 'Dashboard',
     url: '/dashboard',
@@ -68,6 +76,7 @@ const ALL_NAV_MAIN = [
     url: '/pool',
     icon: IconDatabase,
     roles: ['Agentur'],
+    featureKey: 'mein_pool',
   },
   {
     title: 'Ressourcen',
@@ -114,8 +123,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { user } = useUser()
   const rolle = user?.rolle ?? 'Agentur'
   const unreadNotes = useUnreadNotes()
+  const { enabled } = useFeatures()
 
-  const navMain = ALL_NAV_MAIN.filter((item) => item.roles.includes(rolle))
+  const navMain = ALL_NAV_MAIN.filter(
+    (item) =>
+      item.roles.includes(rolle) &&
+      (!item.featureKey || enabled(item.featureKey))
+  )
   const navSecondary = ALL_NAV_SECONDARY.filter((item) =>
     item.roles.includes(rolle)
   ).map((item) =>
