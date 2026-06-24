@@ -57,7 +57,7 @@ async function buildProfileHistorieEntries(
 
   if (oldData.ek_tagesrate !== newData.ek_tagesrate) {
     entries.push(
-      `EK-Rate geändert: ${formatRate(oldData.ek_tagesrate as number | null)} → ${formatRate(newData.ek_tagesrate as number | null)}`
+      `Tagesrate geändert: ${formatRate(oldData.ek_tagesrate as number | null)} → ${formatRate(newData.ek_tagesrate as number | null)}`
     )
   }
 

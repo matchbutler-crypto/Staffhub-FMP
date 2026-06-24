@@ -1014,9 +1014,12 @@ export default function RessourceDetailPage() {
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead>Vakanz</TableHead>
-                            <TableHead>Branche</TableHead>
+                            <TableHead>Vakanz-Nr.</TableHead>
+                            <TableHead>Vakanz Rolle</TableHead>
+                            <TableHead>Rollenbezeichnung</TableHead>
+                            <TableHead>Tagesrate</TableHead>
                             <TableHead>Start</TableHead>
+                            <TableHead>Ende</TableHead>
                             <TableHead>Status</TableHead>
                           </TableRow>
                         </TableHeader>
@@ -1027,14 +1030,25 @@ export default function RessourceDetailPage() {
                               className="cursor-pointer"
                               onClick={() => router.push(`/vakanzen/${l.vakanz_id}`)}
                             >
+                              <TableCell className="text-sm text-muted-foreground">
+                                {l.vakanzen_data?.vakanz_nr ?? "–"}
+                              </TableCell>
                               <TableCell className="text-sm font-medium">
                                 {l.vakanzen_data?.rolle ?? "–"}
                               </TableCell>
                               <TableCell className="text-sm text-muted-foreground">
-                                {l.vakanzen_data?.branche ?? "–"}
+                                {ressource.rolle ?? "–"}
+                              </TableCell>
+                              <TableCell className="text-sm text-muted-foreground">
+                                {ressource.ek_tagesrate != null
+                                  ? `${ressource.ek_tagesrate.toLocaleString("de-DE")} €/Tag`
+                                  : "–"}
                               </TableCell>
                               <TableCell className="text-sm text-muted-foreground">
                                 {fmt(l.vakanzen_data?.startdatum)}
+                              </TableCell>
+                              <TableCell className="text-sm text-muted-foreground">
+                                {fmt(l.vakanzen_data?.enddatum)}
                               </TableCell>
                               <TableCell>
                                 <Badge

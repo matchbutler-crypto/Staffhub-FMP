@@ -1330,7 +1330,7 @@ export default function RessourcenPage() {
                         <TableHead>Verfügbar ab</TableHead>
                         <TableHead>Location</TableHead>
                         <TableHead>Status</TableHead>
-                        <TableHead>EK-Rate</TableHead>
+                        <TableHead>Tagesrate</TableHead>
                         <TableHead>Gespielt</TableHead>
                         <TableHead>CV</TableHead>
                       </TableRow>
