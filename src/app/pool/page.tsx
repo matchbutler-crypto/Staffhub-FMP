@@ -123,6 +123,7 @@ interface Ressource {
   wohnort?: string | null
   namenszusatz?: string | null
   titel?: string | null
+  datenschutz_pfad?: string | null
   created_at: string
   updated_at: string
   agenturen?: { name: string } | null
@@ -1507,6 +1508,21 @@ function AgenturDetailSheet({
     }
   }
 
+  async function handleDownloadDatenschutz() {
+    if (!ressource?.datenschutz_pfad) return
+    try {
+      const res = await fetch(`/api/ressourcen/${ressource.id}/datenschutz`)
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error ?? "Fehler")
+      }
+      const { url } = await res.json()
+      window.open(url, "_blank")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Download fehlgeschlagen")
+    }
+  }
+
   if (!ressource) return null
 
   return (
@@ -1606,6 +1622,28 @@ function AgenturDetailSheet({
                 ) : (
                   <p className="text-sm text-muted-foreground">
                     Kein CV vorhanden
+                  </p>
+                )}
+              </div>
+
+              {/* Datenschutzerklärung */}
+              <div>
+                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Datenschutzerklärung
+                </p>
+                {ressource.datenschutz_pfad ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={handleDownloadDatenschutz}
+                  >
+                    <IconDownload className="size-4" />
+                    Screenshot herunterladen
+                  </Button>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Kein Screenshot vorhanden
                   </p>
                 )}
               </div>
@@ -1920,6 +1958,10 @@ interface StammdatenModalProps {
 
 function StammdatenModal({ ressource, open, onClose, onSaved }: StammdatenModalProps) {
   const [saving, setSaving] = React.useState(false)
+  const [datenschutzFile, setDatenschutzFile] = React.useState<File | null>(null)
+  const [datenschutzUploading, setDatenschutzUploading] = React.useState(false)
+  const [datenschutzPfad, setDatenschutzPfad] = React.useState<string | null>(ressource.datenschutz_pfad ?? null)
+  const datenschutzInputRef = React.useRef<HTMLInputElement>(null)
   const [form, setForm] = React.useState({
     nachname: ressource.nachname ?? '',
     vorname: ressource.vorname ?? '',
@@ -1994,6 +2036,51 @@ function StammdatenModal({ ressource, open, onClose, onSaved }: StammdatenModalP
     }
   }
 
+  async function handleUploadDatenschutz() {
+    if (!datenschutzFile) return
+    setDatenschutzUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('datenschutz', datenschutzFile)
+      const res = await fetch(`/api/ressourcen/${ressource.id}/datenschutz`, {
+        method: 'POST',
+        body: fd,
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error ?? 'Upload fehlgeschlagen')
+      }
+      const data = await res.json()
+      setDatenschutzPfad(data.datenschutz_pfad)
+      setDatenschutzFile(null)
+      onSaved({ datenschutz_pfad: data.datenschutz_pfad })
+      toast.success('Datenschutzerklärung hochgeladen')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Upload fehlgeschlagen')
+    } finally {
+      setDatenschutzUploading(false)
+    }
+  }
+
+  async function handleDeleteDatenschutz() {
+    setDatenschutzUploading(true)
+    try {
+      const res = await fetch(`/api/ressourcen/${ressource.id}/datenschutz`, { method: 'DELETE' })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error ?? 'Löschen fehlgeschlagen')
+      }
+      setDatenschutzPfad(null)
+      setDatenschutzFile(null)
+      onSaved({ datenschutz_pfad: null })
+      toast.success('Datenschutzerklärung gelöscht')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Löschen fehlgeschlagen')
+    } finally {
+      setDatenschutzUploading(false)
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
       <DialogContent className="max-w-lg">
@@ -2056,6 +2143,69 @@ function StammdatenModal({ ressource, open, onClose, onSaved }: StammdatenModalP
             <Input id="sd-wohnort" value={form.wohnort} onChange={set('wohnort')} />
           </div>
         </div>
+
+        {/* Datenschutzerklärung Upload */}
+        <div className="rounded-lg border p-3 space-y-2">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            Datenschutzerklärung
+          </p>
+          {datenschutzPfad ? (
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-green-700 font-medium">Screenshot vorhanden</span>
+              <button
+                type="button"
+                onClick={handleDeleteDatenschutz}
+                disabled={datenschutzUploading}
+                className="text-xs text-destructive hover:underline disabled:opacity-50"
+              >
+                Entfernen
+              </button>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">Kein Screenshot hochgeladen</p>
+          )}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => datenschutzInputRef.current?.click()}
+              disabled={datenschutzUploading}
+              className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium hover:bg-muted transition-colors disabled:opacity-50"
+            >
+              {datenschutzFile ? datenschutzFile.name : datenschutzPfad ? 'Ersetzen' : 'PNG/JPG auswählen'}
+            </button>
+            {datenschutzFile && (
+              <button
+                type="button"
+                onClick={handleUploadDatenschutz}
+                disabled={datenschutzUploading}
+                className="inline-flex items-center gap-1.5 rounded-md bg-primary px-2.5 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                {datenschutzUploading ? 'Lädt…' : 'Hochladen'}
+              </button>
+            )}
+          </div>
+          <input
+            ref={datenschutzInputRef}
+            type="file"
+            accept="image/png,image/jpeg"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              if (!f) return
+              if (!['image/png', 'image/jpeg'].includes(f.type)) {
+                toast.error('Nur PNG/JPG erlaubt')
+                return
+              }
+              if (f.size > 10 * 1024 * 1024) {
+                toast.error('Datei zu groß (max. 10 MB)')
+                return
+              }
+              setDatenschutzFile(f)
+            }}
+          />
+          <p className="text-[10px] text-muted-foreground">Max. 10 MB, PNG oder JPG</p>
+        </div>
+
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={saving}>Abbrechen</Button>
           <Button onClick={handleSave} disabled={saving}>

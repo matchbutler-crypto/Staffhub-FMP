@@ -9,6 +9,11 @@ import {
   IconDownload,
   IconPencil,
   IconCheck,
+  IconStar,
+  IconStarFilled,
+  IconMessageCircle,
+  IconActivity,
+  IconSend,
 } from "@tabler/icons-react"
 
 import { useUser } from "@/context/user-context"
@@ -70,6 +75,7 @@ interface Ressource {
   arbeitsmodell?: string | null
   location?: string | null
   cv_pfad?: string | null
+  datenschutz_pfad?: string | null
   agentur_id?: string | null
   agenturen?: { name: string } | null
   created_at?: string
@@ -110,6 +116,16 @@ interface Beauftragung {
   ressource_id: string
   startdatum: string
   enddatum: string | null
+}
+
+interface FeedbackEntry {
+  id: string
+  text: string
+  bewertung: number | null
+  created_at: string
+  vakanz_id: string | null
+  vakanzen?: { id: string; rolle: string } | null
+  profiles?: { id: string; name: string; rolle: string } | null
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -183,6 +199,10 @@ function StammdatenEditSheet({
   onSuccess,
 }: StammdatenEditSheetProps) {
   const [saving, setSaving] = React.useState(false)
+  const [datenschutzFile, setDatenschutzFile] = React.useState<File | null>(null)
+  const [datenschutzUploading, setDatenschutzUploading] = React.useState(false)
+  const [datenschutzPfad, setDatenschutzPfad] = React.useState<string | null>(null)
+  const datenschutzInputRef = React.useRef<HTMLInputElement>(null)
   const [form, setForm] = React.useState<EditForm>({
     name: "",
     vorname: "",
@@ -208,6 +228,8 @@ function StammdatenEditSheet({
 
   React.useEffect(() => {
     if (!open) return
+    setDatenschutzFile(null)
+    setDatenschutzPfad(ressource.datenschutz_pfad ?? null)
     setForm({
       name: ressource.name ?? "",
       vorname: ressource.vorname ?? "",
@@ -283,6 +305,51 @@ function StammdatenEditSheet({
       toast.error(err instanceof Error ? err.message : "Unbekannter Fehler")
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleUploadDatenschutz() {
+    if (!datenschutzFile) return
+    setDatenschutzUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append("datenschutz", datenschutzFile)
+      const res = await fetch(`/api/ressourcen/${ressource.id}/datenschutz`, {
+        method: "POST",
+        body: fd,
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error ?? "Upload fehlgeschlagen")
+      }
+      const data = await res.json()
+      setDatenschutzPfad(data.datenschutz_pfad)
+      setDatenschutzFile(null)
+      onSuccess({ ...ressource, datenschutz_pfad: data.datenschutz_pfad })
+      toast.success("Datenschutzerklärung hochgeladen")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Upload fehlgeschlagen")
+    } finally {
+      setDatenschutzUploading(false)
+    }
+  }
+
+  async function handleDeleteDatenschutz() {
+    setDatenschutzUploading(true)
+    try {
+      const res = await fetch(`/api/ressourcen/${ressource.id}/datenschutz`, { method: "DELETE" })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error ?? "Löschen fehlgeschlagen")
+      }
+      setDatenschutzPfad(null)
+      setDatenschutzFile(null)
+      onSuccess({ ...ressource, datenschutz_pfad: null })
+      toast.success("Datenschutzerklärung gelöscht")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Löschen fehlgeschlagen")
+    } finally {
+      setDatenschutzUploading(false)
     }
   }
 
@@ -541,6 +608,76 @@ function StammdatenEditSheet({
               </div>
             </div>
           </div>
+
+          {/* Datenschutzerklärung – nur für Agentur */}
+          {!isManager && (
+            <div>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium mb-3">
+                Datenschutzerklärung
+              </p>
+              <div className="rounded-lg border p-3 space-y-2">
+                {datenschutzPfad ? (
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-green-700 font-medium">
+                      Screenshot vorhanden
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleDeleteDatenschutz}
+                      disabled={datenschutzUploading}
+                      className="text-xs text-destructive hover:underline disabled:opacity-50"
+                    >
+                      Entfernen
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Kein Screenshot hochgeladen</p>
+                )}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => datenschutzInputRef.current?.click()}
+                    disabled={datenschutzUploading}
+                    className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium hover:bg-muted transition-colors disabled:opacity-50"
+                  >
+                    {datenschutzFile ? datenschutzFile.name : datenschutzPfad ? "Ersetzen" : "PNG/JPG auswählen"}
+                  </button>
+                  {datenschutzFile && (
+                    <button
+                      type="button"
+                      onClick={handleUploadDatenschutz}
+                      disabled={datenschutzUploading}
+                      className="inline-flex items-center gap-1.5 rounded-md bg-primary px-2.5 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+                    >
+                      {datenschutzUploading ? "Lädt…" : "Hochladen"}
+                    </button>
+                  )}
+                </div>
+                <input
+                  ref={datenschutzInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0]
+                    if (!f) return
+                    if (!["image/png", "image/jpeg"].includes(f.type)) {
+                      toast.error("Nur PNG/JPG erlaubt")
+                      return
+                    }
+                    if (f.size > 10 * 1024 * 1024) {
+                      toast.error("Datei zu groß (max. 10 MB)")
+                      return
+                    }
+                    setDatenschutzFile(f)
+                  }}
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Screenshot der Datenschutzerklärung — max. 10 MB, PNG oder JPG
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex-none border-t px-6 py-4 flex justify-end gap-2">
@@ -583,6 +720,7 @@ export default function RessourceDetailPage() {
   const [editOpen, setEditOpen] = React.useState(false)
   const [copied, setCopied] = React.useState(false)
   const [cvLoading, setCvLoading] = React.useState(false)
+  const [datenschutzDownloading, setDatenschutzDownloading] = React.useState(false)
 
   const [links, setLinks] = React.useState<VakanzLink[]>([])
   const [loadingLinks, setLoadingLinks] = React.useState(false)
@@ -592,6 +730,12 @@ export default function RessourceDetailPage() {
 
   const [beauftragungen, setBeauftragungen] = React.useState<Beauftragung[]>([])
   const [loadingBeauftragungen, setLoadingBeauftragungen] = React.useState(false)
+
+  const [feedback, setFeedback] = React.useState<FeedbackEntry[]>([])
+  const [loadingFeedback, setLoadingFeedback] = React.useState(false)
+  const [feedbackText, setFeedbackText] = React.useState("")
+  const [feedbackSterne, setFeedbackSterne] = React.useState<number | null>(null)
+  const [feedbackSaving, setFeedbackSaving] = React.useState(false)
 
   // ── Load Ressource ─────────────────────────────────────────────────────────
 
@@ -631,9 +775,41 @@ export default function RessourceDetailPage() {
       .then((d) => setBeauftragungen(d.beauftragungen ?? []))
       .catch(() => {})
       .finally(() => setLoadingBeauftragungen(false))
+
+    setLoadingFeedback(true)
+    fetch(`/api/ressourcen/${id}/feedback`)
+      .then((r) => r.json())
+      .then((d) => setFeedback(d.feedback ?? []))
+      .catch(() => {})
+      .finally(() => setLoadingFeedback(false))
   }, [user, id])
 
   // ── Actions ────────────────────────────────────────────────────────────────
+
+  async function handleFeedbackSubmit() {
+    if (!feedbackText.trim()) return
+    setFeedbackSaving(true)
+    try {
+      const res = await fetch(`/api/ressourcen/${id}/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: feedbackText.trim(), bewertung: feedbackSterne }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error ?? "Fehler beim Speichern")
+      }
+      const { feedback: neu } = await res.json()
+      setFeedback((prev) => [neu, ...prev])
+      setFeedbackText("")
+      setFeedbackSterne(null)
+      toast.success("Feedback gespeichert")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Unbekannter Fehler")
+    } finally {
+      setFeedbackSaving(false)
+    }
+  }
 
   async function handleCvDownload() {
     if (!ressource?.cv_pfad) return
@@ -686,6 +862,24 @@ export default function RessourceDetailPage() {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     })
+  }
+
+  async function handleDownloadDatenschutz() {
+    if (!ressource?.datenschutz_pfad) return
+    setDatenschutzDownloading(true)
+    try {
+      const res = await fetch(`/api/ressourcen/${id}/datenschutz`)
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error ?? "Download fehlgeschlagen")
+      }
+      const { url } = await res.json()
+      window.open(url, "_blank")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Download fehlgeschlagen")
+    } finally {
+      setDatenschutzDownloading(false)
+    }
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -845,6 +1039,7 @@ export default function RessourceDetailPage() {
                   <TabsTrigger value="beauftragungen">Beauftragungen</TabsTrigger>
                   <TabsTrigger value="gespielt">Gespielt</TabsTrigger>
                   <TabsTrigger value="historie">Historie</TabsTrigger>
+                  <TabsTrigger value="logs">Logs</TabsTrigger>
                 </TabsList>
 
                 {/* ── Tab: Stammdaten ─────────────────────────────────────── */}
@@ -908,6 +1103,12 @@ export default function RessourceDetailPage() {
                     {ressource.geschlecht && (
                       <InfoRow label="Geschlecht" value={ressource.geschlecht} />
                     )}
+                    {isManager && ressource.ek_tagesrate != null && (
+                      <InfoRow
+                        label="EK-Tagesrate"
+                        value={`${ressource.ek_tagesrate.toLocaleString("de-DE")} €/Tag`}
+                      />
+                    )}
                     {ressource.notizen && (
                       <div className="pt-2">
                         <p className="text-xs text-muted-foreground font-medium mb-1">Notizen</p>
@@ -915,6 +1116,33 @@ export default function RessourceDetailPage() {
                           {ressource.notizen}
                         </p>
                       </div>
+                    )}
+                  </div>
+
+                  {/* Datenschutzerklärung */}
+                  <div className="mt-4 rounded-lg border p-4">
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium mb-2">
+                      Datenschutzerklärung
+                    </p>
+                    {isManager ? (
+                      ressource.datenschutz_pfad ? (
+                        <button
+                          onClick={handleDownloadDatenschutz}
+                          disabled={datenschutzDownloading}
+                          className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-muted transition-colors disabled:opacity-50"
+                        >
+                          <IconDownload className="size-3.5" />
+                          {datenschutzDownloading ? "Lädt…" : "Screenshot herunterladen"}
+                        </button>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">Kein Screenshot vorhanden</p>
+                      )
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        {ressource.datenschutz_pfad
+                          ? "Screenshot hochgeladen"
+                          : "Noch kein Screenshot hochgeladen — bitte über Bearbeiten hochladen"}
+                      </p>
                     )}
                   </div>
                 </TabsContent>
@@ -1121,6 +1349,184 @@ export default function RessourceDetailPage() {
                       ))}
                     </div>
                   )}
+                </TabsContent>
+
+                {/* ── Tab: Logs ───────────────────────────────────────────── */}
+                <TabsContent value="logs">
+                  {(() => {
+                    const isLoading = loadingHistorie || loadingFeedback
+                    if (isLoading) {
+                      return (
+                        <div className="space-y-2">
+                          {[1, 2, 3, 4].map((i) => (
+                            <Skeleton key={i} className="h-16 w-full" />
+                          ))}
+                        </div>
+                      )
+                    }
+
+                    type LogItem =
+                      | { kind: "feedback"; data: FeedbackEntry }
+                      | { kind: "historie"; data: HistorieEntry }
+
+                    const items: LogItem[] = [
+                      ...feedback.map((f): LogItem => ({ kind: "feedback", data: f })),
+                      ...historie.map((h): LogItem => ({ kind: "historie", data: h })),
+                    ].sort(
+                      (a, b) =>
+                        new Date(b.data.created_at).getTime() -
+                        new Date(a.data.created_at).getTime()
+                    )
+
+                    function fmtDateTime(iso: string) {
+                      return new Date(iso).toLocaleDateString("de-DE", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    }
+
+                    return (
+                      <div className="space-y-3">
+                        {isManager && (
+                          <div className="rounded-lg border p-4 space-y-3 bg-muted/30">
+                            <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
+                              Feedback hinzufügen
+                            </p>
+                            <div className="flex items-center gap-1">
+                              {[1, 2, 3, 4, 5].map((n) => (
+                                <button
+                                  key={n}
+                                  type="button"
+                                  onClick={() =>
+                                    setFeedbackSterne(feedbackSterne === n ? null : n)
+                                  }
+                                  className="hover:scale-110 transition-transform"
+                                >
+                                  {feedbackSterne != null && n <= feedbackSterne ? (
+                                    <IconStarFilled className="size-5 text-amber-400" />
+                                  ) : (
+                                    <IconStar className="size-5 text-muted-foreground/40" />
+                                  )}
+                                </button>
+                              ))}
+                              {feedbackSterne != null && (
+                                <span className="ml-1 text-xs text-muted-foreground">
+                                  {feedbackSterne} / 5
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex gap-2">
+                              <Textarea
+                                value={feedbackText}
+                                onChange={(e) => setFeedbackText(e.target.value)}
+                                placeholder="Feedback, Notizen, Einschätzungen zur Ressource …"
+                                className="text-sm resize-none flex-1"
+                                rows={2}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                                    handleFeedbackSubmit()
+                                  }
+                                }}
+                              />
+                              <Button
+                                size="sm"
+                                onClick={handleFeedbackSubmit}
+                                disabled={feedbackSaving || !feedbackText.trim()}
+                                className="self-end h-8 gap-1.5"
+                              >
+                                <IconSend className="size-3.5" />
+                                {feedbackSaving ? "…" : "Senden"}
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {items.length === 0 ? (
+                          <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+                            Noch keine Logs vorhanden.
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5">
+                            {items.map((item) => {
+                              if (item.kind === "feedback") {
+                                const f = item.data
+                                return (
+                                  <div
+                                    key={`fb-${f.id}`}
+                                    className="flex items-start gap-3 rounded-lg border border-amber-200/60 bg-amber-50/40 dark:bg-amber-950/10 dark:border-amber-900/30 px-4 py-3"
+                                  >
+                                    <div className="mt-0.5 shrink-0 flex size-6 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
+                                      <IconMessageCircle className="size-3.5 text-amber-600 dark:text-amber-400" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      {f.bewertung != null && (
+                                        <div className="flex items-center gap-0.5 mb-1">
+                                          {Array.from({ length: 5 }).map((_, i) => (
+                                            <span key={i}>
+                                              {i < f.bewertung! ? (
+                                                <IconStarFilled className="size-3 text-amber-500" />
+                                              ) : (
+                                                <IconStar className="size-3 text-muted-foreground/30" />
+                                              )}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      )}
+                                      <p className="text-sm">{f.text}</p>
+                                      <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                        {f.profiles && (
+                                          <span className="text-xs text-muted-foreground">
+                                            {f.profiles.name} · {f.profiles.rolle}
+                                          </span>
+                                        )}
+                                        {f.vakanzen && (
+                                          <>
+                                            <span className="text-xs text-muted-foreground">·</span>
+                                            <span className="text-xs text-muted-foreground">
+                                              {f.vakanzen.rolle}
+                                            </span>
+                                          </>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">
+                                      {fmtDateTime(f.created_at)}
+                                    </span>
+                                  </div>
+                                )
+                              }
+
+                              const h = item.data
+                              return (
+                                <div
+                                  key={`hi-${h.id}`}
+                                  className="flex items-start gap-3 rounded-lg border px-4 py-3"
+                                >
+                                  <div className="mt-0.5 shrink-0 flex size-6 items-center justify-center rounded-full bg-muted">
+                                    <IconActivity className="size-3.5 text-muted-foreground" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm">{h.text}</p>
+                                    {h.profiles && (
+                                      <p className="text-xs text-muted-foreground mt-0.5">
+                                        {h.profiles.name} · {h.profiles.rolle}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">
+                                    {fmtDateTime(h.created_at)}
+                                  </span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </TabsContent>
               </Tabs>
             </div>
