@@ -44,10 +44,27 @@ export async function GET(
     return NextResponse.json({ error: 'Fehler beim Laden der Verknüpfungen' }, { status: 500 })
   }
 
-  // Normalize join alias: frontend expects vakanzen_data field name
+  // Fetch vakanz_nr from vakanzen_data for all unique vakanz_ids
+  const vakanzIds = [...new Set((links ?? []).map((l) => l.vakanz_id).filter(Boolean))]
+  const vakanzNrMap: Record<string, string | null> = {}
+  if (vakanzIds.length > 0) {
+    const { data: vakanzenData } = await supabase
+      .from('vakanzen_data')
+      .select('id, vakanz_nr')
+      .in('id', vakanzIds)
+    for (const v of vakanzenData ?? []) {
+      vakanzNrMap[v.id] = (v as { id: string; vakanz_nr: string | null }).vakanz_nr ?? null
+    }
+  }
+
   const normalized = (links ?? []).map((l) => {
     const { vakanzen, ...rest } = l as typeof l & { vakanzen: Record<string, unknown> | null }
-    return { ...rest, vakanzen_data: vakanzen ?? null }
+    return {
+      ...rest,
+      vakanzen_data: vakanzen
+        ? { ...vakanzen, vakanz_nr: vakanzNrMap[l.vakanz_id] ?? null }
+        : null,
+    }
   })
 
   return NextResponse.json({ links: normalized })

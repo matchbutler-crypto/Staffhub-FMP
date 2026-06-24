@@ -92,6 +92,7 @@ interface VakanzLink {
     branche?: string | null
     startdatum: string
     enddatum?: string | null
+    vakanz_nr?: string | null
   } | null
 }
 
@@ -928,23 +929,7 @@ export default function RessourceDetailPage() {
                     </div>
                   ) : (() => {
                     const beauftragtLinks = links.filter((l) => l.status === "Beauftragt")
-                    const allRows = [
-                      ...beauftragtLinks.map((l) => ({
-                        key: `link-${l.id}`,
-                        rolle: l.vakanzen_data?.rolle ?? "–",
-                        startdatum: l.vakanzen_data?.startdatum ?? null,
-                        enddatum: l.vakanzen_data?.enddatum ?? null,
-                        vakanzId: l.vakanz_id,
-                      })),
-                      ...beauftragungen.map((b) => ({
-                        key: `b-${b.id}`,
-                        rolle: "–",
-                        startdatum: b.startdatum,
-                        enddatum: b.enddatum,
-                        vakanzId: null as string | null,
-                      })),
-                    ]
-                    if (allRows.length === 0) {
+                    if (beauftragtLinks.length === 0 && beauftragungen.length === 0) {
                       return (
                         <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
                           Keine Beauftragungen vorhanden.
@@ -956,21 +941,53 @@ export default function RessourceDetailPage() {
                         <Table>
                           <TableHeader>
                             <TableRow>
-                              <TableHead>Vakanz</TableHead>
+                              <TableHead>Vakanz-Nr.</TableHead>
+                              <TableHead>Vakanz Rolle</TableHead>
+                              <TableHead>Rollenbezeichnung</TableHead>
+                              <TableHead>Tagesrate</TableHead>
                               <TableHead>Start</TableHead>
                               <TableHead>Ende</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {allRows.map((row) => (
+                            {beauftragtLinks.map((l) => (
                               <TableRow
-                                key={row.key}
-                                className={row.vakanzId ? "cursor-pointer" : undefined}
-                                onClick={row.vakanzId ? () => router.push(`/vakanzen/${row.vakanzId}`) : undefined}
+                                key={`link-${l.id}`}
+                                className="cursor-pointer"
+                                onClick={() => router.push(`/vakanzen/${l.vakanz_id}`)}
                               >
-                                <TableCell className="text-sm font-medium">{row.rolle}</TableCell>
-                                <TableCell className="text-sm">{fmt(row.startdatum)}</TableCell>
-                                <TableCell className="text-sm">{fmt(row.enddatum)}</TableCell>
+                                <TableCell className="text-sm text-muted-foreground">
+                                  {l.vakanzen_data?.vakanz_nr ?? "–"}
+                                </TableCell>
+                                <TableCell className="text-sm font-medium">
+                                  {l.vakanzen_data?.rolle ?? "–"}
+                                </TableCell>
+                                <TableCell className="text-sm text-muted-foreground">
+                                  {ressource.rolle ?? "–"}
+                                </TableCell>
+                                <TableCell className="text-sm text-muted-foreground">
+                                  {ressource.ek_tagesrate != null
+                                    ? `${ressource.ek_tagesrate.toLocaleString("de-DE")} €/Tag`
+                                    : "–"}
+                                </TableCell>
+                                <TableCell className="text-sm">{fmt(l.vakanzen_data?.startdatum)}</TableCell>
+                                <TableCell className="text-sm">{fmt(l.vakanzen_data?.enddatum)}</TableCell>
+                              </TableRow>
+                            ))}
+                            {beauftragungen.map((b) => (
+                              <TableRow key={`b-${b.id}`}>
+                                <TableCell className="text-sm text-muted-foreground">–</TableCell>
+                                <TableCell className="text-sm font-medium">–</TableCell>
+                                <TableCell className="text-sm text-muted-foreground">
+                                  {ressource.rolle ?? "–"}
+                                </TableCell>
+                                <TableCell className="text-sm text-muted-foreground">
+                                  {ressource.ek_tagesrate != null
+                                    ? `${ressource.ek_tagesrate.toLocaleString("de-DE")} €/Tag`
+                                    : "–"}
+                                </TableCell>
+                                <TableCell className="text-sm">{fmt(b.startdatum)}</TableCell>
+                                <TableCell className="text-sm">{fmt(b.enddatum)}</TableCell>
                               </TableRow>
                             ))}
                           </TableBody>
