@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { FEATURE_KEYS } from '@/lib/features'
+
+const featureRecord = z.record(
+  z.enum(FEATURE_KEYS as unknown as [string, ...string[]]),
+  z.boolean()
+)
 
 const updateSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   kontakt_email: z.string().email().optional(),
+  features: featureRecord.optional(),
 })
 
 async function requireAdmin(supabase: Awaited<ReturnType<typeof createClient>>) {
@@ -15,7 +22,7 @@ async function requireAdmin(supabase: Awaited<ReturnType<typeof createClient>>) 
     .select('rolle, aktiv')
     .eq('id', user.id)
     .single()
-  if (!profile?.aktiv || profile.rolle !== 'Admin') return null
+  if (!profile?.aktiv || (profile.rolle !== 'Admin' && profile.rolle !== 'Staffhub Manager')) return null
   return user
 }
 
@@ -40,11 +47,16 @@ export async function PATCH(
     )
   }
 
+  const updateData: Record<string, unknown> = {}
+  if (parsed.data.name !== undefined) updateData.name = parsed.data.name
+  if (parsed.data.kontakt_email !== undefined) updateData.kontakt_email = parsed.data.kontakt_email
+  if (parsed.data.features !== undefined) updateData.features = parsed.data.features
+
   const { data, error } = await supabase
     .from('agenturen')
-    .update(parsed.data)
+    .update(updateData)
     .eq('id', id)
-    .select('id, name, kontakt_email')
+    .select('id, name, kontakt_email, features')
     .single()
 
   if (error) {
@@ -66,7 +78,6 @@ export async function DELETE(
     return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
   }
 
-  // Prüfen ob noch Benutzer zugeordnet sind
   const { count } = await supabase
     .from('profiles')
     .select('id', { count: 'exact', head: true })
