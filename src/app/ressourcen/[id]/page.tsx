@@ -928,8 +928,12 @@ export default function RessourceDetailPage() {
                       ))}
                     </div>
                   ) : (() => {
-                    const beauftragtLinks = links.filter((l) => l.status === "Beauftragt")
-                    if (beauftragtLinks.length === 0 && beauftragungen.length === 0) {
+                    // Beauftragungen mit Vakanz-Daten anreichern (vermeidet Duplikate)
+                    const linkedLinkIds = new Set(beauftragungen.map((b) => b.ressource_link_id))
+                    const unlinkedBeauftragtLinks = links.filter(
+                      (l) => l.status === "Beauftragt" && !linkedLinkIds.has(l.id)
+                    )
+                    if (beauftragungen.length === 0 && unlinkedBeauftragtLinks.length === 0) {
                       return (
                         <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
                           Keine Beauftragungen vorhanden.
@@ -950,7 +954,34 @@ export default function RessourceDetailPage() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {beauftragtLinks.map((l) => (
+                            {beauftragungen.map((b) => {
+                              const link = links.find((l) => l.id === b.ressource_link_id)
+                              return (
+                                <TableRow
+                                  key={`b-${b.id}`}
+                                  className={link ? "cursor-pointer" : undefined}
+                                  onClick={link ? () => router.push(`/vakanzen/${link.vakanz_id}`) : undefined}
+                                >
+                                  <TableCell className="text-sm text-muted-foreground">
+                                    {link?.vakanzen_data?.vakanz_nr ?? "–"}
+                                  </TableCell>
+                                  <TableCell className="text-sm font-medium">
+                                    {link?.vakanzen_data?.rolle ?? "–"}
+                                  </TableCell>
+                                  <TableCell className="text-sm text-muted-foreground">
+                                    {ressource.rolle ?? "–"}
+                                  </TableCell>
+                                  <TableCell className="text-sm text-muted-foreground">
+                                    {ressource.ek_tagesrate != null
+                                      ? `${ressource.ek_tagesrate.toLocaleString("de-DE")} €/Tag`
+                                      : "–"}
+                                  </TableCell>
+                                  <TableCell className="text-sm">{fmt(b.startdatum)}</TableCell>
+                                  <TableCell className="text-sm">{fmt(b.enddatum)}</TableCell>
+                                </TableRow>
+                              )
+                            })}
+                            {unlinkedBeauftragtLinks.map((l) => (
                               <TableRow
                                 key={`link-${l.id}`}
                                 className="cursor-pointer"
@@ -972,22 +1003,6 @@ export default function RessourceDetailPage() {
                                 </TableCell>
                                 <TableCell className="text-sm">{fmt(l.vakanzen_data?.startdatum)}</TableCell>
                                 <TableCell className="text-sm">{fmt(l.vakanzen_data?.enddatum)}</TableCell>
-                              </TableRow>
-                            ))}
-                            {beauftragungen.map((b) => (
-                              <TableRow key={`b-${b.id}`}>
-                                <TableCell className="text-sm text-muted-foreground">–</TableCell>
-                                <TableCell className="text-sm font-medium">–</TableCell>
-                                <TableCell className="text-sm text-muted-foreground">
-                                  {ressource.rolle ?? "–"}
-                                </TableCell>
-                                <TableCell className="text-sm text-muted-foreground">
-                                  {ressource.ek_tagesrate != null
-                                    ? `${ressource.ek_tagesrate.toLocaleString("de-DE")} €/Tag`
-                                    : "–"}
-                                </TableCell>
-                                <TableCell className="text-sm">{fmt(b.startdatum)}</TableCell>
-                                <TableCell className="text-sm">{fmt(b.enddatum)}</TableCell>
                               </TableRow>
                             ))}
                           </TableBody>
