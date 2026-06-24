@@ -53,14 +53,14 @@ export async function DELETE(
     erstellt_von: user.id,
   })
 
-  // Link löschen
-  const { error: deleteError } = await supabase
+  // Link-Status auf "Abgelehnt" setzen (nicht löschen, damit er im Gespielt-Tab sichtbar bleibt)
+  const { error: updateError } = await supabase
     .from('ressource_vakanz_links')
-    .delete()
+    .update({ status: 'Abgelehnt' })
     .eq('id', id)
 
-  if (deleteError) {
-    return NextResponse.json({ error: 'Fehler beim Löschen der Verknüpfung' }, { status: 500 })
+  if (updateError) {
+    return NextResponse.json({ error: 'Fehler beim Aktualisieren der Verknüpfung' }, { status: 500 })
   }
 
   // Wenn Link "Beauftragt" war: Vakanz ggf. auf "Offen" zurücksetzen
@@ -87,7 +87,7 @@ export async function DELETE(
     // Ressource-Verfügbarkeit zurücksetzen
     await supabase
       .from('ressourcen')
-      .update({ verfuegbarkeit: 'Verfügbar', verfuegbar_ab: null })
+      .update({ verfuegbarkeit: 'Jetzt verfügbar', verfuegbar_ab: null })
       .eq('id', link.ressource_id)
   }
 
