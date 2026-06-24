@@ -26,21 +26,37 @@ async function validateResourceAvailability(
     return { available: false, reason: 'Diese Ressource ist derzeit nicht verfügbar' }
   }
 
+  const { data: links, error: linksError } = await supabase
+    .from('ressource_vakanz_links')
+    .select('id')
+    .eq('ressource_id', ressourceId)
+
+  if (linksError) {
+    console.error('Error checking ressource_vakanz_links:', linksError)
+    return { available: false, reason: 'Fehler bei der Verfügbarkeitsprüfung' }
+  }
+
+  const linkIds = (links ?? []).map((l) => l.id)
+  if (linkIds.length === 0) {
+    return { available: true }
+  }
+
   const { data: beauftragungen, error: baufError } = await supabase
     .from('beauftragungen')
-    .select('id, start_date, end_date')
-    .eq('ressource_id', ressourceId)
+    .select('id, startdatum, enddatum')
+    .in('ressource_link_id', linkIds)
+    .eq('aktiv', true)
 
   if (baufError) {
     console.error('Error checking beauftragungen:', baufError)
     return { available: false, reason: 'Fehler bei der Verfügbarkeitsprüfung' }
   }
 
-  const convertedBeauftragungen: Beauftragung[] = (beauftragungen || []).map((b) => ({
+  const convertedBeauftragungen: Beauftragung[] = (beauftragungen ?? []).map((b) => ({
     id: b.id,
     ressource_id: ressourceId,
-    start_date: b.start_date,
-    end_date: b.end_date,
+    start_date: b.startdatum as string,
+    end_date: (b.enddatum ?? b.startdatum) as string,
   }))
 
   if (isResourceUnavailable(ressourceId, convertedBeauftragungen, null)) {

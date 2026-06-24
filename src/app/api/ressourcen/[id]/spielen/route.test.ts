@@ -8,6 +8,7 @@ const {
   mockProfileSelect,
   mockRessourceSelect,
   mockBeauftragungSelect,
+  mockLinksSelect,
   mockVakanzSelect,
   mockLinkInsert,
   mockHistorieInsert,
@@ -16,6 +17,7 @@ const {
   mockProfileSelect: vi.fn(),
   mockRessourceSelect: vi.fn(),
   mockBeauftragungSelect: vi.fn(),
+  mockLinksSelect: vi.fn(),
   mockVakanzSelect: vi.fn(),
   mockLinkInsert: vi.fn(),
   mockHistorieInsert: vi.fn(),
@@ -32,13 +34,22 @@ vi.mock('@/lib/supabase/server', () => ({
         return { select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: mockRessourceSelect }) }) }
       }
       if (table === 'beauftragungen') {
-        return { select: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue(mockBeauftragungSelect()) }) }
+        return {
+          select: vi.fn().mockReturnValue({
+            in: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue(mockBeauftragungSelect()),
+            }),
+          }),
+        }
       }
       if (table === 'vakanzen_data') {
         return { select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: mockVakanzSelect }) }) }
       }
       if (table === 'ressource_vakanz_links') {
         return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue(mockLinksSelect()),
+          }),
           insert: vi.fn().mockReturnValue({
             select: vi.fn().mockReturnValue({ single: mockLinkInsert }),
           }),
@@ -91,8 +102,8 @@ describe('POST /api/ressourcen/[id]/spielen', () => {
   it('legt Verknüpfung für Agentur mit eigener Ressource an', async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: 'u1' } }, error: null })
     mockProfileSelect.mockResolvedValue({ data: agenturProfile, error: null }) // agentur_id: 'ag-1'
-    mockRessourceSelect.mockResolvedValue({ data: { ...aktiveRessource, status: 'verfügbar' }, error: null }) // agentur_id: 'ag-1'
-    mockBeauftragungSelect.mockReturnValue({ data: [], error: null }) // No active beauftragungen
+    mockRessourceSelect.mockResolvedValue({ data: aktiveRessource, error: null }) // agentur_id: 'ag-1'
+    mockLinksSelect.mockReturnValue({ data: [], error: null }) // No links → available
     mockVakanzSelect.mockResolvedValue({ data: offeneVakanz, error: null })
     mockLinkInsert.mockResolvedValue({
       data: { id: 'link-2', ressource_id: 'res-1', vakanz_id: VAKANZ_UUID, status: 'Gespielt', created_at: '2026-04-19T00:00:00Z' },
@@ -128,7 +139,7 @@ describe('POST /api/ressourcen/[id]/spielen', () => {
   it('gibt 403 zurück wenn Ressource nicht verfügbar ist', async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: 'u2' } }, error: null })
     mockProfileSelect.mockResolvedValue({ data: managerProfile, error: null })
-    mockRessourceSelect.mockResolvedValue({ data: { ...aktiveRessource, status: 'nicht_verfügbar' }, error: null })
+    mockRessourceSelect.mockResolvedValue({ data: { ...aktiveRessource, verfuegbarkeit: 'Nicht verfügbar' }, error: null })
     const res = await POST(makeRequest({ vakanz_id: VAKANZ_UUID }), { params: Promise.resolve({ id: 'res-1' }) })
     expect(res.status).toBe(403)
     const json = await res.json()
@@ -138,19 +149,19 @@ describe('POST /api/ressourcen/[id]/spielen', () => {
   it('gibt 400 zurück wenn Vakanz geschlossen', async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: 'u2' } }, error: null })
     mockProfileSelect.mockResolvedValue({ data: managerProfile, error: null })
-    mockRessourceSelect.mockResolvedValue({ data: { ...aktiveRessource, status: 'verfügbar' }, error: null })
-    mockBeauftragungSelect.mockReturnValue({ data: [], error: null }) // No active beauftragungen
+    mockRessourceSelect.mockResolvedValue({ data: aktiveRessource, error: null })
+    mockLinksSelect.mockReturnValue({ data: [], error: null }) // No links → available
     mockVakanzSelect.mockResolvedValue({ data: geschlosseneVakanz, error: null })
     const res = await POST(makeRequest({ vakanz_id: VAKANZ_UUID }), { params: Promise.resolve({ id: 'res-1' }) })
     expect(res.status).toBe(400)
-    expect((await res.json()).error).toContain('offene Vakanzen')
+    expect((await res.json()).error).toContain('keine weiteren Profile')
   })
 
   it('gibt 409 zurück bei Duplikat-Verknüpfung', async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: 'u2' } }, error: null })
     mockProfileSelect.mockResolvedValue({ data: managerProfile, error: null })
-    mockRessourceSelect.mockResolvedValue({ data: { ...aktiveRessource, status: 'verfügbar' }, error: null })
-    mockBeauftragungSelect.mockReturnValue({ data: [], error: null }) // No active beauftragungen
+    mockRessourceSelect.mockResolvedValue({ data: aktiveRessource, error: null })
+    mockLinksSelect.mockReturnValue({ data: [], error: null }) // No links → available
     mockVakanzSelect.mockResolvedValue({ data: offeneVakanz, error: null })
     mockLinkInsert.mockResolvedValue({ data: null, error: { code: '23505' } })
     const res = await POST(makeRequest({ vakanz_id: VAKANZ_UUID }), { params: Promise.resolve({ id: 'res-1' }) })
@@ -161,8 +172,8 @@ describe('POST /api/ressourcen/[id]/spielen', () => {
   it('legt Verknüpfung erfolgreich an und schreibt Historien-Eintrag', async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: 'u2' } }, error: null })
     mockProfileSelect.mockResolvedValue({ data: managerProfile, error: null })
-    mockRessourceSelect.mockResolvedValue({ data: { ...aktiveRessource, status: 'verfügbar' }, error: null })
-    mockBeauftragungSelect.mockReturnValue({ data: [], error: null }) // No active beauftragungen
+    mockRessourceSelect.mockResolvedValue({ data: aktiveRessource, error: null })
+    mockLinksSelect.mockReturnValue({ data: [], error: null }) // No links → available
     mockVakanzSelect.mockResolvedValue({ data: offeneVakanz, error: null })
     mockLinkInsert.mockResolvedValue({
       data: { id: 'link-1', ressource_id: 'res-1', vakanz_id: VAKANZ_UUID, status: 'Gespielt', created_at: '2026-04-18T00:00:00Z' },
@@ -195,7 +206,7 @@ describe('POST /api/ressourcen/[id]/spielen — Webhook', () => {
       data: { id: 'res-1', name: 'Max M.', verfuegbarkeit: 'Jetzt verfügbar', agentur_id: 'ag-1', email_geschaeftlich: 'max@test.de', telefon_geschaeftlich: null },
       error: null,
     })
-    mockBeauftragungSelect.mockReturnValue({ data: [], error: null })
+    mockLinksSelect.mockReturnValue({ data: [], error: null }) // No links → available
     mockVakanzSelect.mockResolvedValue({ data: offeneVakanz, error: null })
     mockLinkInsert.mockResolvedValue({
       data: { id: 'lnk-1', ressource_id: 'res-1', vakanz_id: VAKANZ_UUID, status: 'Gespielt', created_at: '2026-06-23T00:00:00Z' },

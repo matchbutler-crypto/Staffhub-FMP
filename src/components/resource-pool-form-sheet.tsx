@@ -93,12 +93,12 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024
 
 const resourcePoolSchema = z.object({
   resourceName: z.string().min(1, 'Name ist erforderlich').max(200),
-  rolle: z.string().max(200).optional(),
+  rolle: z.string().min(1, 'Rolle ist erforderlich').max(200),
   availability: z.number().min(1, 'Verfügbarkeit muss mindestens 1 sein').max(168, 'Max 168 Stunden/Woche'),
-  verfuegbar_ab: z.string().optional(),
-  ek_tagesrate: z.number({ invalid_type_error: 'Muss eine Zahl sein' }).positive().optional(),
-  arbeitsmodell: z.enum(['Onshore', 'Nearshore', 'Offshore']).optional(),
-  location: z.string().max(200).optional(),
+  verfuegbar_ab: z.string().min(1, 'Verfügbar ab ist erforderlich'),
+  ek_tagesrate: z.number({ invalid_type_error: 'Muss eine Zahl sein' }).positive('Tagesrate ist erforderlich'),
+  arbeitsmodell: z.enum(['Onshore', 'Nearshore', 'Offshore']),
+  location: z.string().min(1, 'Location ist erforderlich').max(200),
 })
 
 type ResourcePoolFormData = z.infer<typeof resourcePoolSchema>
@@ -407,13 +407,14 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess, isManager
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="rolle">Rolle / Jobtitel</Label>
+                <Label htmlFor="rolle">Rolle <span className="text-destructive">*</span></Label>
                 <Input
                   id="rolle"
                   placeholder="z.B. Frontend Developer, Data Engineer"
                   {...register('rolle')}
                   disabled={isLoading}
                 />
+                {errors.rolle && <p className="text-xs text-destructive">{errors.rolle.message}</p>}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -431,18 +432,19 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess, isManager
                   {errors.availability && <p className="text-xs text-destructive">{errors.availability.message}</p>}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="verfuegbar_ab">Verfügbar ab</Label>
+                  <Label htmlFor="verfuegbar_ab">Verfügbar ab <span className="text-destructive">*</span></Label>
                   <Input
                     id="verfuegbar_ab"
                     type="date"
                     {...register('verfuegbar_ab')}
                     disabled={isLoading}
                   />
+                  {errors.verfuegbar_ab && <p className="text-xs text-destructive">{errors.verfuegbar_ab.message}</p>}
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="ek_tagesrate">EK Tagesrate (€/Tag)</Label>
+                <Label htmlFor="ek_tagesrate">Tagesrate (€) <span className="text-destructive">*</span></Label>
                 <Input
                   id="ek_tagesrate"
                   type="number"
@@ -456,7 +458,7 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess, isManager
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label htmlFor="arbeitsmodell">Arbeitsmodell</Label>
+                  <Label htmlFor="arbeitsmodell">Arbeitsmodell <span className="text-destructive">*</span></Label>
                   <Select
                     defaultValue="Onshore"
                     onValueChange={(v) => setValue('arbeitsmodell', v as 'Onshore' | 'Nearshore' | 'Offshore')}
@@ -473,13 +475,14 @@ export function ResourcePoolFormSheet({ open, onOpenChange, onSuccess, isManager
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="location">Location</Label>
+                  <Label htmlFor="location">Location <span className="text-destructive">*</span></Label>
                   <Input
                     id="location"
                     placeholder="z.B. München, Remote"
                     {...register('location')}
                     disabled={isLoading}
                   />
+                  {errors.location && <p className="text-xs text-destructive">{errors.location.message}</p>}
                 </div>
               </div>
 
