@@ -12,6 +12,7 @@ import {
   IconKey,
   IconCopy,
   IconCheck,
+  IconToggleRight,
 } from "@tabler/icons-react"
 import { toast } from "sonner"
 
@@ -64,6 +65,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
+import { FEATURE_KEYS, FEATURE_META, type FeatureKey } from "@/lib/features"
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -75,6 +79,7 @@ interface Agentur {
   kontakt_email: string
   user_anzahl: number
   created_at: string
+  features: Record<string, boolean>
 }
 
 interface User {
@@ -394,11 +399,12 @@ interface NeueAgenturSheetProps {
 function NeueAgenturSheet({ open, onOpenChange, onSuccess }: NeueAgenturSheetProps) {
   const [name, setName] = React.useState("")
   const [kontaktEmail, setKontaktEmail] = React.useState("")
+  const [features, setFeatures] = React.useState<Record<string, boolean>>({})
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
-    if (open) { setName(""); setKontaktEmail(""); setError(null) }
+    if (open) { setName(""); setKontaktEmail(""); setFeatures({}); setError(null) }
   }, [open])
 
   async function handleSubmit() {
@@ -408,7 +414,7 @@ function NeueAgenturSheet({ open, onOpenChange, onSuccess }: NeueAgenturSheetPro
       const res = await fetch("/api/admin/agenturen", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, kontakt_email: kontaktEmail }),
+        body: JSON.stringify({ name, kontakt_email: kontaktEmail, features }),
       })
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error ?? "Fehler beim Anlegen") }
       toast.success(`Agentur „${name}" wurde angelegt`)
@@ -435,6 +441,25 @@ function NeueAgenturSheet({ open, onOpenChange, onSuccess }: NeueAgenturSheetPro
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="a-kontakt">Kontakt-E-Mail *</Label>
               <Input id="a-kontakt" type="email" placeholder="kontakt@agentur.de" value={kontaktEmail} onChange={(e) => setKontaktEmail(e.target.value)} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label>Features freigeben</Label>
+              <div className="flex flex-col gap-2">
+                {FEATURE_KEYS.map((key) => (
+                  <div key={key} className="flex items-center justify-between rounded-md border px-3 py-2">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-sm font-medium">{FEATURE_META[key].label}</span>
+                      <span className="text-xs text-muted-foreground">{FEATURE_META[key].beschreibung}</span>
+                    </div>
+                    <Switch
+                      checked={!!features[key]}
+                      onCheckedChange={(checked) =>
+                        setFeatures((prev) => ({ ...prev, [key]: checked }))
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -921,6 +946,158 @@ function ApiKeyBearbeitenSheet({ open, onOpenChange, apiKey, onSuccess }: ApiKey
   )
 }
 
+// ── FeatureToggleSheet ─────────────────────────────────────────────────────────
+
+interface FeatureToggleSheetProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  agentur: Agentur | null
+  onSuccess: () => void
+}
+
+function FeatureToggleSheet({ open, onOpenChange, agentur, onSuccess }: FeatureToggleSheetProps) {
+  const [features, setFeatures] = React.useState<Record<string, boolean>>({})
+  const [releaseNotes, setReleaseNotes] = React.useState<Record<string, { titel: string; beschreibung: string }>>({})
+  const [saving, setSaving] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+  const [prevFeatures, setPrevFeatures] = React.useState<Record<string, boolean>>({})
+
+  React.useEffect(() => {
+    if (open && agentur) {
+      const f = (agentur as Agentur & { features?: Record<string, boolean> }).features ?? {}
+      setFeatures(f)
+      setPrevFeatures(f)
+      setReleaseNotes({})
+      setError(null)
+    }
+  }, [open, agentur])
+
+  function toggleFeature(key: FeatureKey) {
+    setFeatures((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  async function handleSave() {
+    if (!agentur) return
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/admin/agenturen/${agentur.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ features }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error ?? 'Fehler beim Speichern')
+      }
+
+      // Release Notes für neu aktivierte Features erstellen
+      for (const key of FEATURE_KEYS) {
+        const wasOff = !prevFeatures[key]
+        const isNowOn = features[key]
+        const note = releaseNotes[key]
+        if (wasOff && isNowOn && note?.titel) {
+          await fetch('/api/admin/release-notes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              feature_key: key,
+              titel: note.titel,
+              beschreibung: note.beschreibung,
+            }),
+          })
+        }
+      }
+
+      toast.success(`Features für „${agentur.name}" gespeichert`)
+      onOpenChange(false)
+      onSuccess()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unbekannter Fehler')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="flex w-[480px] flex-col gap-0 overflow-hidden p-0">
+        <SheetHeader className="border-b px-6 py-4">
+          <SheetTitle>Feature Toggles</SheetTitle>
+          <SheetDescription>
+            Features für <span className="font-medium text-foreground">{agentur?.name}</span> aktivieren oder deaktivieren.
+          </SheetDescription>
+        </SheetHeader>
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+          {error && (
+            <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {error}
+            </div>
+          )}
+          <div className="flex flex-col gap-6">
+            {FEATURE_KEYS.map((key) => {
+              const meta = FEATURE_META[key]
+              const isOn = !!features[key]
+              const wasOff = !prevFeatures[key]
+              const newlyActivated = wasOff && isOn
+              return (
+                <div key={key} className="flex flex-col gap-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-sm font-medium">{meta.label}</span>
+                      <span className="text-xs text-muted-foreground">{meta.beschreibung}</span>
+                    </div>
+                    <Switch
+                      checked={isOn}
+                      onCheckedChange={() => toggleFeature(key)}
+                    />
+                  </div>
+                  {newlyActivated && (
+                    <div className="rounded-md border bg-muted/40 p-3 flex flex-col gap-2">
+                      <p className="text-xs font-medium text-muted-foreground">Release Note (optional)</p>
+                      <Input
+                        placeholder={'Titel z.B. „Mein Pool ist jetzt verfügbar“'}
+                        value={releaseNotes[key]?.titel ?? ''}
+                        onChange={(e) =>
+                          setReleaseNotes((prev) => ({
+                            ...prev,
+                            [key]: { ...prev[key], titel: e.target.value },
+                          }))
+                        }
+                      />
+                      <Textarea
+                        placeholder="Kurze Beschreibung…"
+                        className="resize-none text-sm"
+                        rows={2}
+                        value={releaseNotes[key]?.beschreibung ?? ''}
+                        onChange={(e) =>
+                          setReleaseNotes((prev) => ({
+                            ...prev,
+                            [key]: { ...prev[key], beschreibung: e.target.value },
+                          }))
+                        }
+                      />
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+        <SheetFooter className="border-t px-6 py-4">
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+            Abbrechen
+          </Button>
+          <Button onClick={handleSave} disabled={saving}>
+            <IconToggleRight className="size-4" />
+            {saving ? 'Speichern…' : 'Speichern'}
+          </Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
+  )
+}
+
 // ── AdminPage ──────────────────────────────────────────────────────────────────
 
 export default function AdminPage() {
@@ -941,6 +1118,9 @@ export default function AdminPage() {
   const [userLoeschenOpen, setUserLoeschenOpen] = React.useState(false)
   const [userLoeschen, setUserLoeschen] = React.useState<User | null>(null)
   const [userLoeschenLoading, setUserLoeschenLoading] = React.useState(false)
+
+  const [featureToggleOpen, setFeatureToggleOpen] = React.useState(false)
+  const [featureToggleAgentur, setFeatureToggleAgentur] = React.useState<Agentur | null>(null)
 
   const [apiKeys, setApiKeys] = React.useState<ApiKey[]>([])
   const [loadingKeys, setLoadingKeys] = React.useState(true)
@@ -1055,6 +1235,11 @@ export default function AdminPage() {
     setAgenturEditOpen(true)
   }
 
+  function openFeatureToggle(a: Agentur) {
+    setFeatureToggleAgentur(a)
+    setFeatureToggleOpen(true)
+  }
+
   return (
     <SidebarProvider style={{ "--sidebar-width": "18rem", "--header-height": "3rem" } as React.CSSProperties}>
       <AppSidebar variant="inset" />
@@ -1073,6 +1258,7 @@ export default function AdminPage() {
                   <TabsList>
                     <TabsTrigger value="benutzer">Benutzer</TabsTrigger>
                     <TabsTrigger value="agenturen">Agenturen</TabsTrigger>
+                    <TabsTrigger value="feature-toggles">Feature Toggles</TabsTrigger>
                     <TabsTrigger value="api-keys">API Schlüssel</TabsTrigger>
                   </TabsList>
 
@@ -1206,6 +1392,72 @@ export default function AdminPage() {
                     </div>
                   </TabsContent>
 
+                  {/* ── Feature Toggles Tab ── */}
+                  <TabsContent value="feature-toggles" className="mt-4">
+                    <div className="mb-4">
+                      <p className="text-sm text-muted-foreground">
+                        Features pro Agentur freigeben oder deaktivieren.
+                      </p>
+                    </div>
+                    <div className="overflow-hidden rounded-lg border">
+                      <Table>
+                        <TableHeader className="bg-muted">
+                          <TableRow>
+                            <TableHead>Agentur</TableHead>
+                            {FEATURE_KEYS.map((key) => (
+                              <TableHead key={key} className="text-center">
+                                {FEATURE_META[key].label}
+                              </TableHead>
+                            ))}
+                            <TableHead className="w-10" />
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {loadingAgenturen ? (
+                            <TableSkeletonRows cols={2 + FEATURE_KEYS.length} />
+                          ) : agenturen.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={2 + FEATURE_KEYS.length} className="py-10 text-center text-muted-foreground">
+                                Keine Agenturen vorhanden.
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            agenturen.map((a) => (
+                              <TableRow key={a.id}>
+                                <TableCell className="font-medium">{a.name}</TableCell>
+                                {FEATURE_KEYS.map((key) => (
+                                  <TableCell key={key} className="text-center">
+                                    <Badge
+                                      variant="outline"
+                                      className={
+                                        a.features?.[key]
+                                          ? 'bg-green-100 text-green-700 border-green-200'
+                                          : 'bg-gray-100 text-gray-500 border-gray-200'
+                                      }
+                                    >
+                                      {a.features?.[key] ? 'Aktiv' : 'Inaktiv'}
+                                    </Badge>
+                                  </TableCell>
+                                ))}
+                                <TableCell>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="size-8 text-muted-foreground"
+                                    onClick={() => openFeatureToggle(a)}
+                                  >
+                                    <IconToggleRight className="size-4" />
+                                    <span className="sr-only">Feature Toggles</span>
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </TabsContent>
+
                   {/* ── API Schlüssel Tab ── */}
                   <TabsContent value="api-keys" className="mt-4">
                     <div className="mb-4 flex items-center justify-between">
@@ -1302,6 +1554,12 @@ export default function AdminPage() {
       <NeueAgenturSheet open={agenturSheetOpen} onOpenChange={setAgenturSheetOpen} onSuccess={fetchAgenturen} />
       <AgenturBearbeitenSheet open={agenturEditOpen} onOpenChange={setAgenturEditOpen} agentur={agenturEditTarget} onSuccess={fetchAgenturen} />
       <AgenturLoeschenDialog open={loeschenOpen} onOpenChange={setLoeschenOpen} agentur={loeschenAgentur} onSuccess={fetchAgenturen} />
+      <FeatureToggleSheet
+        open={featureToggleOpen}
+        onOpenChange={setFeatureToggleOpen}
+        agentur={featureToggleAgentur}
+        onSuccess={fetchAgenturen}
+      />
 
       <NeuerApiKeySheet open={apiKeySheetOpen} onOpenChange={setApiKeySheetOpen} onSuccess={fetchApiKeys} />
       <ApiKeyBearbeitenSheet open={apiKeyEditOpen} onOpenChange={setApiKeyEditOpen} apiKey={apiKeyEditTarget} onSuccess={fetchApiKeys} />

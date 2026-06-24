@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { FEATURE_KEYS } from '@/lib/features'
+
+const featureRecord = z.record(
+  z.enum(FEATURE_KEYS as unknown as [string, ...string[]]),
+  z.boolean()
+)
 
 const agenturSchema = z.object({
   name: z.string().min(1).max(200),
   kontakt_email: z.string().email(),
+  features: featureRecord.optional(),
 })
 
 async function requireAdmin(supabase: Awaited<ReturnType<typeof createClient>>) {
@@ -29,7 +36,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from('agenturen')
-    .select('id, name, kontakt_email, created_at')
+    .select('id, name, kontakt_email, features, created_at')
     .order('name')
 
   if (error) {
@@ -51,6 +58,7 @@ export async function GET() {
 
   const agenturen = (data ?? []).map((a) => ({
     ...a,
+    features: (a.features as Record<string, boolean>) ?? {},
     user_anzahl: userCounts[a.id] ?? 0,
   }))
 
@@ -76,8 +84,12 @@ export async function POST(request: NextRequest) {
 
   const { data, error } = await supabase
     .from('agenturen')
-    .insert({ name: parsed.data.name, kontakt_email: parsed.data.kontakt_email })
-    .select('id, name, kontakt_email, created_at')
+    .insert({
+      name: parsed.data.name,
+      kontakt_email: parsed.data.kontakt_email,
+      features: parsed.data.features ?? {},
+    })
+    .select('id, name, kontakt_email, features, created_at')
     .single()
 
   if (error) {
