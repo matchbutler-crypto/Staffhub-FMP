@@ -154,6 +154,11 @@ export default function VakanzDetailPage() {
   const [localPublished, setLocalPublished] = React.useState<boolean | undefined>(undefined)
   const [updatingLinkId, setUpdatingLinkId] = React.useState<string | null>(null)
 
+  // Beauftragung lösen
+  const [loesenOpen, setLoesenOpen] = React.useState(false)
+  const [loesenTarget, setLoesenTarget] = React.useState<PoolRessource | null>(null)
+  const [loesenBusy, setLoesenBusy] = React.useState(false)
+
   // ── Load Vakanz ──────────────────────────────────────────────────────────────
 
   React.useEffect(() => {
@@ -224,6 +229,28 @@ export default function VakanzDetailPage() {
       toast.error("Verbindungsfehler.")
     } finally {
       setRueckzugBusy(false)
+    }
+  }
+
+  async function handleLoesenBeauftragung() {
+    if (!loesenTarget?.link_id) return
+    setLoesenBusy(true)
+    try {
+      const res = await fetch(`/api/ressource-links/${loesenTarget.link_id}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        toast.error(body.error ?? 'Beauftragung konnte nicht gelöst werden.')
+        return
+      }
+      toast.success(`Beauftragung von ${loesenTarget.name} wurde gelöst.`)
+      setLoesenOpen(false)
+      loadGespielt()
+    } catch {
+      toast.error('Verbindungsfehler.')
+    } finally {
+      setLoesenBusy(false)
     }
   }
 
@@ -576,7 +603,9 @@ export default function VakanzDetailPage() {
                     vakanzId={id}
                     vakanzTitel={vakanz.rolle}
                     isManager
+                    isAdmin={user?.rolle === 'Admin'}
                     onWithdraw={(r) => { setRueckzugTarget(r); setRueckzugOpen(true) }}
+                    onDelete={(r) => { setLoesenTarget(r); setLoesenOpen(true) }}
                     onStatusChange={handleLinkStatusChange}
                   />
                 </div>
@@ -674,6 +703,28 @@ export default function VakanzDetailPage() {
               onClick={handleRueckzug}
             >
               {rueckzugBusy ? "Wird zurückgezogen…" : "Zurückziehen"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Beauftragung lösen Dialog */}
+      <AlertDialog open={loesenOpen} onOpenChange={setLoesenOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Beauftragung lösen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Die Beauftragung von <strong>{loesenTarget?.name}</strong> wird vollständig gelöst und der Eintrag aus dieser Vakanz entfernt. Die Ressource wird wieder als verfügbar markiert.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={loesenBusy}>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={loesenBusy}
+              onClick={handleLoesenBeauftragung}
+            >
+              {loesenBusy ? 'Wird gelöst…' : 'Beauftragung lösen'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

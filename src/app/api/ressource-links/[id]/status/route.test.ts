@@ -217,3 +217,63 @@ describe('PATCH /api/ressource-links/[id]/status — Beauftragt Webhook', () => 
     expect(sendProfileUpdated).not.toHaveBeenCalled()
   })
 })
+
+// ── Zugesagt: Verfügbarkeit automatisch setzen ─────────────────────────────────
+
+const zugesagtLink = {
+  id: 'lnk-2', ressource_id: 'r-2', vakanz_id: 'vak-2', status: 'Interview geplant',
+  vakanzen: { rolle: 'Frontend Dev', enddatum: '2027-03-31' },
+}
+
+describe('PATCH /api/ressource-links/[id]/status — Zugesagt Verfügbarkeit', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('setzt Ressource auf "Nicht verfügbar" mit Enddatum wenn auf Zugesagt gesetzt', async () => {
+    let ressourcenUpdateCalled = false
+    const supabaseMock = {
+      auth: { getUser: mockGetUser },
+      from: vi.fn((table: string) => {
+        if (table === 'profiles') {
+          return { select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: mockProfileSelect }) }) }
+        }
+        if (table === 'ressource_vakanz_links') {
+          return {
+            select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: mockLinkSelect }) }),
+            update: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                select: vi.fn().mockReturnValue({ single: mockLinkUpdate }),
+              }),
+            }),
+          }
+        }
+        if (table === 'ressource_historie') {
+          return { insert: mockHistorieInsert }
+        }
+        if (table === 'ressourcen') {
+          return {
+            update: vi.fn().mockImplementation(() => {
+              ressourcenUpdateCalled = true
+              return { eq: vi.fn().mockResolvedValue({ error: null }) }
+            }),
+            select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: mockRessourceSelect }) }),
+          }
+        }
+        return {}
+      }),
+    }
+    vi.mocked(await import('@/lib/supabase/server')).createClient.mockResolvedValue(supabaseMock as never)
+
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u-2' } }, error: null })
+    mockProfileSelect.mockResolvedValue({ data: managerProfileWebhook, error: null })
+    mockLinkSelect.mockResolvedValue({ data: zugesagtLink, error: null })
+    mockLinkUpdate.mockResolvedValue({
+      data: { id: 'lnk-2', ressource_id: 'r-2', vakanz_id: 'vak-2', status: 'Zugesagt', interview_datum: null, feedback: null, updated_at: '2026-06-24T00:00:00Z' },
+      error: null,
+    })
+    mockHistorieInsert.mockResolvedValue({ error: null })
+
+    const res = await PATCH(makeRequest({ status: 'Zugesagt' }), { params: Promise.resolve({ id: 'lnk-2' }) })
+    expect(res.status).toBe(200)
+    expect(ressourcenUpdateCalled).toBe(true)
+  })
+})

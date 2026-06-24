@@ -19,7 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Trash2, Loader2, Info, Download, MessageSquare, Send, CalendarClock, CheckCircle2, XCircle, Ban, Undo2, ChevronDown, Briefcase } from 'lucide-react'
+import { Trash2, Loader2, Info, Download, MessageSquare, Send, CalendarClock, CheckCircle2, XCircle, Ban, Undo2, ChevronDown, Briefcase, Link2Off } from 'lucide-react'
 import { toast } from 'sonner'
 
 const LINK_STATUSES = ['Gespielt', 'Interview geplant', 'Zugesagt', 'Beauftragt', 'Abgesagt', 'Abgelehnt'] as const
@@ -57,7 +57,9 @@ interface GespielteRessourcenTableProps {
   vakanzId?: string
   vakanzTitel?: string
   isManager?: boolean
+  isAdmin?: boolean
   onWithdraw?: (resource: PoolRessource) => void
+  onDelete?: (resource: PoolRessource) => void
   onStatusChange?: (resource: PoolRessource, newStatus: string, options?: StatusChangeOptions) => Promise<void>
 }
 
@@ -66,7 +68,9 @@ export function GespielteRessourcenTable({
   vakanzId,
   vakanzTitel,
   isManager,
+  isAdmin,
   onWithdraw,
+  onDelete,
   onStatusChange,
 }: GespielteRessourcenTableProps) {
   const [scores, setScores] = useState<Record<string, number>>({})
@@ -428,6 +432,20 @@ export function GespielteRessourcenTable({
                             title="Zurückziehen"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                      {/* Beauftragung lösen — nur Admin, nur bei Status Beauftragt */}
+                      <div className="w-7">
+                        {isAdmin && resource.link_id && currentStatus === 'Beauftragt' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/5 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => onDelete?.(resource)}
+                            title="Beauftragung lösen"
+                          >
+                            <Link2Off className="h-3.5 w-3.5" />
                           </Button>
                         )}
                       </div>

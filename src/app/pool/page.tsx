@@ -2466,7 +2466,7 @@ export default function PoolPage() {
                                     size="sm"
                                     variant="outline"
                                     className="h-7 text-xs border-amber-200 text-amber-700 hover:bg-amber-50"
-                                    onClick={() => setStammdatenModal(r)}
+                                    onClick={(e) => { e.stopPropagation(); router.push(`/ressourcen/${r.id}`) }}
                                   >
                                     Stammdaten erfassen
                                   </Button>
@@ -2538,7 +2538,7 @@ export default function PoolPage() {
                                   {stammdatenAusstehend(r) && (
                                     <>
                                       <DropdownMenuItem
-                                        onClick={() => setStammdatenModal(r)}
+                                        onClick={() => router.push(`/ressourcen/${r.id}`)}
                                         className="text-amber-700 focus:text-amber-700"
                                       >
                                         <IconPencil className="mr-2 size-4" />
