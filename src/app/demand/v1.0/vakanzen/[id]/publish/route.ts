@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { validateExternalApiKey } from '@/lib/external-api-auth'
+import { sendPositionPublished } from '@/lib/agency-webhook'
 
 const publishSchema = z.object({ published: z.boolean() })
 
@@ -49,6 +50,32 @@ export async function PATCH(
   if (error) {
     if (error.code === 'PGRST116') return NextResponse.json({ error: 'Vakanz nicht gefunden' }, { status: 404 })
     return NextResponse.json({ error: 'Fehler beim Aktualisieren' }, { status: 500 })
+  }
+
+  // Agency Webhook: position.published wenn Vakanz veröffentlicht wird
+  if (parsed.data.published === true) {
+    const { data: vakanzData } = await supabase
+      .from('vakanzen')
+      .select('id, rolle, branche, beschreibung, skills, skills_nice_have, erfahrungslevel, startdatum, enddatum, auslastung, arbeitsmodell, standort')
+      .eq('id', id)
+      .single()
+
+    if (vakanzData) {
+      sendPositionPublished(id, {
+        id: vakanzData.id,
+        role: vakanzData.rolle,
+        industry: vakanzData.branche,
+        description: vakanzData.beschreibung,
+        skills: vakanzData.skills ?? [],
+        skillsNiceToHave: vakanzData.skills_nice_have ?? [],
+        seniority: vakanzData.erfahrungslevel,
+        startDate: vakanzData.startdatum,
+        endDate: vakanzData.enddatum,
+        utilizationPct: vakanzData.auslastung,
+        workModel: vakanzData.arbeitsmodell,
+        location: vakanzData.standort ?? null,
+      }).catch((e) => console.error('Agency webhook error:', e))
+    }
   }
 
   return NextResponse.json({ published: parsed.data.published })
