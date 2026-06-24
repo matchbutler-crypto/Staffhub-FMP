@@ -12,6 +12,7 @@ export interface UserProfile {
   rolle: Rolle
   agentur_id: string | null
   aktiv: boolean
+  features: Record<string, boolean>
 }
 
 interface UserContextValue {
@@ -42,7 +43,23 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       .eq('id', authUser.id)
       .single()
 
-    setUser(profile as UserProfile | null)
+    if (!profile) {
+      setUser(null)
+      setLoading(false)
+      return
+    }
+
+    let features: Record<string, boolean> = {}
+    if (profile.agentur_id) {
+      const { data: agentur } = await supabase
+        .from('agenturen')
+        .select('features')
+        .eq('id', profile.agentur_id)
+        .single()
+      features = (agentur?.features as Record<string, boolean>) ?? {}
+    }
+
+    setUser({ ...(profile as Omit<UserProfile, 'features'>), features })
     setLoading(false)
   }
 
