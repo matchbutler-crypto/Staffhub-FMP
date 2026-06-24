@@ -669,7 +669,7 @@ export default function RessourceDetailPage() {
       ressource.geburtsdatum ? `Geburtsdatum: ${fmt(ressource.geburtsdatum)}` : null,
       ressource.geschlecht ? `Geschlecht: ${ressource.geschlecht}` : null,
       `Erfahrungslevel: ${ressource.erfahrungslevel}`,
-      `Verfügbarkeit: ${ressource.verfuegbarkeit}${ressource.verfuegbarkeit === "Verfügbar ab" && ressource.verfuegbar_ab ? ` (${fmt(ressource.verfuegbar_ab)})` : ""}`,
+      `Verfügbarkeit: ${ressource.verfuegbarkeit}${(ressource.verfuegbarkeit === "Verfügbar ab" || ressource.verfuegbarkeit === "Nicht verfügbar") && ressource.verfuegbar_ab ? ` (bis ${fmt(ressource.verfuegbar_ab)})` : ""}`,
       ressource.arbeitsmodell ? `Arbeitsmodell: ${ressource.arbeitsmodell}` : null,
       ressource.location ? `Location: ${ressource.location}` : null,
       ressource.skills.length > 0 ? `Skills: ${ressource.skills.join(", ")}` : null,
@@ -701,7 +701,7 @@ export default function RessourceDetailPage() {
 
   // Stammdaten-Pflichtfelder ausstehend (für Agentur-Banner)
   const PFLICHTFELDER = ['nachname', 'vorname', 'geburtsdatum', 'geschlecht', 'firma', 'email_geschaeftlich', 'telefon_geschaeftlich', 'wohnort'] as const
-  const hatBeauftragtenLink = links.some((l) => l.status === 'Beauftragt')
+  const hatBeauftragtenLink = links.some((l) => l.status === 'Beauftragt' || l.status === 'Zugesagt')
   const stammdatenAusstehend = ressource != null && hatBeauftragtenLink && PFLICHTFELDER.some((f) => !ressource[f])
 
   const backUrl = isAgentur ? "/pool" : "/ressourcen"
@@ -780,7 +780,9 @@ export default function RessourceDetailPage() {
                       {" · "}
                       {ressource.verfuegbarkeit === "Verfügbar ab"
                         ? `Verfügbar ab ${fmt(latestBeauftragungEnddatum ?? ressource.verfuegbar_ab)}`
-                        : ressource.verfuegbarkeit}
+                        : ressource.verfuegbarkeit === "Nicht verfügbar" && ressource.verfuegbar_ab
+                          ? `Nicht verfügbar (bis ${fmt(ressource.verfuegbar_ab)})`
+                          : ressource.verfuegbarkeit}
                     </p>
                   </div>
 
