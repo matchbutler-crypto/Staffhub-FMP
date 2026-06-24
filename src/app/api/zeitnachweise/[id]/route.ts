@@ -87,7 +87,8 @@ export async function DELETE(
 // ── PATCH /api/zeitnachweise/[id] ────────────────────────────────────────────
 
 const updateSchema = z.object({
-  tage_ist_override: z.number().int().nullable().optional(),
+  tage_ist_override: z.number().nullable().optional(),
+  abrechnung_status: z.enum(['Offen', 'Rechnung gestellt', 'Bezahlt']).optional(),
 })
 
 export async function PATCH(
@@ -111,11 +112,15 @@ export async function PATCH(
     )
   }
 
+  const updateData: Record<string, unknown> = {}
+  if ('tage_ist_override' in parsed.data) updateData.tage_ist_override = parsed.data.tage_ist_override ?? null
+  if (parsed.data.abrechnung_status !== undefined) updateData.abrechnung_status = parsed.data.abrechnung_status
+
   const { data: record, error } = await supabase
     .from('zeitnachweise')
-    .update({ tage_ist_override: parsed.data.tage_ist_override ?? null })
+    .update(updateData)
     .eq('id', id)
-    .select('id, beauftragung_id, monat, stunden_ist, tage_ist_override, uploaded_at, pdf_path')
+    .select('id, beauftragung_id, monat, stunden_ist, tage_ist_override, abrechnung_status, uploaded_at, pdf_path')
     .single()
 
   if (error) {

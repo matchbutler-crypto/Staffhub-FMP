@@ -156,8 +156,8 @@ export async function GET(request: NextRequest) {
       updated_at,
       vakanz_id,
       vakanzen_data!vakanz_id(vakanz_nr),
-      kandidaten_profile(kandidatenname, erfahrungslevel, vakanz_id, vakanzen(titel, vakanz_nr)),
-      ressource_vakanz_links!ressource_link_id(ressource_id, vakanz_id, vakanzen(vakanz_nr)),
+      kandidaten_profile(kandidatenname, erfahrungslevel, vakanz_id, vakanzen(titel, vakanz_nr, kunde)),
+      ressource_vakanz_links!ressource_link_id(ressource_id, vakanz_id, vakanzen(vakanz_nr, kunde)),
       agenturen!inner(name)
     `, { count: 'exact' })
     .order('created_at', { ascending: false })
@@ -176,13 +176,13 @@ export async function GET(request: NextRequest) {
   const result = (data ?? []).map((b) => {
     const { kandidaten_profile, agenturen, einkaufspreis, margenaufschlag, verkaufspreis, ...rest } = b as typeof b & {
       vakanzen_data: { vakanz_nr: string | null } | null
-      kandidaten_profile: { kandidatenname: string; erfahrungslevel: string; vakanz_id: string; vakanzen: { titel: string; vakanz_nr: string | null } | null } | null
+      kandidaten_profile: { kandidatenname: string; erfahrungslevel: string; vakanz_id: string; vakanzen: { titel: string; vakanz_nr: string | null; kunde?: string | null } | null } | null
       ressource_vakanz_links: { ressource_id: string; vakanz_id: string } | null
       agenturen: { name: string } | null
     }
     const bTyped = b as typeof b & {
       vakanzen_data: { vakanz_nr: string | null } | null
-      ressource_vakanz_links: { ressource_id: string; vakanz_id: string; vakanzen: { vakanz_nr: string | null } | null } | null
+      ressource_vakanz_links: { ressource_id: string; vakanz_id: string; vakanzen: { vakanz_nr: string | null; kunde?: string | null } | null } | null
     }
     const marge_euro = Number(margenaufschlag)
     const vk = Number(verkaufspreis)
@@ -197,6 +197,9 @@ export async function GET(request: NextRequest) {
       ?? bTyped.ressource_vakanz_links?.vakanzen?.vakanz_nr
       ?? null
     const ressourceId = bTyped.ressource_vakanz_links?.ressource_id ?? null
+    const kunde = kandidaten_profile?.vakanzen?.kunde
+      ?? bTyped.ressource_vakanz_links?.vakanzen?.kunde
+      ?? null
 
     const base = {
       ...rest,
@@ -209,6 +212,7 @@ export async function GET(request: NextRequest) {
       ressource_id: ressourceId,
       agentur_name: agenturen?.name ?? '–',
       einkaufspreis: Number(einkaufspreis),
+      kunde,
     }
 
     if (isManager) {

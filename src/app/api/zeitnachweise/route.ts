@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('zeitnachweise')
-    .select('id, beauftragung_id, monat, stunden_ist, tage_ist_override, uploaded_at, pdf_path')
+    .select('id, beauftragung_id, monat, stunden_ist, tage_ist_override, abrechnung_status, uploaded_at, pdf_path')
     .eq('monat', monat)
 
   // 'all' = alle Zeitnachweise für den Monat laden (kein UUID-Filter)
@@ -49,7 +49,8 @@ export async function GET(request: NextRequest) {
 const manualTageSchema = z.object({
   beauftragung_id: z.string().uuid(),
   monat: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  tage_ist_override: z.number().int().min(0),
+  tage_ist_override: z.number().min(0).optional(),
+  abrechnung_status: z.enum(['Offen', 'Rechnung gestellt', 'Bezahlt']).optional(),
 })
 
 // ── POST /api/zeitnachweise ───────────────────────────────────────────────────
@@ -74,19 +75,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Validierungsfehler', details: parsed.error.flatten().fieldErrors }, { status: 400 })
     }
 
+    if (parsed.data.tage_ist_override === undefined && parsed.data.abrechnung_status === undefined) {
+      return NextResponse.json({ error: 'Mindestens tage_ist_override oder abrechnung_status muss angegeben werden' }, { status: 400 })
+    }
+
+    const upsertData: Record<string, unknown> = {
+      beauftragung_id: parsed.data.beauftragung_id,
+      monat: parsed.data.monat,
+      uploaded_by: user.id,
+      uploaded_at: new Date().toISOString(),
+    }
+    if (parsed.data.tage_ist_override !== undefined) upsertData.tage_ist_override = parsed.data.tage_ist_override
+    if (parsed.data.abrechnung_status !== undefined) upsertData.abrechnung_status = parsed.data.abrechnung_status
+
     const { data: record, error: dbError } = await supabase
       .from('zeitnachweise')
-      .upsert(
-        {
-          beauftragung_id: parsed.data.beauftragung_id,
-          monat: parsed.data.monat,
-          tage_ist_override: parsed.data.tage_ist_override,
-          uploaded_by: user.id,
-          uploaded_at: new Date().toISOString(),
-        },
-        { onConflict: 'beauftragung_id,monat' }
-      )
-      .select('id, beauftragung_id, monat, stunden_ist, tage_ist_override, uploaded_at, pdf_path')
+      .upsert(upsertData, { onConflict: 'beauftragung_id,monat' })
+      .select('id, beauftragung_id, monat, stunden_ist, tage_ist_override, abrechnung_status, uploaded_at, pdf_path')
       .single()
 
     if (dbError) {
@@ -167,7 +172,7 @@ export async function POST(request: NextRequest) {
       },
       { onConflict: 'beauftragung_id,monat' }
     )
-    .select('id, beauftragung_id, monat, stunden_ist, tage_ist_override, uploaded_at, pdf_path')
+    .select('id, beauftragung_id, monat, stunden_ist, tage_ist_override, abrechnung_status, uploaded_at, pdf_path')
     .single()
 
   if (dbError) {
