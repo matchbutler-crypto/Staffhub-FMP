@@ -76,7 +76,6 @@ const ALL_NAV_MAIN: {
     url: '/pool',
     icon: IconDatabase,
     roles: ['Agentur'],
-    featureKey: 'mein_pool',
   },
   {
     title: 'Ressourcen',
