@@ -29,15 +29,19 @@ export async function GET(request: NextRequest) {
 
   if (!monat || !idsParam) return NextResponse.json({ zeitnachweise: [] })
 
-  const ids = idsParam.split(',').filter(Boolean)
-  if (ids.length === 0) return NextResponse.json({ zeitnachweise: [] })
-
-  const { data, error } = await supabase
+  let query = supabase
     .from('zeitnachweise')
     .select('id, beauftragung_id, monat, stunden_ist, tage_ist_override, uploaded_at, pdf_path')
-    .in('beauftragung_id', ids)
     .eq('monat', monat)
 
+  // 'all' = alle Zeitnachweise für den Monat laden (kein UUID-Filter)
+  if (idsParam !== 'all') {
+    const ids = idsParam.split(',').filter(Boolean)
+    if (ids.length === 0) return NextResponse.json({ zeitnachweise: [] })
+    query = query.in('beauftragung_id', ids)
+  }
+
+  const { data, error } = await query
   if (error) return NextResponse.json({ error: 'Fehler beim Laden' }, { status: 500 })
   return NextResponse.json({ zeitnachweise: data ?? [] })
 }
@@ -77,6 +81,7 @@ export async function POST(request: NextRequest) {
           beauftragung_id: parsed.data.beauftragung_id,
           monat: parsed.data.monat,
           tage_ist_override: parsed.data.tage_ist_override,
+          uploaded_by: user.id,
           uploaded_at: new Date().toISOString(),
         },
         { onConflict: 'beauftragung_id,monat' }
@@ -84,7 +89,10 @@ export async function POST(request: NextRequest) {
       .select('id, beauftragung_id, monat, stunden_ist, tage_ist_override, uploaded_at, pdf_path')
       .single()
 
-    if (dbError) return NextResponse.json({ error: 'Fehler beim Speichern' }, { status: 500 })
+    if (dbError) {
+      console.error('POST /api/zeitnachweise (JSON) error:', dbError)
+      return NextResponse.json({ error: 'Fehler beim Speichern' }, { status: 500 })
+    }
     return NextResponse.json({ zeitnachweis: record })
   }
 
