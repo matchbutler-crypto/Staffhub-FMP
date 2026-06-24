@@ -200,7 +200,7 @@ function SkillTags({ skills }: { skills: string[] }) {
 // ── SlackPostDialog ────────────────────────────────────────────────────────────
 
 type SlackWorkspace = "freelance" | "partner"
-type SlackChannel = "testing" | "germany" | "global"
+type SlackChannel = "testing" | "germany" | "global" | "premiumpartner"
 
 interface SlackPostDialogProps {
   open: boolean
@@ -226,7 +226,7 @@ function SlackPostDialog({ open, onOpenChange, postType, vakanzTitel, onConfirm 
   }
 
   const workspaceLabels: Record<SlackWorkspace, string> = { freelance: "Freelance", partner: "Partner" }
-  const channelLabels: Record<SlackChannel, string> = { testing: "Testing", germany: "Germany", global: "Global" }
+  const channelLabels: Record<SlackChannel, string> = { testing: "Testing", germany: "Germany", global: "Global", premiumpartner: "Premium Partner" }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

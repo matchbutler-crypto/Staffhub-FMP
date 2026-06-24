@@ -114,6 +114,36 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ beauftragungen: result })
   }
 
+  // ── Handle single ressource_id query ──
+  const ressourceIdParam = searchParams.get('ressource_id')
+  if (ressourceIdParam) {
+    const { data: links } = await supabase
+      .from('ressource_vakanz_links')
+      .select('id')
+      .eq('ressource_id', ressourceIdParam)
+
+    const linkIds = (links ?? []).map((l) => l.id)
+    if (linkIds.length === 0) {
+      return NextResponse.json({ beauftragungen: [] })
+    }
+
+    const { data: beauftragungen } = await supabase
+      .from('beauftragungen')
+      .select('id, ressource_link_id, startdatum, enddatum')
+      .in('ressource_link_id', linkIds)
+      .order('startdatum', { ascending: false })
+
+    return NextResponse.json({
+      beauftragungen: (beauftragungen ?? []).map((b) => ({
+        id: b.id,
+        ressource_link_id: b.ressource_link_id,
+        ressource_id: ressourceIdParam,
+        startdatum: b.startdatum,
+        enddatum: b.enddatum,
+      })),
+    })
+  }
+
   // ── Handle management dashboard query (no resource_ids parameter) ──
 
   const isAgentur = profile?.rolle === 'Agentur'

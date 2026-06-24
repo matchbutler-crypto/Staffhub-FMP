@@ -33,15 +33,22 @@ export async function GET(
     .from('ressource_vakanz_links')
     .select(`
       id, ressource_id, vakanz_id, status, interview_datum, created_by, created_at, updated_at,
-      vakanzen_data(id, rolle, status, erfahrungslevel, arbeitsmodell, standort, branche, startdatum, enddatum)
+      vakanzen!vakanz_id(id, rolle, status, erfahrungslevel, arbeitsmodell, standort, branche, startdatum, enddatum)
     `)
     .eq('ressource_id', id)
     .order('created_at', { ascending: false })
     .limit(100)
 
   if (error) {
+    console.error('GET links error:', error)
     return NextResponse.json({ error: 'Fehler beim Laden der Verknüpfungen' }, { status: 500 })
   }
 
-  return NextResponse.json({ links: links ?? [] })
+  // Normalize join alias: frontend expects vakanzen_data field name
+  const normalized = (links ?? []).map((l) => {
+    const { vakanzen, ...rest } = l as typeof l & { vakanzen: Record<string, unknown> | null }
+    return { ...rest, vakanzen_data: vakanzen ?? null }
+  })
+
+  return NextResponse.json({ links: normalized })
 }

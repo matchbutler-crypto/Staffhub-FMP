@@ -920,36 +920,64 @@ export default function RessourceDetailPage() {
 
                 {/* ── Tab: Beauftragungen ─────────────────────────────────── */}
                 <TabsContent value="beauftragungen">
-                  {loadingBeauftragungen ? (
+                  {(loadingLinks || loadingBeauftragungen) ? (
                     <div className="space-y-2">
                       {[1, 2, 3].map((i) => (
                         <Skeleton key={i} className="h-12 w-full" />
                       ))}
                     </div>
-                  ) : beauftragungen.length === 0 ? (
-                    <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-                      Keine Beauftragungen vorhanden.
-                    </div>
-                  ) : (
-                    <div className="rounded-lg border">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Start</TableHead>
-                            <TableHead>Ende</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {beauftragungen.map((b) => (
-                            <TableRow key={b.id}>
-                              <TableCell className="text-sm">{fmt(b.startdatum)}</TableCell>
-                              <TableCell className="text-sm">{fmt(b.enddatum)}</TableCell>
+                  ) : (() => {
+                    const beauftragtLinks = links.filter((l) => l.status === "Beauftragt")
+                    const allRows = [
+                      ...beauftragtLinks.map((l) => ({
+                        key: `link-${l.id}`,
+                        rolle: l.vakanzen_data?.rolle ?? "–",
+                        startdatum: l.vakanzen_data?.startdatum ?? null,
+                        enddatum: l.vakanzen_data?.enddatum ?? null,
+                        vakanzId: l.vakanz_id,
+                      })),
+                      ...beauftragungen.map((b) => ({
+                        key: `b-${b.id}`,
+                        rolle: "–",
+                        startdatum: b.startdatum,
+                        enddatum: b.enddatum,
+                        vakanzId: null as string | null,
+                      })),
+                    ]
+                    if (allRows.length === 0) {
+                      return (
+                        <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+                          Keine Beauftragungen vorhanden.
+                        </div>
+                      )
+                    }
+                    return (
+                      <div className="rounded-lg border">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Vakanz</TableHead>
+                              <TableHead>Start</TableHead>
+                              <TableHead>Ende</TableHead>
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
+                          </TableHeader>
+                          <TableBody>
+                            {allRows.map((row) => (
+                              <TableRow
+                                key={row.key}
+                                className={row.vakanzId ? "cursor-pointer" : undefined}
+                                onClick={row.vakanzId ? () => router.push(`/vakanzen/${row.vakanzId}`) : undefined}
+                              >
+                                <TableCell className="text-sm font-medium">{row.rolle}</TableCell>
+                                <TableCell className="text-sm">{fmt(row.startdatum)}</TableCell>
+                                <TableCell className="text-sm">{fmt(row.enddatum)}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )
+                  })()}
                 </TabsContent>
 
                 {/* ── Tab: Gespielt ───────────────────────────────────────── */}

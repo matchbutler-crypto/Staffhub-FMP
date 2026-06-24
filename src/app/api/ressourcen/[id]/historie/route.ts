@@ -40,6 +40,7 @@ export async function GET(
     .limit(200)
 
   if (error) {
+    console.error('GET historie error:', error)
     return NextResponse.json({ error: 'Fehler beim Laden der Historie' }, { status: 500 })
   }
 

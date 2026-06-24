@@ -31,13 +31,8 @@ async function sendWebhook(payload: unknown): Promise<void> {
   }
 }
 
-export async function sendProfileProposed(vakanzId: string, ressource: RessourceSnapshot): Promise<void> {
-  const { firstName, lastName } = splitName(ressource.name)
-  await sendWebhook({
-    event: 'profile.proposed',
-    vakanzId,
-    profile: { id: ressource.id, firstName, lastName, email: ressource.email, phone: ressource.phone },
-  })
+export async function sendProfilesAvailable(vakanzId: string): Promise<void> {
+  await sendWebhook({ event: 'profiles.available', vakanzId })
 }
 
 export async function sendProfileUpdated(

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { validateExternalApiKey } from '@/lib/external-api-auth'
+import { sendProfileUpdated } from '@/lib/magenta-webhook'
 
 const schema = z.object({ vakanzId: z.string().min(1) })
 
@@ -52,6 +53,21 @@ export async function POST(
     text: 'Abgelehnt (via MagentaOS)',
     erstellt_von: null,
   })
+
+  const { data: ressource } = await supabase
+    .from('ressourcen')
+    .select('id, name, email_geschaeftlich, telefon_geschaeftlich')
+    .eq('id', profileId)
+    .single()
+
+  if (ressource) {
+    sendProfileUpdated(vakanzId, {
+      id: ressource.id,
+      name: ressource.name,
+      email: ressource.email_geschaeftlich ?? null,
+      phone: ressource.telefon_geschaeftlich ?? null,
+    }, 'UNAVAILABLE').catch((e) => console.error('MagentaOS webhook error:', e))
+  }
 
   return NextResponse.json({ id: profileId, status: 'UNAVAILABLE' })
 }

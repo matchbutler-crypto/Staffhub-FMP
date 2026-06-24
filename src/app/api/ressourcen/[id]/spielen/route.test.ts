@@ -191,15 +191,15 @@ describe('POST /api/ressourcen/[id]/spielen', () => {
 
 // ── Webhook-Mock ───────────────────────────────────────────────────────────────
 vi.mock('@/lib/magenta-webhook', () => ({
-  sendProfileProposed: vi.fn().mockResolvedValue(undefined),
+  sendProfilesAvailable: vi.fn().mockResolvedValue(undefined),
 }))
 
-import { sendProfileProposed } from '@/lib/magenta-webhook'
+import { sendProfilesAvailable } from '@/lib/magenta-webhook'
 
 describe('POST /api/ressourcen/[id]/spielen — Webhook', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('feuert sendProfileProposed nach erfolgreichem Spielen', async () => {
+  it('feuert sendProfilesAvailable nach erfolgreichem Spielen', async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: 'u-1' } }, error: null })
     mockProfileSelect.mockResolvedValue({ data: managerProfile, error: null })
     mockRessourceSelect.mockResolvedValue({
@@ -216,10 +216,7 @@ describe('POST /api/ressourcen/[id]/spielen — Webhook', () => {
 
     await POST(makeRequest({ vakanz_id: VAKANZ_UUID }), { params: Promise.resolve({ id: 'res-1' }) })
 
-    expect(sendProfileProposed).toHaveBeenCalledWith(
-      VAKANZ_UUID,
-      expect.objectContaining({ id: 'res-1', name: 'Max M.', email: 'max@test.de', phone: null })
-    )
+    expect(sendProfilesAvailable).toHaveBeenCalledWith(VAKANZ_UUID)
   })
 
   it('feuert keinen Webhook wenn Spielen fehlschlägt', async () => {
@@ -229,6 +226,6 @@ describe('POST /api/ressourcen/[id]/spielen — Webhook', () => {
 
     await POST(makeRequest({ vakanz_id: VAKANZ_UUID }), { params: Promise.resolve({ id: 'res-1' }) })
 
-    expect(sendProfileProposed).not.toHaveBeenCalled()
+    expect(sendProfilesAvailable).not.toHaveBeenCalled()
   })
 })
