@@ -68,19 +68,24 @@ export async function PUT(
   const d = parsed.data
 
   // CV size check BEFORE DB write
+  let cvBuffer: Buffer | null = null
   if (d.cvBase64) {
     const buffer = Buffer.from(d.cvBase64, 'base64')
     if (buffer.byteLength > MAX_CV_BYTES) {
       return NextResponse.json({ error: { code: 'CV_TOO_LARGE', message: 'CV darf max. 5 MB groß sein' } }, { status: 413 })
     }
+    cvBuffer = buffer
   }
 
   const updates: Record<string, unknown> = {}
 
   if (d.firstName !== undefined || d.lastName !== undefined) {
-    const { data: cur } = await supabase.from('ressourcen').select('vorname, nachname').eq('id', id).single()
-    const fn = d.firstName ?? cur?.vorname ?? ''
-    const ln = d.lastName ?? cur?.nachname ?? ''
+    const { data: cur, error: curError } = await supabase.from('ressourcen').select('vorname, nachname').eq('id', id).single()
+    if (curError || !cur) {
+      return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Profil nicht gefunden' } }, { status: 404 })
+    }
+    const fn = d.firstName ?? cur.vorname ?? ''
+    const ln = d.lastName ?? cur.nachname ?? ''
     updates.vorname = fn
     updates.nachname = ln
     updates.name = `${fn} ${ln}`.trim()
@@ -99,13 +104,12 @@ export async function PUT(
     }
   }
 
-  if (d.cvBase64) {
-    const buffer = Buffer.from(d.cvBase64, 'base64')
+  if (cvBuffer) {
     if (existing.cv_pfad) {
       await supabase.storage.from('ressourcen-cvs').remove([existing.cv_pfad])
     }
     const cvPfad = `${auth.agencyId}/${id}.pdf`
-    await supabase.storage.from('ressourcen-cvs').upload(cvPfad, buffer, { contentType: 'application/pdf', upsert: true })
+    await supabase.storage.from('ressourcen-cvs').upload(cvPfad, cvBuffer, { contentType: 'application/pdf', upsert: true })
     await supabase.from('ressourcen').update({ cv_pfad: cvPfad }).eq('id', id)
   }
 
