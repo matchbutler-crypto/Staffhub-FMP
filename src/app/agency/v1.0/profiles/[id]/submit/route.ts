@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { validateAgencyKey } from '@/lib/external-api-auth'
+import { sendSubmissionStatusChanged } from '@/lib/agency-webhook'
 
 const submitSchema = z.object({
   positionId: z.string().uuid('Ungültige Position-ID'),
@@ -92,6 +93,15 @@ export async function POST(
     text: `Via Agency-API auf Position "${vakanz.rolle}" eingereicht`,
     erstellt_von: null,
   })
+
+  // Agency Webhook: submission.status_changed (initial SUBMITTED)
+  sendSubmissionStatusChanged({
+    vakanzId: positionId,
+    profileId: profileId,
+    externalRef: ressource.external_ref ?? null,
+    internalStatus: 'Gespielt',
+    agenturId: auth.agencyId,
+  }).catch((e) => console.error('Agency webhook error:', e))
 
   return NextResponse.json({ submissionId: link.id }, { status: 201 })
 }
