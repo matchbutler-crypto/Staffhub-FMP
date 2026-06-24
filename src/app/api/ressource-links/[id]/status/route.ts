@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { sendProfileUpdated } from '@/lib/magenta-webhook'
+import { sendSubmissionStatusChanged, sendPositionClosed } from '@/lib/agency-webhook'
 
 const LINK_STATUS = ['Gespielt', 'Interview geplant', 'Zugesagt', 'Beauftragt', 'Abgesagt', 'Abgelehnt'] as const
 type LinkStatus = typeof LINK_STATUS[number]
@@ -178,6 +179,25 @@ export async function PATCH(
     }
   }
 
+  // Agency Webhook: submission.status_changed für alle Status-Wechsel
+  {
+    const { data: ressourceForWebhook } = await supabase
+      .from('ressourcen')
+      .select('id, external_ref, agentur_id')
+      .eq('id', updated.ressource_id)
+      .single()
+
+    if (ressourceForWebhook?.agentur_id) {
+      sendSubmissionStatusChanged({
+        vakanzId: updated.vakanz_id,
+        profileId: updated.ressource_id,
+        externalRef: ressourceForWebhook.external_ref ?? null,
+        internalStatus: newStatus,
+        agenturId: ressourceForWebhook.agentur_id,
+      }).catch((e) => console.error('Agency webhook error:', e))
+    }
+  }
+
   // Pfad 1 — Vakanz automatisch auf "Besetzt" setzen wenn FTE-Ziel erreicht
   if (newStatus === 'Beauftragt') {
     const [countResult, vakanzResult] = await Promise.all([
@@ -208,6 +228,9 @@ export async function PATCH(
             besetzt_seit: new Date().toISOString(),
           })
           .eq('id', link.vakanz_id)
+
+        sendPositionClosed(link.vakanz_id, 'FILLED')
+          .catch((e) => console.error('Agency webhook error (position.closed):', e))
 
         await supabase.from('ressource_historie').insert({
           ressource_id: link.ressource_id,
