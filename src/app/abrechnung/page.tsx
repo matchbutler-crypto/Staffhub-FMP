@@ -81,8 +81,8 @@ function aktuellerMonat() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
 }
 
-// Nur noch manuell eingetragene Tage — keine automatische Stunden-Berechnung mehr
-function calcTageIst(zn: Zeitnachweis | undefined): number | null {
+// tage_ist_override speichert jetzt Stunden (manuell eingetragen)
+function calcStundenIst(zn: Zeitnachweis | undefined): number | null {
   if (!zn) return null
   if (zn.tage_ist_override !== null && zn.tage_ist_override !== undefined) return zn.tage_ist_override
   return null
@@ -199,8 +199,8 @@ export default function AbrechnungPage() {
         bVal = (b.margenaufschlag ?? 0) * 20
         break
       case 'Gesamtbetrag (IST)':
-        aVal = (a.margenaufschlag ?? 0) * (calcTageIst(zeitnachweise.get(a.id)) ?? 0)
-        bVal = (b.margenaufschlag ?? 0) * (calcTageIst(zeitnachweise.get(b.id)) ?? 0)
+        aVal = (a.margenaufschlag ?? 0) * ((calcStundenIst(zeitnachweise.get(a.id)) ?? 0) / 8)
+        bVal = (b.margenaufschlag ?? 0) * ((calcStundenIst(zeitnachweise.get(b.id)) ?? 0) / 8)
         break
       default:
         aVal = a.kandidatenname
@@ -265,7 +265,7 @@ export default function AbrechnungPage() {
 
   function startInlineEdit(b: Beauftragung) {
     const zn = zeitnachweise.get(b.id)
-    const current = calcTageIst(zn)
+    const current = calcStundenIst(zn)
     setInlineEditId(b.id)
     setInlineEditValue(current !== null ? String(current) : "")
   }
@@ -284,7 +284,7 @@ export default function AbrechnungPage() {
     }
 
     const zn = zeitnachweise.get(b.id)
-    const current = calcTageIst(zn)
+    const current = calcStundenIst(zn)
     if (current === value) return
 
     setSavingInlineId(b.id)
@@ -314,7 +314,7 @@ export default function AbrechnungPage() {
       }
 
       setZeitnachweise((prev) => new Map(prev).set(b.id, updatedZn))
-      toast.success('Tage gespeichert')
+      toast.success('Stunden gespeichert')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Fehler beim Speichern')
     } finally {
@@ -391,18 +391,18 @@ export default function AbrechnungPage() {
                           <SortIcon active={sortColumn === 'Marge/Tag'} direction={sortDirection} />
                         </div>
                       </TableHead>
-                      <TableHead className="text-right">Tage (Forecast)</TableHead>
+                      <TableHead className="text-right">Stunden (Forecast)</TableHead>
                       <TableHead className="text-right cursor-pointer" onClick={() => handleSort('Gesamtbetrag (Forecast)')}>
                         <div className="flex items-center justify-end gap-2">
                           Gesamtbetrag (Forecast)
                           <SortIcon active={sortColumn === 'Gesamtbetrag (Forecast)'} direction={sortDirection} />
                         </div>
                       </TableHead>
-                      <TableHead className="text-right cursor-pointer" onClick={() => handleSort('Tage (IST)')}>
+                      <TableHead className="text-right cursor-pointer" onClick={() => handleSort('Stunden (IST)')}>
                         <div className="flex items-center justify-end gap-2">
-                          Tage (IST)
+                          Stunden (IST)
                           {isFinancial && <IconPencil className="h-3 w-3 text-muted-foreground" />}
-                          <SortIcon active={sortColumn === 'Tage (IST)'} direction={sortDirection} />
+                          <SortIcon active={sortColumn === 'Stunden (IST)'} direction={sortDirection} />
                         </div>
                       </TableHead>
                       <TableHead className="text-right cursor-pointer" onClick={() => handleSort('Gesamtbetrag (IST)')}>
@@ -426,10 +426,10 @@ export default function AbrechnungPage() {
                     ) : (
                       filtered.map((b) => {
                         const zn = zeitnachweise.get(b.id)
-                        const tageIst = calcTageIst(zn)
+                        const stundenIst = calcStundenIst(zn)
                         const margeTg = b.margenaufschlag ?? 0
-                        const gesamtForecast = margeTg * 20
-                        const gesamtIst = tageIst !== null ? margeTg * tageIst : null
+                        const gesamtForecast = margeTg * 20  // 160 Std / 8 = 20 Tage
+                        const gesamtIst = stundenIst !== null ? margeTg * (stundenIst / 8) : null
                         const isEditing = inlineEditId === b.id
                         const isSaving = savingInlineId === b.id
                         const hasPdf = !!(zn?.pdf_path)
@@ -449,10 +449,10 @@ export default function AbrechnungPage() {
                               </div>
                             </TableCell>
                             <TableCell className="text-right text-sm">{fmt(margeTg)}</TableCell>
-                            <TableCell className="text-right text-sm">20</TableCell>
+                            <TableCell className="text-right text-sm">160</TableCell>
                             <TableCell className="text-right text-sm">{fmt(gesamtForecast)}</TableCell>
 
-                            {/* ── Tage (IST) — inline-editierbar für Admin/Manager ── */}
+                            {/* ── Stunden (IST) — inline-editierbar für Admin/Manager ── */}
                             <TableCell className="text-right text-sm">
                               {isFinancial ? (
                                 isEditing ? (
@@ -467,24 +467,25 @@ export default function AbrechnungPage() {
                                       if (e.key === 'Enter') commitInlineEdit(b)
                                       if (e.key === 'Escape') setInlineEditId(null)
                                     }}
-                                    className="w-16 rounded border border-input bg-background px-2 py-0.5 text-right text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                                    className="w-20 rounded border border-input bg-background px-2 py-0.5 text-right text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                                    placeholder="z.B. 80"
                                   />
                                 ) : (
                                   <button
                                     onClick={() => startInlineEdit(b)}
                                     disabled={isSaving}
                                     className="group flex items-center justify-end gap-1.5 rounded px-1 hover:bg-muted/60 transition-colors disabled:opacity-50 w-full"
-                                    title="Tage manuell eingeben"
+                                    title="Stunden manuell eingeben"
                                   >
-                                    <span className={tageIst === null ? 'text-muted-foreground' : ''}>
-                                      {isSaving ? '…' : (tageIst !== null ? tageIst : '–')}
+                                    <span className={stundenIst === null ? 'text-muted-foreground' : ''}>
+                                      {isSaving ? '…' : (stundenIst !== null ? `${stundenIst} Std` : '–')}
                                     </span>
                                     <IconPencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                                   </button>
                                 )
                               ) : (
-                                <span className={tageIst === null ? 'text-muted-foreground' : ''}>
-                                  {tageIst !== null ? tageIst : '–'}
+                                <span className={stundenIst === null ? 'text-muted-foreground' : ''}>
+                                  {stundenIst !== null ? `${stundenIst} Std` : '–'}
                                 </span>
                               )}
                             </TableCell>
