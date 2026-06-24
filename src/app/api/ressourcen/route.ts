@@ -209,23 +209,34 @@ export async function POST(request: NextRequest) {
     ? (parsed.data as typeof parsed.data & { agentur_id: string }).agentur_id
     : profile.agentur_id!
 
-  const { data: ressource, error } = await supabase
-    .from('ressourcen')
-    .insert({
-      name: parsed.data.name,
-      rolle: parsed.data.rolle ?? null,
-      skills: parsed.data.skills,
-      erfahrungslevel: parsed.data.erfahrungslevel,
-      verfuegbarkeit: parsed.data.verfuegbarkeit,
-      verfuegbar_ab: parsed.data.verfuegbar_ab || null,
-      ek_tagesrate: parsed.data.ek_tagesrate ?? null,
-      notizen: parsed.data.notizen ?? null,
-      arbeitsmodell: parsed.data.arbeitsmodell ?? 'Onshore',
-      location: parsed.data.location ?? null,
-      agentur_id: agenturId,
-    })
-    .select('id, name, verfuegbarkeit, created_at')
-    .single()
+  const insertPayload = {
+    name: parsed.data.name,
+    rolle: parsed.data.rolle ?? null,
+    skills: parsed.data.skills,
+    erfahrungslevel: parsed.data.erfahrungslevel,
+    verfuegbarkeit: parsed.data.verfuegbarkeit,
+    verfuegbar_ab: parsed.data.verfuegbar_ab || null,
+    ek_tagesrate: parsed.data.ek_tagesrate ?? null,
+    notizen: parsed.data.notizen ?? null,
+    arbeitsmodell: parsed.data.arbeitsmodell ?? 'Onshore',
+    location: parsed.data.location ?? null,
+    agentur_id: agenturId,
+  }
+
+  let ressource = null
+  let error = null
+  // Retry up to 3 times on ressource_code unique constraint race condition
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const result = await supabase
+      .from('ressourcen')
+      .insert(insertPayload)
+      .select('id, name, verfuegbarkeit, created_at')
+      .single()
+    ressource = result.data
+    error = result.error
+    if (!error || error.code !== '23505' || !error.message.includes('ressource_code')) break
+    await new Promise((r) => setTimeout(r, 50 * attempt))
+  }
 
   if (error) {
     console.error('Ressource insert error:', { code: error.code, message: error.message, agenturId })
