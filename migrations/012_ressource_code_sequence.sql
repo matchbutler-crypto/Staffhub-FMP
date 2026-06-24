@@ -21,21 +21,12 @@ BEGIN
 END;
 $$;
 
--- Drop and recreate generate_ressource_code (can't CREATE OR REPLACE if return type changed)
+-- Drop and recreate as regular TEXT function (used as column DEFAULT, not a trigger)
 DROP FUNCTION IF EXISTS generate_ressource_code() CASCADE;
 
 CREATE FUNCTION generate_ressource_code()
-RETURNS TRIGGER AS $$
+RETURNS TEXT AS $$
 BEGIN
-  IF NEW.ressource_code IS NULL THEN
-    NEW.ressource_code := 'RES-' || LPAD(nextval('ressource_code_seq')::TEXT, 4, '0');
-  END IF;
-  RETURN NEW;
+  RETURN 'RES-' || LPAD(nextval('ressource_code_seq')::TEXT, 4, '0');
 END;
 $$ LANGUAGE plpgsql;
-
--- Recreate the trigger (CASCADE dropped it)
-DROP TRIGGER IF EXISTS trg_generate_ressource_code ON ressourcen;
-CREATE TRIGGER trg_generate_ressource_code
-  BEFORE INSERT ON ressourcen
-  FOR EACH ROW EXECUTE FUNCTION generate_ressource_code();
