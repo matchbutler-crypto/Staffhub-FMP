@@ -39,6 +39,7 @@ interface Beauftragung {
   erfahrungslevel: string
   vakanz_titel: string
   vakanz_nr?: string | null
+  kunde?: string | null
   einkaufspreis?: number
   margenaufschlag?: number
   verkaufspreis?: number
@@ -56,6 +57,7 @@ interface Zeitnachweis {
   tage_ist_override?: number | null
   uploaded_at: string
   pdf_path?: string | null
+  abrechnung_status?: string
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -138,6 +140,10 @@ export default function AbrechnungPage() {
   const [savingInlineId, setSavingInlineId] = React.useState<string | null>(null)
   const inlineInputRef = React.useRef<HTMLInputElement>(null)
 
+  // Status state
+  const [statusMap, setStatusMap] = React.useState<Map<string, string>>(new Map())
+  const [savingStatusId, setSavingStatusId] = React.useState<string | null>(null)
+
   const monate = React.useMemo(() => monateListe(), [])
 
   React.useEffect(() => {
@@ -159,6 +165,12 @@ export default function AbrechnungPage() {
         const znMap = new Map<string, Zeitnachweis>()
         for (const zn of (znList ?? [])) znMap.set(zn.beauftragung_id, zn)
         setZeitnachweise(znMap)
+
+        const statusInit = new Map<string, string>()
+        for (const [id, zn] of znMap.entries()) {
+          statusInit.set(id, (zn as { abrechnung_status?: string }).abrechnung_status ?? 'Offen')
+        }
+        setStatusMap(statusInit)
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
@@ -212,6 +224,18 @@ export default function AbrechnungPage() {
     }
     return sortDirection === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number)
   })
+
+  // ── KPI Berechnungen ──────────────────────────────────────────────────────────
+  const kpiGesamtForecast = filtered.reduce((sum, b) => sum + (b.margenaufschlag ?? 0) * 20, 0)
+  const kpiGesamtIstWerte = filtered
+    .map((b) => {
+      const stundenIst = calcStundenIst(zeitnachweise.get(b.id))
+      return stundenIst !== null ? (b.margenaufschlag ?? 0) * (stundenIst / 8) : null
+    })
+    .filter((v): v is number => v !== null)
+  const kpiGesamtIst = kpiGesamtIstWerte.length > 0 ? kpiGesamtIstWerte.reduce((a, b) => a + b, 0) : null
+  const kpiAnzahl = filtered.length
+  const kpiMargeSum = filtered.reduce((sum, b) => sum + (b.margenaufschlag ?? 0), 0)
 
   function handleSort(column: string) {
     if (sortColumn === column) {
@@ -277,7 +301,7 @@ export default function AbrechnungPage() {
     const trimmed = inlineEditValue.trim()
     if (trimmed === "") return
 
-    const value = parseInt(trimmed, 10)
+    const value = parseFloat(trimmed)
     if (isNaN(value) || value < 0) {
       toast.error('Ungültige Anzahl Tage')
       return
@@ -322,7 +346,39 @@ export default function AbrechnungPage() {
     }
   }
 
-  const colCount = isFinancial ? 9 : 8
+  async function handleStatusChange(b: Beauftragung, newStatus: string) {
+    const zn = zeitnachweise.get(b.id)
+    setSavingStatusId(b.id)
+    setStatusMap(prev => new Map(prev).set(b.id, newStatus))
+    try {
+      const [year, month] = monat.split("-").map(Number)
+      const monatDate = `${year}-${String(month).padStart(2, "0")}-01`
+      if (zn) {
+        await fetch(`/api/zeitnachweise/${zn.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ abrechnung_status: newStatus }),
+        })
+      } else {
+        const res = await fetch('/api/zeitnachweise', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ beauftragung_id: b.id, monat: monatDate, abrechnung_status: newStatus }),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setZeitnachweise(prev => new Map(prev).set(b.id, data.zeitnachweis))
+        }
+      }
+    } catch {
+      toast.error('Fehler beim Speichern des Status')
+      setStatusMap(prev => new Map(prev).set(b.id, zeitnachweise.get(b.id)?.abrechnung_status ?? 'Offen'))
+    } finally {
+      setSavingStatusId(null)
+    }
+  }
+
+  const colCount = isFinancial ? 11 : 10
 
   return (
     <SidebarProvider style={{ "--sidebar-width": "18rem", "--header-height": "3rem" } as React.CSSProperties}>
@@ -332,6 +388,47 @@ export default function AbrechnungPage() {
         <div className="flex flex-1 flex-col">
           <div className="@container/main flex flex-1 flex-col gap-2">
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+
+              {/* ── KPI Kacheln ─────────────────────────────────────────────── */}
+              <div className="flex flex-wrap gap-3 px-4 lg:px-6">
+                {/* Gesamtbetrag */}
+                <div className="flex flex-col gap-0.5 rounded-lg border bg-card p-3 min-w-[180px]">
+                  <span className="text-xs text-muted-foreground font-medium">Gesamtbetrag</span>
+                  {loading ? (
+                    <>
+                      <Skeleton className="h-5 w-28 mt-1" />
+                      <Skeleton className="h-4 w-24 mt-1" />
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-base font-semibold">
+                        {kpiGesamtIst !== null ? `${fmt(kpiGesamtIst)} (IST)` : '–'}
+                      </span>
+                      <span className="text-xs text-muted-foreground">{fmt(kpiGesamtForecast)} (Forecast)</span>
+                    </>
+                  )}
+                </div>
+
+                {/* Anzahl Beauftragungen */}
+                <div className="flex flex-col gap-0.5 rounded-lg border bg-card p-3 min-w-[160px]">
+                  <span className="text-xs text-muted-foreground font-medium">Anzahl Beauftragungen</span>
+                  {loading ? (
+                    <Skeleton className="h-5 w-12 mt-1" />
+                  ) : (
+                    <span className="text-base font-semibold">{kpiAnzahl}</span>
+                  )}
+                </div>
+
+                {/* Marge in Summe */}
+                <div className="flex flex-col gap-0.5 rounded-lg border bg-card p-3 min-w-[160px]">
+                  <span className="text-xs text-muted-foreground font-medium">Marge in Summe</span>
+                  {loading ? (
+                    <Skeleton className="h-5 w-24 mt-1" />
+                  ) : (
+                    <span className="text-base font-semibold">{fmt(kpiMargeSum)}</span>
+                  )}
+                </div>
+              </div>
 
               {/* ── Filter Bar ──────────────────────────────────────────────── */}
               <div className="flex flex-wrap items-center gap-4 px-4 lg:px-6">
@@ -384,6 +481,7 @@ export default function AbrechnungPage() {
                         </div>
                       </TableHead>
                       <TableHead>Agentur</TableHead>
+                      <TableHead>Kunde</TableHead>
                       <TableHead>Vakanz</TableHead>
                       <TableHead className="text-right cursor-pointer" onClick={() => handleSort('Marge/Tag')}>
                         <div className="flex items-center justify-end gap-2">
@@ -412,6 +510,7 @@ export default function AbrechnungPage() {
                         </div>
                       </TableHead>
                       <TableHead>Zeitnachweis</TableHead>
+                      <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -438,15 +537,9 @@ export default function AbrechnungPage() {
                           <TableRow key={b.id}>
                             <TableCell className="font-medium">{b.kandidatenname}</TableCell>
                             <TableCell className="text-sm text-muted-foreground">{b.agentur_name}</TableCell>
-                            <TableCell className="max-w-[200px]">
-                              <div className="flex flex-col gap-0.5">
-                                {b.vakanz_nr ? (
-                                  <span className="font-mono text-sm font-medium text-foreground">{b.vakanz_nr}</span>
-                                ) : (
-                                  <span className="text-xs text-muted-foreground">–</span>
-                                )}
-                                <span className="text-xs text-muted-foreground truncate">{b.vakanz_titel}</span>
-                              </div>
+                            <TableCell className="text-sm text-muted-foreground">{b.kunde ?? '–'}</TableCell>
+                            <TableCell className="text-sm">
+                              {b.vakanz_nr ?? '–'}
                             </TableCell>
                             <TableCell className="text-right text-sm">{fmt(margeTg)}</TableCell>
                             <TableCell className="text-right text-sm">160</TableCell>
@@ -517,6 +610,24 @@ export default function AbrechnungPage() {
                                   {uploadingId === b.id ? '…' : hasPdf ? 'Ersetzen' : 'Upload'}
                                 </Button>
                               </div>
+                            </TableCell>
+
+                            {/* ── Status ── */}
+                            <TableCell className="text-sm">
+                              {isFinancial ? (
+                                <select
+                                  value={statusMap.get(b.id) ?? 'Offen'}
+                                  onChange={(e) => handleStatusChange(b, e.target.value)}
+                                  disabled={savingStatusId === b.id}
+                                  className="rounded border border-input bg-background px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+                                >
+                                  <option>Offen</option>
+                                  <option>Rechnung gestellt</option>
+                                  <option>Bezahlt</option>
+                                </select>
+                              ) : (
+                                <span>{statusMap.get(b.id) ?? 'Offen'}</span>
+                              )}
                             </TableCell>
                           </TableRow>
                         )
