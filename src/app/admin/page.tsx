@@ -997,7 +997,7 @@ function FeatureToggleSheet({ open, onOpenChange, agentur, onSuccess }: FeatureT
         const isNowOn = features[key]
         const note = releaseNotes[key]
         if (wasOff && isNowOn && note?.titel) {
-          await fetch('/api/admin/release-notes', {
+          const noteRes = await fetch('/api/admin/release-notes', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1006,6 +1006,10 @@ function FeatureToggleSheet({ open, onOpenChange, agentur, onSuccess }: FeatureT
               beschreibung: note.beschreibung,
             }),
           })
+          if (!noteRes.ok) {
+            const noteErr = await noteRes.json().catch(() => ({}))
+            toast.error(`Release Note für „${FEATURE_META[key].label}" konnte nicht gespeichert werden: ${noteErr.error ?? 'Fehler'}`)
+          }
         }
       }
 
