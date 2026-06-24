@@ -34,13 +34,19 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await supabase
     .from('zeitnachweise')
-    .select('id, beauftragung_id, monat, stunden_ist, tage_ist_override, uploaded_at')
+    .select('id, beauftragung_id, monat, stunden_ist, tage_ist_override, uploaded_at, pdf_path')
     .in('beauftragung_id', ids)
     .eq('monat', monat)
 
   if (error) return NextResponse.json({ error: 'Fehler beim Laden' }, { status: 500 })
   return NextResponse.json({ zeitnachweise: data ?? [] })
 }
+
+const manualTageSchema = z.object({
+  beauftragung_id: z.string().uuid(),
+  monat: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  tage_ist_override: z.number().int().min(0),
+})
 
 // ── POST /api/zeitnachweise ───────────────────────────────────────────────────
 
@@ -53,6 +59,36 @@ export async function POST(request: NextRequest) {
   const isAgentur = profile.rolle === 'Agentur'
   if (!isManager && !isAgentur) return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
 
+  // JSON-Pfad: manuelle Tage ohne PDF (nur Manager)
+  const contentType = request.headers.get('content-type') ?? ''
+  if (contentType.includes('application/json')) {
+    if (!isManager) return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 })
+
+    const body = await request.json().catch(() => null)
+    const parsed = manualTageSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Validierungsfehler', details: parsed.error.flatten().fieldErrors }, { status: 400 })
+    }
+
+    const { data: record, error: dbError } = await supabase
+      .from('zeitnachweise')
+      .upsert(
+        {
+          beauftragung_id: parsed.data.beauftragung_id,
+          monat: parsed.data.monat,
+          tage_ist_override: parsed.data.tage_ist_override,
+          uploaded_at: new Date().toISOString(),
+        },
+        { onConflict: 'beauftragung_id,monat' }
+      )
+      .select('id, beauftragung_id, monat, stunden_ist, tage_ist_override, uploaded_at, pdf_path')
+      .single()
+
+    if (dbError) return NextResponse.json({ error: 'Fehler beim Speichern' }, { status: 500 })
+    return NextResponse.json({ zeitnachweis: record })
+  }
+
+  // FormData-Pfad: PDF-Upload
   let formData: FormData
   try {
     formData = await request.formData()
@@ -123,7 +159,7 @@ export async function POST(request: NextRequest) {
       },
       { onConflict: 'beauftragung_id,monat' }
     )
-    .select('id, beauftragung_id, monat, stunden_ist, tage_ist_override, uploaded_at')
+    .select('id, beauftragung_id, monat, stunden_ist, tage_ist_override, uploaded_at, pdf_path')
     .single()
 
   if (dbError) {

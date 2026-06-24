@@ -115,7 +115,7 @@ export async function PATCH(
     .from('zeitnachweise')
     .update({ tage_ist_override: parsed.data.tage_ist_override ?? null })
     .eq('id', id)
-    .select('id, beauftragung_id, monat, stunden_ist, tage_ist_override, uploaded_at')
+    .select('id, beauftragung_id, monat, stunden_ist, tage_ist_override, uploaded_at, pdf_path')
     .single()
 
   if (error) {
