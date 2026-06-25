@@ -221,20 +221,27 @@ export async function PUT(
     return NextResponse.json({ error: 'Fehler beim Aktualisieren der Vakanz' }, { status: 500 })
   }
 
-  // Bei Enddatum-Änderung: Verfügbarkeit aller beauftragten Pool-Ressourcen synchronisieren
+  // Bei Enddatum-Änderung: Verfügbarkeit + Beauftragung-Enddatum für beauftragte/zugesagte Ressourcen synchronisieren
   if (enddatumChanged && parsed.data.enddatum) {
-    const { data: beauftragtLinks } = await supabase
+    const { data: relevantLinks } = await supabase
       .from('ressource_vakanz_links')
       .select('id, ressource_id')
       .eq('vakanz_id', id)
-      .eq('status', 'Beauftragt')
+      .in('status', ['Beauftragt', 'Zugesagt'])
 
-    if (beauftragtLinks && beauftragtLinks.length > 0) {
-      const ressourceIds = beauftragtLinks.map((l) => l.ressource_id)
+    if (relevantLinks && relevantLinks.length > 0) {
+      const ressourceIds = relevantLinks.map((l) => l.ressource_id)
+      const linkIds = relevantLinks.map((l) => l.id)
+
       await supabase
         .from('ressourcen')
         .update({ verfuegbarkeit: 'Nicht verfügbar', verfuegbar_ab: parsed.data.enddatum })
         .in('id', ressourceIds)
+
+      await supabase
+        .from('beauftragungen')
+        .update({ enddatum: parsed.data.enddatum })
+        .in('ressource_link_id', linkIds)
     }
   }
 
