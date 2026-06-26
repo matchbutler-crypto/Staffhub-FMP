@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import {
+  IconActivity,
   IconBrandSlack,
   IconBriefcase,
   IconBuilding,
@@ -94,6 +95,12 @@ const ALL_NAV_MAIN: {
     url: '/ideen',
     icon: IconBulb,
     roles: ['Admin', 'Staffhub Manager', 'Agentur'],
+  },
+  {
+    title: 'Aktivitäts-Log',
+    url: '/admin/logs',
+    icon: IconActivity,
+    roles: ['Admin'],
   },
 ]
 

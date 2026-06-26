@@ -2217,6 +2217,19 @@ function StammdatenModal({ ressource, open, onClose, onSaved }: StammdatenModalP
   )
 }
 
+function getActiveBeauftragungEndDate(ressourceId: string, beauftragungen: Beauftragung[]): string | null {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const active = beauftragungen.filter((b) => {
+    if (b.ressource_id !== ressourceId) return false
+    const start = new Date(b.start_date); start.setHours(0, 0, 0, 0)
+    const end = new Date(b.end_date); end.setHours(0, 0, 0, 0)
+    return today >= start && today <= end
+  })
+  if (active.length === 0) return null
+  return active.reduce((latest, b) => b.end_date > latest ? b.end_date : latest, active[0].end_date)
+}
+
 // ── PoolPage ───────────────────────────────────────────────────────────────────
 
 export default function PoolPage() {
@@ -2586,9 +2599,12 @@ export default function PoolPage() {
                               {r.rolle || "—"}
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
-                              {r.verfuegbar_ab
-                                ? new Date(r.verfuegbar_ab).toLocaleDateString("de-DE")
-                                : "—"}
+                              {(() => {
+                                const activeEnd = getActiveBeauftragungEndDate(r.id, beauftragungen)
+                                if (activeEnd) return new Date(activeEnd).toLocaleDateString("de-DE")
+                                if (r.verfuegbar_ab) return new Date(r.verfuegbar_ab).toLocaleDateString("de-DE")
+                                return "—"
+                              })()}
                             </TableCell>
                             <TableCell>
                               <div className="flex flex-col gap-0.5 text-sm">
@@ -2602,9 +2618,13 @@ export default function PoolPage() {
                               <div className="flex flex-col gap-1">
                                 <Badge
                                   variant="outline"
-                                  className={verfuegbarkeitColors[effectiveVerfuegbarkeit(r.verfuegbarkeit, r.verfuegbar_ab) as keyof typeof verfuegbarkeitColors]}
+                                  className={isResourceUnavailable(r.id, beauftragungen, null)
+                                    ? verfuegbarkeitColors["Nicht verfügbar"]
+                                    : verfuegbarkeitColors[effectiveVerfuegbarkeit(r.verfuegbarkeit, r.verfuegbar_ab) as keyof typeof verfuegbarkeitColors]}
                                 >
-                                  {verfuegbarkeitLabel[effectiveVerfuegbarkeit(r.verfuegbarkeit, r.verfuegbar_ab) as keyof typeof verfuegbarkeitLabel]}
+                                  {isResourceUnavailable(r.id, beauftragungen, null)
+                                    ? "Nicht verfügbar"
+                                    : verfuegbarkeitLabel[effectiveVerfuegbarkeit(r.verfuegbarkeit, r.verfuegbar_ab) as keyof typeof verfuegbarkeitLabel]}
                                 </Badge>
                                 {stammdatenAusstehend(r) && (
                                   <span className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-700">

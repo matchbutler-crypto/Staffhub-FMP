@@ -223,22 +223,26 @@ export async function PUT(
 
   // Bei Enddatum-Änderung: Verfügbarkeit + Beauftragung-Enddatum für beauftragte/zugesagte Ressourcen synchronisieren
   if (enddatumChanged && parsed.data.enddatum) {
-    const { data: relevantLinks } = await supabase
+    const serviceSupabase = createServiceRoleClient()
+
+    const { data: relevantLinks } = await serviceSupabase
       .from('ressource_vakanz_links')
       .select('id, ressource_id')
       .eq('vakanz_id', id)
       .in('status', ['Beauftragt', 'Zugesagt'])
 
     if (relevantLinks && relevantLinks.length > 0) {
-      const ressourceIds = relevantLinks.map((l) => l.ressource_id)
+      const ressourceIds = relevantLinks.map((l) => l.ressource_id).filter((id): id is string => id !== null)
       const linkIds = relevantLinks.map((l) => l.id)
 
-      await supabase
-        .from('ressourcen')
-        .update({ verfuegbarkeit: 'Nicht verfügbar', verfuegbar_ab: parsed.data.enddatum })
-        .in('id', ressourceIds)
+      if (ressourceIds.length > 0) {
+        await serviceSupabase
+          .from('ressourcen')
+          .update({ verfuegbarkeit: 'Nicht verfügbar', verfuegbar_ab: parsed.data.enddatum })
+          .in('id', ressourceIds)
+      }
 
-      await supabase
+      await serviceSupabase
         .from('beauftragungen')
         .update({ enddatum: parsed.data.enddatum })
         .in('ressource_link_id', linkIds)

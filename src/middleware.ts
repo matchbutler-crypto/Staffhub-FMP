@@ -7,7 +7,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // ── External API routes — Auth findet in den Routen statt ─────────────────
-  if (pathname.startsWith('/demand/') || pathname.startsWith('/supply/')) {
+  if (pathname.startsWith('/demand/') || pathname.startsWith('/supply/') || pathname.startsWith('/agency/')) {
     return NextResponse.next({ request })
   }
 
