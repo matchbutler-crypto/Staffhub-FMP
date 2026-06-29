@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS vakanz_historie (
 
 ALTER TABLE vakanz_historie ENABLE ROW LEVEL SECURITY;
 
+-- Keine INSERT-Policy: Writes erfolgen ausschließlich via Admin-Client (service_role),
+-- der RLS bypassed. Direktes Schreiben durch normale User ist nicht vorgesehen.
 CREATE POLICY "Admin liest vakanz_historie"
   ON vakanz_historie FOR SELECT
   USING (
