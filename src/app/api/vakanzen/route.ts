@@ -177,7 +177,7 @@ export async function POST(request: NextRequest) {
 
   await logVakanzHistorie({
     vakanzId: vakanz.id,
-    text: `Vakanz erstellt: ${vakanz.titel ?? parsed.data.rolle}`,
+    text: `Vakanz erstellt: ${vakanz.titel}`,
     erstelltVon: user.id,
   })
 

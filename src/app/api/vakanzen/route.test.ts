@@ -222,7 +222,7 @@ describe('POST /api/vakanzen', () => {
       error: null,
     })
     mockInsert.mockResolvedValue({
-      data: { id: 'new-id', rolle: validVakanz.rolle, status: 'Offen', created_at: '2026-04-12T00:00:00Z' },
+      data: { id: 'new-id', titel: validVakanz.rolle, rolle: validVakanz.rolle, status: 'Offen', created_at: '2026-04-12T00:00:00Z' },
       error: null,
     })
 
@@ -240,7 +240,7 @@ describe('POST /api/vakanzen', () => {
       error: null,
     })
     mockInsert.mockResolvedValue({
-      data: { id: 'new-id', rolle: validVakanz.rolle, status: 'Offen', created_at: '2026-04-12T00:00:00Z' },
+      data: { id: 'new-id', titel: validVakanz.rolle, rolle: validVakanz.rolle, status: 'Offen', created_at: '2026-04-12T00:00:00Z' },
       error: null,
     })
 
