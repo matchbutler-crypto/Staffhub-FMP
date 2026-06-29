@@ -496,30 +496,36 @@ function AgenturBearbeitenSheet({ open, onOpenChange, agentur, onSuccess }: Agen
   const [name, setName] = React.useState("")
   const [kontaktEmail, setKontaktEmail] = React.useState("")
   const [webhookUrl, setWebhookUrl] = React.useState("")
-  const [webhookSecret, setWebhookSecret] = React.useState("")
-  const [showSecret, setShowSecret] = React.useState(false)
+  const [webhookAlreadyConfigured, setWebhookAlreadyConfigured] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
+  const [testing, setTesting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const [newSecret, setNewSecret] = React.useState<string | null>(null)
+  const [copiedSecret, setCopiedSecret] = React.useState(false)
 
   React.useEffect(() => {
     if (open && agentur) {
       setName(agentur.name)
       setKontaktEmail(agentur.kontakt_email)
       setWebhookUrl(agentur.agency_webhook_url ?? "")
-      setWebhookSecret("")
-      setShowSecret(false)
+      setWebhookAlreadyConfigured(!!agentur.agency_webhook_url)
       setError(null)
+      setNewSecret(null)
+      setCopiedSecret(false)
     }
   }, [open, agentur])
 
-  async function handleSubmit() {
+  async function handleSubmit(regenerateSecret = false) {
     if (!name || !kontaktEmail) { setError("Bitte alle Pflichtfelder ausfüllen."); return }
     if (!agentur) return
-    setSaving(true); setError(null)
+    setSaving(true); setError(null); setNewSecret(null)
     try {
       const body: Record<string, unknown> = { name, kontakt_email: kontaktEmail }
-      body.agency_webhook_url = webhookUrl.trim() || null
-      if (webhookSecret.trim()) body.agency_webhook_secret = webhookSecret.trim()
+      const trimmedUrl = webhookUrl.trim()
+      if (trimmedUrl !== (agentur.agency_webhook_url ?? "") || regenerateSecret) {
+        body.agency_webhook_url = trimmedUrl || null
+        if (regenerateSecret) body.regenerate_webhook_secret = true
+      }
       const res = await fetch(`/api/admin/agenturen/${agentur.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -527,19 +533,55 @@ function AgenturBearbeitenSheet({ open, onOpenChange, agentur, onSuccess }: Agen
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        const details = err.details ? ' — Felder: ' + Object.keys(err.details).join(', ') : ''
+        const details = err.details ? ' — ' + Object.entries(err.details).map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`).join('; ') : ''
         throw new Error((err.error ?? "Fehler beim Speichern") + details)
       }
-      toast.success(`Agentur „${name}" wurde aktualisiert`)
-      onOpenChange(false); onSuccess()
+      const result = await res.json()
+      if (result.newSecret) {
+        setNewSecret(result.newSecret)
+        setWebhookAlreadyConfigured(true)
+        setWebhookUrl(webhookUrl.trim())
+      } else {
+        toast.success(`Agentur „${name}" wurde aktualisiert`)
+        onOpenChange(false); onSuccess()
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unbekannter Fehler")
     } finally { setSaving(false) }
   }
 
+  async function handleTestWebhook() {
+    if (!agentur) return
+    setTesting(true)
+    try {
+      const res = await fetch(`/api/admin/agenturen/${agentur.id}/test-webhook`, { method: "POST" })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)
+      if (data.ok) {
+        toast.success(`Webhook erreichbar — HTTP ${data.status}`)
+      } else {
+        toast.error(`Webhook antwortete mit HTTP ${data.status}`)
+      }
+    } catch (err) {
+      toast.error(`Webhook nicht erreichbar: ${err instanceof Error ? err.message : "Fehler"}`)
+    } finally { setTesting(false) }
+  }
+
+  async function copySecret() {
+    if (!newSecret) return
+    await navigator.clipboard.writeText(newSecret)
+    setCopiedSecret(true)
+    setTimeout(() => setCopiedSecret(false), 2000)
+  }
+
+  function handleClose() {
+    if (newSecret) { onSuccess() }
+    onOpenChange(false)
+  }
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="flex w-[440px] flex-col gap-0 overflow-hidden p-0">
+    <Sheet open={open} onOpenChange={(o) => { if (!o) handleClose(); else onOpenChange(o) }}>
+      <SheetContent side="right" className="flex w-[460px] flex-col gap-0 overflow-hidden p-0">
         <SheetHeader className="border-b px-6 py-4">
           <SheetTitle>Agentur bearbeiten</SheetTitle>
           <SheetDescription>Stammdaten und Webhook-Konfiguration für <span className="font-medium text-foreground">{agentur?.name}</span>.</SheetDescription>
@@ -547,6 +589,20 @@ function AgenturBearbeitenSheet({ open, onOpenChange, agentur, onSuccess }: Agen
         <div className="flex-1 overflow-y-auto px-6 py-4">
           <div className="flex flex-col gap-5">
             {error && <div className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
+
+            {/* Neues Secret — einmalig anzeigen */}
+            {newSecret && (
+              <div className="rounded-md border border-green-200 bg-green-50 p-4 flex flex-col gap-2">
+                <p className="text-sm font-medium text-green-800">Neues Webhook-Secret generiert!</p>
+                <p className="text-xs text-green-700">Dieses Secret wird nicht erneut angezeigt. Jetzt kopieren und sicher an die Agentur übermitteln.</p>
+                <div className="flex items-center gap-2 rounded border bg-white px-3 py-2 font-mono text-xs break-all">
+                  <span className="flex-1 select-all">{newSecret}</span>
+                  <Button variant="ghost" size="icon" className="size-7 shrink-0" onClick={copySecret}>
+                    {copiedSecret ? <IconCheck className="size-4 text-green-600" /> : <IconCopy className="size-4" />}
+                  </Button>
+                </div>
+              </div>
+            )}
 
             <fieldset className="flex flex-col gap-4">
               <legend className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Stammdaten</legend>
@@ -562,7 +618,7 @@ function AgenturBearbeitenSheet({ open, onOpenChange, agentur, onSuccess }: Agen
 
             <fieldset className="flex flex-col gap-4">
               <legend className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Agency API – Webhook</legend>
-              <p className="text-xs text-muted-foreground -mt-2">Staffhub sendet Events (position.published, submission.status_changed) per POST an diese URL.</p>
+              <p className="text-xs text-muted-foreground -mt-2">Staffhub sendet Events per POST an diese URL. Das Secret wird automatisch generiert.</p>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="ae-webhook-url">Webhook-URL</Label>
                 <Input
@@ -573,34 +629,46 @@ function AgenturBearbeitenSheet({ open, onOpenChange, agentur, onSuccess }: Agen
                   onChange={(e) => setWebhookUrl(e.target.value)}
                 />
               </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="ae-webhook-secret">Webhook-Secret</Label>
-                <div className="relative">
-                  <Input
-                    id="ae-webhook-secret"
-                    type={showSecret ? "text" : "password"}
-                    placeholder="Leer lassen = unverändert (min. 8 Zeichen)"
-                    value={webhookSecret}
-                    onChange={(e) => setWebhookSecret(e.target.value)}
-                    className="pr-10"
-                  />
-                  <button
-                    type="button"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    onClick={() => setShowSecret(s => !s)}
-                    tabIndex={-1}
+              {webhookAlreadyConfigured && !newSecret && (
+                <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-xs font-medium">Webhook-Secret</span>
+                    <span className="text-xs text-muted-foreground">Konfiguriert — Secret ist serverseitig gespeichert</span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => handleSubmit(true)}
+                    disabled={saving}
                   >
-                    {showSecret ? <IconEyeOff className="size-4" /> : <IconEye className="size-4" />}
-                  </button>
+                    <IconKey className="size-3 mr-1" />Neu generieren
+                  </Button>
                 </div>
-                <p className="text-xs text-muted-foreground">Wird für HMAC-SHA256-Signatur verwendet. Agentur erhält diesen Wert einmalig.</p>
-              </div>
+              )}
+              {webhookAlreadyConfigured && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleTestWebhook}
+                  disabled={testing || saving}
+                  className="self-start"
+                >
+                  {testing ? "Sende Ping…" : "Test-Ping senden"}
+                </Button>
+              )}
             </fieldset>
           </div>
         </div>
         <SheetFooter className="border-t px-6 py-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Abbrechen</Button>
-          <Button onClick={handleSubmit} disabled={saving}>{saving ? "Speichern…" : "Änderungen speichern"}</Button>
+          <Button variant="outline" onClick={handleClose} disabled={saving}>
+            {newSecret ? "Schließen" : "Abbrechen"}
+          </Button>
+          {!newSecret && (
+            <Button onClick={() => handleSubmit(false)} disabled={saving}>
+              {saving ? "Speichern…" : "Änderungen speichern"}
+            </Button>
+          )}
         </SheetFooter>
       </SheetContent>
     </Sheet>
