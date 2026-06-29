@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 async function requireAdmin(supabase: Awaited<ReturnType<typeof createClient>>) {
   const { data: { user }, error } = await supabase.auth.getUser()
@@ -26,11 +27,14 @@ export async function GET(request: NextRequest) {
   const userId = searchParams.get('user_id')
   const limit = Math.min(parseInt(searchParams.get('limit') ?? '500', 10), 1000)
 
-  let query = supabase
+  const admin = createAdminClient()
+
+  // ── 1. Logs ohne Profile-Join (kein FK-Constraint in DB) ──────────────────
+
+  let query = admin
     .from('ressource_historie')
     .select(`
-      id, text, typ, created_at, link_id, ressource_id,
-      profiles!erstellt_von(id, name, rolle),
+      id, text, typ, created_at, link_id, ressource_id, erstellt_von,
       ressourcen!ressource_id(id, name, ressource_code)
     `)
     .order('created_at', { ascending: false })
@@ -47,9 +51,28 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Fehler beim Laden der Logs' }, { status: 500 })
   }
 
-  let logs = data ?? []
+  // ── 2. Profiles separat holen ──────────────────────────────────────────────
 
-  // Filter by rolle on application level (join makes it tricky in supabase)
+  const userIds = [...new Set((data ?? []).map((e) => e.erstellt_von).filter(Boolean))] as string[]
+
+  const profilesMap: Record<string, { id: string; name: string; rolle: string }> = {}
+  if (userIds.length > 0) {
+    const { data: profilesData } = await admin
+      .from('profiles')
+      .select('id, name, rolle')
+      .in('id', userIds)
+    for (const p of profilesData ?? []) {
+      profilesMap[p.id] = p
+    }
+  }
+
+  // ── 3. Mergen + filtern ────────────────────────────────────────────────────
+
+  let logs = (data ?? []).map((entry) => ({
+    ...entry,
+    profiles: entry.erstellt_von ? (profilesMap[entry.erstellt_von] ?? null) : null,
+  }))
+
   if (rolle && rolle !== 'alle') {
     logs = logs.filter((entry) => {
       const p = entry.profiles as { rolle?: string } | null

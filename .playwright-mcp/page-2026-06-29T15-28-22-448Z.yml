@@ -1,0 +1,143 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e6]:
+      - list [ref=e8]:
+        - listitem [ref=e9]:
+          - link "Staffhub FMP" [ref=e10] [cursor=pointer]:
+            - /url: /dashboard
+            - img [ref=e12]
+            - generic: Staffhub FMP
+      - generic [ref=e16]:
+        - list [ref=e19]:
+          - listitem [ref=e20]:
+            - link "Dashboard" [ref=e21] [cursor=pointer]:
+              - /url: /dashboard
+              - img [ref=e22]
+              - generic: Dashboard
+          - listitem [ref=e27]:
+            - link "Vakanzen" [ref=e28] [cursor=pointer]:
+              - /url: /vakanzen
+              - img [ref=e29]
+              - generic: Vakanzen
+          - listitem [ref=e33]:
+            - link "Beauftragungen" [ref=e34] [cursor=pointer]:
+              - /url: /beauftragungen
+              - img [ref=e35]
+              - generic: Beauftragungen
+          - listitem [ref=e38]:
+            - link "Mein Pool" [ref=e39] [cursor=pointer]:
+              - /url: /pool
+              - img [ref=e40]
+              - generic: Mein Pool
+          - listitem [ref=e44]:
+            - link "Ideen-Board" [ref=e45] [cursor=pointer]:
+              - /url: /ideen
+              - img [ref=e46]
+              - generic: Ideen-Board
+        - list [ref=e51]:
+          - listitem [ref=e52]:
+            - link "Release Notes" [ref=e53] [cursor=pointer]:
+              - /url: /release-notes
+              - img [ref=e54]
+              - generic: Release Notes
+          - listitem [ref=e58]:
+            - link "Einstellungen" [ref=e59] [cursor=pointer]:
+              - /url: /settings
+              - img [ref=e60]
+              - generic: Einstellungen
+      - generic [ref=e68]:
+        - button "Design wechseln" [ref=e70] [cursor=pointer]:
+          - img [ref=e71]
+          - img
+        - list [ref=e77]:
+          - listitem [ref=e78]:
+            - button "U …" [ref=e79] [cursor=pointer]:
+              - generic [ref=e81]: U
+              - generic:
+                - generic: …
+              - img [ref=e82]
+    - main [ref=e86]:
+      - generic [ref=e88]:
+        - button "Toggle Sidebar" [ref=e89] [cursor=pointer]:
+          - img
+          - generic [ref=e90]: Toggle Sidebar
+        - heading "Aktivitäts-Log" [level=1] [ref=e91]
+      - generic [ref=e94]:
+        - generic [ref=e95]:
+          - generic [ref=e96]:
+            - heading "Aktivitäts-Log" [level=2] [ref=e97]
+            - paragraph [ref=e98]: Lädt…
+          - generic [ref=e99]:
+            - combobox [ref=e100] [cursor=pointer]:
+              - img [ref=e101]
+            - combobox [ref=e103]
+            - button "Aktualisieren" [disabled]:
+              - img
+              - text: Aktualisieren
+        - table [ref=e107]:
+          - rowgroup [ref=e108]:
+            - row "Datum / Uhrzeit Benutzer Rolle Typ Aktivität Ressource" [ref=e109]:
+              - columnheader "Datum / Uhrzeit" [ref=e110]
+              - columnheader "Benutzer" [ref=e111]
+              - columnheader "Rolle" [ref=e112]
+              - columnheader "Typ" [ref=e113]
+              - columnheader "Aktivität" [ref=e114]
+              - columnheader "Ressource" [ref=e115]
+          - rowgroup [ref=e116]:
+            - row [ref=e117]:
+              - cell [ref=e118]
+              - cell [ref=e120]
+              - cell [ref=e122]
+              - cell [ref=e124]
+              - cell [ref=e126]
+              - cell [ref=e128]
+            - row [ref=e130]:
+              - cell [ref=e131]
+              - cell [ref=e133]
+              - cell [ref=e135]
+              - cell [ref=e137]
+              - cell [ref=e139]
+              - cell [ref=e141]
+            - row [ref=e143]:
+              - cell [ref=e144]
+              - cell [ref=e146]
+              - cell [ref=e148]
+              - cell [ref=e150]
+              - cell [ref=e152]
+              - cell [ref=e154]
+            - row [ref=e156]:
+              - cell [ref=e157]
+              - cell [ref=e159]
+              - cell [ref=e161]
+              - cell [ref=e163]
+              - cell [ref=e165]
+              - cell [ref=e167]
+            - row [ref=e169]:
+              - cell [ref=e170]
+              - cell [ref=e172]
+              - cell [ref=e174]
+              - cell [ref=e176]
+              - cell [ref=e178]
+              - cell [ref=e180]
+            - row [ref=e182]:
+              - cell [ref=e183]
+              - cell [ref=e185]
+              - cell [ref=e187]
+              - cell [ref=e189]
+              - cell [ref=e191]
+              - cell [ref=e193]
+            - row [ref=e195]:
+              - cell [ref=e196]
+              - cell [ref=e198]
+              - cell [ref=e200]
+              - cell [ref=e202]
+              - cell [ref=e204]
+              - cell [ref=e206]
+            - row [ref=e208]:
+              - cell [ref=e209]
+              - cell [ref=e211]
+              - cell [ref=e213]
+              - cell [ref=e215]
+              - cell [ref=e217]
+              - cell [ref=e219]
+  - region "Notifications alt+T"
