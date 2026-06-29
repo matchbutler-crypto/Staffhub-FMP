@@ -5,6 +5,7 @@ import {
   IconActivity,
   IconBrandSlack,
   IconBriefcase,
+  IconBug,
   IconBuilding,
   IconBulb,
   IconClipboardList,
@@ -100,6 +101,12 @@ const ALL_NAV_MAIN: {
     title: 'Aktivitäts-Log',
     url: '/admin/logs',
     icon: IconActivity,
+    roles: ['Admin'],
+  },
+  {
+    title: 'Bug-Reports',
+    url: '/admin/bugs',
+    icon: IconBug,
     roles: ['Admin'],
   },
 ]
