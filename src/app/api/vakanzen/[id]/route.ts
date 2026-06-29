@@ -2,6 +2,81 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
+import { logVakanzHistorie } from '@/lib/log-vakanz-historie'
+
+function formatVakanzDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return '–'
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('de-DE')
+}
+
+function formatVakanzRate(rate: number | null | undefined): string {
+  if (rate == null) return '–'
+  return `${rate.toLocaleString('de-DE')} €/Tag`
+}
+
+function buildVakanzHistorieEntries(
+  oldData: Record<string, unknown>,
+  newData: Record<string, unknown>
+): string[] {
+  const entries: string[] = []
+
+  if (oldData.rolle !== newData.rolle) {
+    entries.push(`Rolle geändert: ${oldData.rolle ?? '–'} → ${newData.rolle ?? '–'}`)
+  }
+  if (oldData.status !== newData.status) {
+    entries.push(`Status geändert: ${oldData.status ?? '–'} → ${newData.status ?? '–'}`)
+  }
+  if (oldData.branche !== newData.branche) {
+    entries.push(`Branche geändert: ${oldData.branche ?? '–'} → ${newData.branche ?? '–'}`)
+  }
+  if (oldData.kunde !== newData.kunde) {
+    entries.push(`Kunde geändert: ${oldData.kunde ?? '–'} → ${newData.kunde ?? '–'}`)
+  }
+  if (oldData.erfahrungslevel !== newData.erfahrungslevel) {
+    entries.push(`Erfahrungslevel geändert: ${oldData.erfahrungslevel ?? '–'} → ${newData.erfahrungslevel ?? '–'}`)
+  }
+  if (oldData.arbeitsmodell !== newData.arbeitsmodell) {
+    entries.push(`Arbeitsmodell geändert: ${oldData.arbeitsmodell ?? '–'} → ${newData.arbeitsmodell ?? '–'}`)
+  }
+  if (oldData.startdatum !== newData.startdatum) {
+    entries.push(`Startdatum geändert: ${formatVakanzDate(oldData.startdatum as string | null)} → ${formatVakanzDate(newData.startdatum as string | null)}`)
+  }
+  if (oldData.enddatum !== newData.enddatum) {
+    entries.push(`Enddatum geändert: ${formatVakanzDate(oldData.enddatum as string | null)} → ${formatVakanzDate(newData.enddatum as string | null)}`)
+  }
+  if (oldData.budget_intern !== newData.budget_intern) {
+    entries.push(`EK-Budget geändert: ${formatVakanzRate(oldData.budget_intern as number | null)} → ${formatVakanzRate(newData.budget_intern as number | null)}`)
+  }
+  if (oldData.fte_anzahl !== newData.fte_anzahl) {
+    entries.push(`FTE geändert: ${oldData.fte_anzahl ?? '–'} → ${newData.fte_anzahl ?? '–'}`)
+  }
+  if (oldData.auslastung !== newData.auslastung) {
+    entries.push(`Auslastung geändert: ${oldData.auslastung ?? '–'}% → ${newData.auslastung ?? '–'}%`)
+  }
+  if (oldData.standort !== newData.standort) {
+    entries.push(`Standort geändert: ${oldData.standort ?? '–'} → ${newData.standort ?? '–'}`)
+  }
+
+  if (JSON.stringify(oldData.skills) !== JSON.stringify(newData.skills)) {
+    const oldSkills = (oldData.skills as string[]) ?? []
+    const newSkills = (newData.skills as string[]) ?? []
+    const added = newSkills.filter((s) => !oldSkills.includes(s)).map((s) => `+${s}`)
+    const removed = oldSkills.filter((s) => !newSkills.includes(s)).map((s) => `-${s}`)
+    const diff = [...added, ...removed].join(', ')
+    if (diff) entries.push(`Skills aktualisiert: ${diff}`)
+  }
+
+  if (JSON.stringify(oldData.skills_nice_have) !== JSON.stringify(newData.skills_nice_have)) {
+    const oldSkills = (oldData.skills_nice_have as string[]) ?? []
+    const newSkills = (newData.skills_nice_have as string[]) ?? []
+    const added = newSkills.filter((s) => !oldSkills.includes(s)).map((s) => `+${s}`)
+    const removed = oldSkills.filter((s) => !newSkills.includes(s)).map((s) => `-${s}`)
+    const diff = [...added, ...removed].join(', ')
+    if (diff) entries.push(`Nice-Have-Skills aktualisiert: ${diff}`)
+  }
+
+  return entries
+}
 
 // ── GET /api/vakanzen/[id] ─────────────────────────────────────────────────────
 
@@ -185,27 +260,23 @@ export async function PUT(
     weitere_kommentare: parsed.data.weitere_kommentare ?? null,
   }
 
+  // Konsolidierter Old-Record-Select (für besetzt_seit-Logik, enddatum-Sync + Diff-Log)
+  const { data: oldRecord } = await supabase
+    .from('vakanzen_data')
+    .select('rolle, branche, kunde, erfahrungslevel, arbeitsmodell, startdatum, enddatum, budget_intern, fte_anzahl, auslastung, standort, skills, skills_nice_have, status, besetzt_seit')
+    .eq('id', id)
+    .single()
+
   // besetzt_seit setzen/zurücksetzen je nach Status
   if (parsed.data.status === 'Besetzt') {
-    const { data: existing } = await supabase
-      .from('vakanzen')
-      .select('besetzt_seit, status')
-      .eq('id', id)
-      .single()
-    if (!existing?.besetzt_seit || existing.status !== 'Besetzt') {
+    if (!oldRecord?.besetzt_seit || oldRecord.status !== 'Besetzt') {
       updateData.besetzt_seit = new Date().toISOString()
     }
   } else {
     updateData.besetzt_seit = null
   }
 
-  // Altes Enddatum vor dem Update laden (für Verfügbarkeits-Sync)
-  const { data: existing } = await supabase
-    .from('vakanzen_data')
-    .select('enddatum')
-    .eq('id', id)
-    .single()
-  const enddatumChanged = existing?.enddatum !== parsed.data.enddatum
+  const enddatumChanged = oldRecord?.enddatum !== parsed.data.enddatum
 
   const { data: vakanz, error } = await supabase
     .from('vakanzen_data')
@@ -219,6 +290,14 @@ export async function PUT(
       return NextResponse.json({ error: 'Vakanz nicht gefunden' }, { status: 404 })
     }
     return NextResponse.json({ error: 'Fehler beim Aktualisieren der Vakanz' }, { status: 500 })
+  }
+
+  const histEntries = buildVakanzHistorieEntries(
+    (oldRecord ?? {}) as Record<string, unknown>,
+    parsed.data as Record<string, unknown>
+  )
+  for (const text of histEntries) {
+    await logVakanzHistorie({ vakanzId: id, text, erstelltVon: user.id })
   }
 
   // Bei Enddatum-Änderung: Verfügbarkeit + Beauftragung-Enddatum für beauftragte/zugesagte Ressourcen synchronisieren

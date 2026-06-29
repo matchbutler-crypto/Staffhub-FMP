@@ -29,6 +29,11 @@ const {
   mockServiceBeauftragungUpdate: vi.fn(),
 }))
 
+// Log-Vakanz-Historie mock (avoids createAdminClient / env-key requirement)
+vi.mock('@/lib/log-vakanz-historie', () => ({
+  logVakanzHistorie: vi.fn().mockResolvedValue(undefined),
+}))
+
 // Regular client
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn().mockResolvedValue({
