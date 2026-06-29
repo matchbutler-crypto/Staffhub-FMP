@@ -36,7 +36,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from('agenturen')
-    .select('id, name, kontakt_email, features, created_at')
+    .select('id, name, kontakt_email, features, agency_webhook_url, created_at')
     .order('name')
 
   if (error) {
@@ -59,6 +59,7 @@ export async function GET() {
   const agenturen = (data ?? []).map((a) => ({
     ...a,
     features: (a.features as Record<string, boolean>) ?? {},
+    agency_webhook_url: a.agency_webhook_url ?? null,
     user_anzahl: userCounts[a.id] ?? 0,
   }))
 

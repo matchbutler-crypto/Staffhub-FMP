@@ -141,6 +141,227 @@ Alle Fehler: `{ "error": "Beschreibung" }`
 
 ---
 
+---
+
+## Agency API — `api.staffhub.digital/agency/v1.0`
+
+Diese API ist für externe Personalvermittlungsagenturen. Der API-Key muss einer Agentur zugeordnet sein (`agentur_id`). Keys werden im Admin-Panel unter „Agenturen → API-Key erstellen" generiert.
+
+**Berechtigungen für Agency-Keys:**
+
+| Permission | Endpunkte |
+|---|---|
+| `agency:positions:read` | GET /positions, GET /positions/{id}, GET /positions/{id}/submissions |
+| `agency:profiles:read` | GET /profiles, GET /positions/{id}/submissions |
+| `agency:profiles:write` | POST /profiles, PUT /profiles/{id}, POST /profiles/{id}/submit |
+
+---
+
+### `GET /positions`
+Alle aktuell veröffentlichten offenen Positionen. Permission: `agency:positions:read`
+
+Query-Parameter: `limit` (max 200, default 50), `cursor` (Pagination)
+
+```bash
+curl https://api.staffhub.digital/agency/v1.0/positions \
+  -H "X-API-Key: sfhub_..."
+```
+
+Response `200`:
+```json
+{
+  "data": [{
+    "id": "uuid",
+    "role": "Senior Backend Developer",
+    "industry": "Fintech",
+    "description": "...",
+    "skills": ["Python", "AWS"],
+    "skillsNiceToHave": ["Kubernetes"],
+    "seniority": "SENIOR",
+    "startDate": "2026-07-01",
+    "endDate": "2026-12-31",
+    "utilizationPct": 100,
+    "workModel": "REMOTE",
+    "location": null,
+    "status": "OPEN",
+    "publishedAt": "2026-06-01T10:00:00Z"
+  }],
+  "nextCursor": "2026-05-30T..."
+}
+```
+
+`status`-Werte: `OPEN` · `FILLED` · `CLOSED`  
+`seniority`-Werte: `JUNIOR` · `MID` · `SENIOR` · `EXPERT`  
+`workModel`-Werte: `REMOTE` · `HYBRID` · `ONSITE` · `ONSHORE` · `NEARSHORE` · `OFFSHORE`
+
+---
+
+### `GET /positions/{id}`
+Einzelne Position. Permission: `agency:positions:read`
+
+Response `200`: `{ "position": { ...alle Felder wie oben... } }`  
+Response `404`: Position nicht gefunden oder nicht veröffentlicht
+
+---
+
+### `GET /positions/{id}/submissions`
+Alle Einreichungen der eigenen Agentur auf diese Position. Permission: `agency:profiles:read`
+
+Response `200`:
+```json
+{
+  "data": [{
+    "submissionId": "uuid",
+    "profileId": "uuid",
+    "externalRef": "AG-123",
+    "firstName": "Max",
+    "lastName": "Muster",
+    "status": "SUBMITTED",
+    "updatedAt": "2026-06-15T..."
+  }]
+}
+```
+
+`status`-Werte: `SUBMITTED` · `INTERVIEW` · `RESERVED` · `BOOKED` · `REJECTED` · `WITHDRAWN`
+
+---
+
+### `POST /profiles`
+Profil anlegen oder aktualisieren (Upsert per `externalRef`). Permission: `agency:profiles:write`
+
+```json
+{
+  "externalRef": "AG-123",
+  "firstName": "Max",
+  "lastName": "Muster",
+  "skills": ["Python", "FastAPI", "PostgreSQL"],
+  "seniority": "SENIOR",
+  "availability": "AVAILABLE_NOW",
+  "availableFrom": null,
+  "workModel": "REMOTE",
+  "location": "Berlin",
+  "cvBase64": "<base64-encoded PDF, max 5 MB>"
+}
+```
+
+Pflichtfelder: `externalRef`, `firstName`, `lastName`, `skills` (min. 1), `seniority`, `availability`  
+`availability`-Werte: `AVAILABLE_NOW` · `AVAILABLE_FROM` · `UNAVAILABLE`  
+Bei `AVAILABLE_FROM` muss `availableFrom` (ISO-Datum) gesetzt sein.
+
+Response `201` (neu angelegt): `{ "profileId": "uuid", "externalRef": "AG-123", "created": true }`  
+Response `200` (aktualisiert): `{ "profileId": "uuid", "externalRef": "AG-123", "created": false }`  
+Response `413`: CV größer als 5 MB
+
+---
+
+### `GET /profiles`
+Eigene Profile der Agentur. Permission: `agency:profiles:read`
+
+Query-Parameter: `limit` (max 200, default 50), `cursor`
+
+Response `200`:
+```json
+{
+  "data": [{
+    "profileId": "uuid",
+    "externalRef": "AG-123",
+    "name": "Max Muster",
+    "skills": ["Python"],
+    "seniority": "SENIOR",
+    "availability": "AVAILABLE_NOW",
+    "availableFrom": null,
+    "workModel": "REMOTE",
+    "location": "Berlin"
+  }],
+  "nextCursor": null
+}
+```
+
+---
+
+### `PUT /profiles/{id}`
+Profil aktualisieren. Permission: `agency:profiles:write`
+
+Alle Felder optional (nur geänderte Felder senden):
+```json
+{
+  "firstName": "Max",
+  "lastName": "Muster",
+  "skills": ["Python", "Go"],
+  "seniority": "EXPERT",
+  "availability": "AVAILABLE_FROM",
+  "availableFrom": "2026-08-01",
+  "workModel": "HYBRID",
+  "location": "München",
+  "cvBase64": "<base64-encoded PDF>"
+}
+```
+
+Response `200`: `{ "profileId": "uuid" }`  
+Response `403`: Profil gehört nicht zur eigenen Agentur  
+Response `404`: Profil nicht gefunden
+
+---
+
+### `POST /profiles/{id}/submit`
+Profil auf eine Position einreichen. Permission: `agency:profiles:write`
+
+```json
+{ "positionId": "uuid" }
+```
+
+Response `201`: `{ "submissionId": "uuid" }`  
+Response `400`: Position bereits besetzt/geschlossen oder Ressource deaktiviert  
+Response `403`: Profil gehört nicht zur eigenen Agentur  
+Response `404`: Profil oder Position nicht gefunden  
+Response `409`: Profil bereits auf diese Position eingereicht
+
+---
+
+## Agency Webhooks (Outbound — Staffhub sendet an Agentur)
+
+Staffhub sendet Events per `POST` an die konfigurierte Webhook-URL der Agentur. Jeder Request enthält den Header `x-staffhub-signature: sha256=<HMAC-SHA256>` zur Verifikation.
+
+**HMAC-Verifikation (Node.js-Beispiel):**
+```javascript
+import { createHmac } from 'crypto'
+
+function isValid(body, secret, signature) {
+  const expected = 'sha256=' + createHmac('sha256', secret).update(body).digest('hex')
+  return expected === signature
+}
+```
+
+### Events
+
+**`position.published`** — Vakanz wurde veröffentlicht:
+```json
+{ "event": "position.published", "position": { ...alle Positionsfelder... } }
+```
+
+**`position.closed`** — Vakanz wurde besetzt:
+```json
+{ "event": "position.closed", "positionId": "uuid", "reason": "FILLED" }
+```
+
+**`submission.status_changed`** — Status einer Einreichung hat sich geändert:
+```json
+{
+  "event": "submission.status_changed",
+  "positionId": "uuid",
+  "profileId": "uuid",
+  "externalRef": "AG-123",
+  "status": "RESERVED",
+  "updatedAt": "2026-06-15T10:00:00Z"
+}
+```
+
+`status`-Werte: `SUBMITTED` · `INTERVIEW` · `RESERVED` · `BOOKED` · `REJECTED` · `WITHDRAWN`
+
+**Webhook-URL und Webhook-Secret** werden im Admin-Panel unter „Admin → Agenturen → Bearbeiten" konfiguriert.
+
+---
+
 ## Lokale Entwicklung
 
 ```bash

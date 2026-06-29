@@ -14,16 +14,35 @@ const VALID_PERMISSIONS: ApiPermission[] = [
   'demand:write',
   'supply:read',
   'supply:write',
+  'agency:positions:read',
+  'agency:profiles:read',
+  'agency:profiles:write',
+]
+
+const ALL_PERMISSION_VALUES = [
+  'vakanzen:read', 'vakanzen:create', 'vakanzen:update',
+  'vorschlaege:read', 'vorschlaege:update', 'profile:read',
+  'demand:write', 'supply:read', 'supply:write',
+  'agency:positions:read', 'agency:profiles:read', 'agency:profiles:write',
+] as const
+
+const AGENCY_PERMISSIONS: ApiPermission[] = [
+  'agency:positions:read',
+  'agency:profiles:read',
+  'agency:profiles:write',
 ]
 
 const createKeySchema = z.object({
   name: z.string().min(1).max(200),
-  permissions: z.array(z.enum([
-    'vakanzen:read', 'vakanzen:create', 'vakanzen:update',
-    'vorschlaege:read', 'vorschlaege:update', 'profile:read',
-    'demand:write', 'supply:read', 'supply:write',
-  ])).min(1),
-})
+  permissions: z.array(z.enum(ALL_PERMISSION_VALUES)).min(1),
+  agentur_id: z.string().uuid().nullable().optional(),
+}).refine(
+  (d) => {
+    const hasAgencyPerm = AGENCY_PERMISSIONS.some(p => (d.permissions as string[]).includes(p))
+    return !hasAgencyPerm || !!d.agentur_id
+  },
+  { message: 'agentur_id erforderlich für Agency-Berechtigungen', path: ['agentur_id'] }
+)
 
 async function requireAdmin() {
   const supabase = await createClient()
@@ -77,6 +96,7 @@ export async function POST(request: NextRequest) {
       key_hash: hash,
       key_preview: preview,
       permissions: parsed.data.permissions,
+      agentur_id: parsed.data.agentur_id ?? null,
     })
     .select('id, name, key_preview, permissions, aktiv, last_used_at, created_at')
     .single()

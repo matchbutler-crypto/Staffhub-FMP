@@ -13,6 +13,8 @@ import {
   IconCopy,
   IconCheck,
   IconToggleRight,
+  IconEye,
+  IconEyeOff,
 } from "@tabler/icons-react"
 import { toast } from "sonner"
 
@@ -80,6 +82,7 @@ interface Agentur {
   user_anzahl: number
   created_at: string
   features: Record<string, boolean>
+  agency_webhook_url: string | null
 }
 
 interface User {
@@ -102,6 +105,9 @@ type ApiPermission =
   | 'demand:write'
   | 'supply:read'
   | 'supply:write'
+  | 'agency:positions:read'
+  | 'agency:profiles:read'
+  | 'agency:profiles:write'
 
 interface ApiKey {
   id: string
@@ -123,17 +129,22 @@ const PERMISSION_LABELS: Record<ApiPermission, string> = {
   'demand:write': 'Vakanzen schreiben (MagentaOS)',
   'supply:read': 'Kandidaten-Profile lesen',
   'supply:write': 'Kandidaten reservieren/buchen',
+  'agency:positions:read': 'Positionen lesen',
+  'agency:profiles:read': 'Eigene Profile lesen',
+  'agency:profiles:write': 'Profile anlegen & einreichen',
 }
 
 const ALL_PERMISSIONS: ApiPermission[] = [
   'vakanzen:read', 'vakanzen:create', 'vakanzen:update',
   'vorschlaege:read', 'vorschlaege:update', 'profile:read',
   'demand:write', 'supply:read', 'supply:write',
+  'agency:positions:read', 'agency:profiles:read', 'agency:profiles:write',
 ]
 
-const LAYER_PERMISSIONS: Record<'demand' | 'supply', ApiPermission[]> = {
+const LAYER_PERMISSIONS: Record<'demand' | 'supply' | 'agency', ApiPermission[]> = {
   demand: ['vakanzen:read', 'vakanzen:create', 'vakanzen:update', 'vorschlaege:read', 'vorschlaege:update', 'demand:write'],
   supply: ['profile:read', 'supply:read', 'supply:write'],
+  agency: ['agency:positions:read', 'agency:profiles:read', 'agency:profiles:write'],
 }
 
 // ── Color maps ─────────────────────────────────────────────────────────────────
@@ -484,6 +495,9 @@ interface AgenturBearbeitenSheetProps {
 function AgenturBearbeitenSheet({ open, onOpenChange, agentur, onSuccess }: AgenturBearbeitenSheetProps) {
   const [name, setName] = React.useState("")
   const [kontaktEmail, setKontaktEmail] = React.useState("")
+  const [webhookUrl, setWebhookUrl] = React.useState("")
+  const [webhookSecret, setWebhookSecret] = React.useState("")
+  const [showSecret, setShowSecret] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -491,6 +505,9 @@ function AgenturBearbeitenSheet({ open, onOpenChange, agentur, onSuccess }: Agen
     if (open && agentur) {
       setName(agentur.name)
       setKontaktEmail(agentur.kontakt_email)
+      setWebhookUrl(agentur.agency_webhook_url ?? "")
+      setWebhookSecret("")
+      setShowSecret(false)
       setError(null)
     }
   }, [open, agentur])
@@ -500,10 +517,13 @@ function AgenturBearbeitenSheet({ open, onOpenChange, agentur, onSuccess }: Agen
     if (!agentur) return
     setSaving(true); setError(null)
     try {
+      const body: Record<string, unknown> = { name, kontakt_email: kontaktEmail }
+      body.agency_webhook_url = webhookUrl.trim() || null
+      if (webhookSecret.trim()) body.agency_webhook_secret = webhookSecret.trim()
       const res = await fetch(`/api/admin/agenturen/${agentur.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, kontakt_email: kontaktEmail }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error ?? "Fehler beim Speichern") }
       toast.success(`Agentur „${name}" wurde aktualisiert`)
@@ -515,22 +535,63 @@ function AgenturBearbeitenSheet({ open, onOpenChange, agentur, onSuccess }: Agen
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="flex w-[400px] flex-col gap-0 overflow-hidden p-0">
+      <SheetContent side="right" className="flex w-[440px] flex-col gap-0 overflow-hidden p-0">
         <SheetHeader className="border-b px-6 py-4">
           <SheetTitle>Agentur bearbeiten</SheetTitle>
-          <SheetDescription>Name und Kontakt-E-Mail von <span className="font-medium text-foreground">{agentur?.name}</span> ändern.</SheetDescription>
+          <SheetDescription>Stammdaten und Webhook-Konfiguration für <span className="font-medium text-foreground">{agentur?.name}</span>.</SheetDescription>
         </SheetHeader>
         <div className="flex-1 overflow-y-auto px-6 py-4">
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-5">
             {error && <div className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="ae-name">Agentur-Name *</Label>
-              <Input id="ae-name" placeholder="z.B. TechTalents GmbH" value={name} onChange={(e) => setName(e.target.value)} />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="ae-kontakt">Kontakt-E-Mail *</Label>
-              <Input id="ae-kontakt" type="email" placeholder="kontakt@agentur.de" value={kontaktEmail} onChange={(e) => setKontaktEmail(e.target.value)} />
-            </div>
+
+            <fieldset className="flex flex-col gap-4">
+              <legend className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Stammdaten</legend>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="ae-name">Agentur-Name *</Label>
+                <Input id="ae-name" placeholder="z.B. TechTalents GmbH" value={name} onChange={(e) => setName(e.target.value)} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="ae-kontakt">Kontakt-E-Mail *</Label>
+                <Input id="ae-kontakt" type="email" placeholder="kontakt@agentur.de" value={kontaktEmail} onChange={(e) => setKontaktEmail(e.target.value)} />
+              </div>
+            </fieldset>
+
+            <fieldset className="flex flex-col gap-4">
+              <legend className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Agency API – Webhook</legend>
+              <p className="text-xs text-muted-foreground -mt-2">Staffhub sendet Events (position.published, submission.status_changed) per POST an diese URL.</p>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="ae-webhook-url">Webhook-URL</Label>
+                <Input
+                  id="ae-webhook-url"
+                  type="url"
+                  placeholder="https://agentur.de/webhooks/staffhub"
+                  value={webhookUrl}
+                  onChange={(e) => setWebhookUrl(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="ae-webhook-secret">Webhook-Secret</Label>
+                <div className="relative">
+                  <Input
+                    id="ae-webhook-secret"
+                    type={showSecret ? "text" : "password"}
+                    placeholder="Leer lassen = unverändert (min. 8 Zeichen)"
+                    value={webhookSecret}
+                    onChange={(e) => setWebhookSecret(e.target.value)}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    onClick={() => setShowSecret(s => !s)}
+                    tabIndex={-1}
+                  >
+                    {showSecret ? <IconEyeOff className="size-4" /> : <IconEye className="size-4" />}
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground">Wird für HMAC-SHA256-Signatur verwendet. Agentur erhält diesen Wert einmalig.</p>
+              </div>
+            </fieldset>
           </div>
         </div>
         <SheetFooter className="border-t px-6 py-4">
@@ -593,9 +654,10 @@ interface NeuerApiKeySheetProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSuccess: () => void
+  agenturen: Agentur[]
 }
 
-const LAYER_ENDPOINTS: Record<'demand' | 'supply', { method: string; path: string; desc: string }[]> = {
+const LAYER_ENDPOINTS: Record<'demand' | 'supply' | 'agency', { method: string; path: string; desc: string }[]> = {
   demand: [
     { method: 'POST',  path: '/demand/v1.0/vakanzen',                                    desc: 'Vakanz anlegen' },
     { method: 'GET',   path: '/demand/v1.0/vakanzen',                                    desc: 'Vakanzen abrufen' },
@@ -610,11 +672,26 @@ const LAYER_ENDPOINTS: Record<'demand' | 'supply', { method: string; path: strin
     { method: 'POST', path: '/supply/v1.0/profiles/{id}/cancel',        desc: 'Profil ablehnen' },
     { method: 'PATCH', path: '/demand/v1.0/vakanzen/{id}',              desc: 'Vakanz aktualisieren' },
   ],
+  agency: [
+    { method: 'GET',  path: '/agency/v1.0/positions',                     desc: 'Offene Positionen' },
+    { method: 'GET',  path: '/agency/v1.0/positions/{id}',                desc: 'Position-Details' },
+    { method: 'GET',  path: '/agency/v1.0/positions/{id}/submissions',    desc: 'Eigene Einreichungen' },
+    { method: 'POST', path: '/agency/v1.0/profiles',                      desc: 'Profil anlegen/aktualisieren' },
+    { method: 'GET',  path: '/agency/v1.0/profiles',                      desc: 'Eigene Profile' },
+    { method: 'PUT',  path: '/agency/v1.0/profiles/{id}',                 desc: 'Profil aktualisieren' },
+    { method: 'POST', path: '/agency/v1.0/profiles/{id}/submit',          desc: 'Profil einreichen' },
+  ],
 }
 
 const BASE_URL = 'https://api.staffhub.digital'
 
-function buildUebergabeText(keyName: string, key: string, activeLayers: Set<'demand' | 'supply'>): string {
+const LAYER_LABELS: Record<'demand' | 'supply' | 'agency', string> = {
+  demand: 'Demand-Layer',
+  supply: 'Supply-Layer',
+  agency: 'Agency-Layer',
+}
+
+function buildUebergabeText(keyName: string, key: string, activeLayers: Set<'demand' | 'supply' | 'agency'>): string {
   const lines: string[] = [
     `=== Staffhub API – Zugangsdaten für „${keyName}" ===`,
     '',
@@ -623,9 +700,9 @@ function buildUebergabeText(keyName: string, key: string, activeLayers: Set<'dem
     `Header   : Authorization: Bearer <API-Key>`,
     '',
   ]
-  for (const layer of ['demand', 'supply'] as const) {
+  for (const layer of ['demand', 'supply', 'agency'] as const) {
     if (!activeLayers.has(layer)) continue
-    lines.push(`--- ${layer === 'demand' ? 'Demand-Layer' : 'Supply-Layer'} ---`)
+    lines.push(`--- ${LAYER_LABELS[layer]} ---`)
     for (const ep of LAYER_ENDPOINTS[layer]) {
       lines.push(`${ep.method.padEnd(6)} ${BASE_URL}${ep.path}`)
     }
@@ -634,21 +711,22 @@ function buildUebergabeText(keyName: string, key: string, activeLayers: Set<'dem
   return lines.join('\n').trimEnd()
 }
 
-function NeuerApiKeySheet({ open, onOpenChange, onSuccess }: NeuerApiKeySheetProps) {
+function NeuerApiKeySheet({ open, onOpenChange, onSuccess, agenturen }: NeuerApiKeySheetProps) {
   const [name, setName] = React.useState("")
-  const [layers, setLayers] = React.useState<Set<'demand' | 'supply'>>(new Set())
+  const [layers, setLayers] = React.useState<Set<'demand' | 'supply' | 'agency'>>(new Set())
+  const [agenturId, setAgenturId] = React.useState<string>("")
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [generatedKey, setGeneratedKey] = React.useState<string | null>(null)
-  const [generatedLayers, setGeneratedLayers] = React.useState<Set<'demand' | 'supply'>>(new Set())
+  const [generatedLayers, setGeneratedLayers] = React.useState<Set<'demand' | 'supply' | 'agency'>>(new Set())
   const [copied, setCopied] = React.useState(false)
   const [copiedAll, setCopiedAll] = React.useState(false)
 
   React.useEffect(() => {
-    if (open) { setName(""); setLayers(new Set()); setError(null); setGeneratedKey(null); setGeneratedLayers(new Set()); setCopied(false); setCopiedAll(false) }
+    if (open) { setName(""); setLayers(new Set()); setAgenturId(""); setError(null); setGeneratedKey(null); setGeneratedLayers(new Set()); setCopied(false); setCopiedAll(false) }
   }, [open])
 
-  function toggleLayer(layer: 'demand' | 'supply') {
+  function toggleLayer(layer: 'demand' | 'supply' | 'agency') {
     setLayers(prev => {
       const next = new Set(prev)
       next.has(layer) ? next.delete(layer) : next.add(layer)
@@ -667,12 +745,15 @@ function NeuerApiKeySheet({ open, onOpenChange, onSuccess }: NeuerApiKeySheetPro
   async function handleSubmit() {
     if (!name) { setError("Bitte einen Namen eingeben."); return }
     if (layers.size === 0) { setError("Bitte mindestens einen Layer auswählen."); return }
+    if (layers.has('agency') && !agenturId) { setError("Bitte eine Agentur für den Agency-Layer auswählen."); return }
     setSaving(true); setError(null)
     try {
+      const body: Record<string, unknown> = { name, permissions: permissionsFromLayers() }
+      if (layers.has('agency') && agenturId) body.agentur_id = agenturId
       const res = await fetch("/api/admin/api-keys", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, permissions: permissionsFromLayers() }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error ?? "Fehler beim Anlegen") }
       const data = await res.json()
@@ -747,10 +828,10 @@ function NeuerApiKeySheet({ open, onOpenChange, onSuccess }: NeuerApiKeySheetPro
               </div>
 
               {/* Endpunkte je Layer */}
-              {(['demand', 'supply'] as const).filter(l => generatedLayers.has(l)).map(layer => (
+              {(['demand', 'supply', 'agency'] as const).filter(l => generatedLayers.has(l)).map(layer => (
                 <div key={layer} className="space-y-1.5">
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    {layer === 'demand' ? 'Demand – Vakanzen & Vorschläge' : 'Supply – Kandidaten-Profile'}
+                    {layer === 'demand' ? 'Demand – Vakanzen & Vorschläge' : layer === 'supply' ? 'Supply – Kandidaten-Profile' : 'Agency – Profile & Positionen'}
                   </p>
                   <div className="rounded-md border bg-background divide-y">
                     {LAYER_ENDPOINTS[layer].map((ep) => (
@@ -806,6 +887,36 @@ function NeuerApiKeySheet({ open, onOpenChange, onSuccess }: NeuerApiKeySheetPro
                   )
                 })}
               </div>
+              <div
+                className={`flex flex-col gap-1.5 rounded-lg border-2 p-4 cursor-pointer transition-colors focus-visible:outline-none ${
+                  layers.has('agency')
+                    ? 'border-purple-500 bg-purple-50'
+                    : 'border-border bg-background hover:bg-accent/50'
+                }`}
+                onClick={() => toggleLayer('agency')}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => e.key === 'Enter' && toggleLayer('agency')}
+              >
+                <span className="text-sm font-semibold">Agency</span>
+                <span className="text-xs text-muted-foreground">Agentur-Schnittstelle: Profile einreichen, Positionen abrufen</span>
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {LAYER_PERMISSIONS.agency.map((p) => (
+                    <Badge key={p} variant="outline" className="font-mono text-[10px]">{p}</Badge>
+                  ))}
+                </div>
+              </div>
+              {layers.has('agency') && (
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="key-agentur">Agentur (Pflicht für Agency-Layer) *</Label>
+                  <Select value={agenturId} onValueChange={setAgenturId}>
+                    <SelectTrigger id="key-agentur"><SelectValue placeholder="Agentur wählen…" /></SelectTrigger>
+                    <SelectContent>
+                      {agenturen.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -836,16 +947,17 @@ interface ApiKeyBearbeitenSheetProps {
   onSuccess: () => void
 }
 
-function layersFromPermissions(permissions: ApiPermission[]): Set<'demand' | 'supply'> {
-  const result = new Set<'demand' | 'supply'>()
+function layersFromPermissions(permissions: ApiPermission[]): Set<'demand' | 'supply' | 'agency'> {
+  const result = new Set<'demand' | 'supply' | 'agency'>()
   if (LAYER_PERMISSIONS.demand.some(p => permissions.includes(p))) result.add('demand')
   if (LAYER_PERMISSIONS.supply.some(p => permissions.includes(p))) result.add('supply')
+  if (LAYER_PERMISSIONS.agency.some(p => permissions.includes(p))) result.add('agency')
   return result
 }
 
 function ApiKeyBearbeitenSheet({ open, onOpenChange, apiKey, onSuccess }: ApiKeyBearbeitenSheetProps) {
   const [name, setName] = React.useState("")
-  const [layers, setLayers] = React.useState<Set<'demand' | 'supply'>>(new Set())
+  const [layers, setLayers] = React.useState<Set<'demand' | 'supply' | 'agency'>>(new Set())
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -857,7 +969,7 @@ function ApiKeyBearbeitenSheet({ open, onOpenChange, apiKey, onSuccess }: ApiKey
     }
   }, [open, apiKey])
 
-  function toggleLayer(layer: 'demand' | 'supply') {
+  function toggleLayer(layer: 'demand' | 'supply' | 'agency') {
     setLayers(prev => {
       const next = new Set(prev)
       next.has(layer) ? next.delete(layer) : next.add(layer)
@@ -907,11 +1019,11 @@ function ApiKeyBearbeitenSheet({ open, onOpenChange, apiKey, onSuccess }: ApiKey
           </div>
           <div className="flex flex-col gap-2">
             <Label>Zugriffs-Layer *</Label>
-            <div className="grid grid-cols-2 gap-3">
-              {(['demand', 'supply'] as const).map((layer) => {
+            <div className="flex flex-col gap-2">
+              {(['demand', 'supply', 'agency'] as const).map((layer) => {
                 const active = layers.has(layer)
-                const label = layer === 'demand' ? 'Demand' : 'Supply'
-                const desc = layer === 'demand' ? 'Vakanzen & Vorschläge' : 'Kandidaten-Profile'
+                const label = layer === 'demand' ? 'Demand' : layer === 'supply' ? 'Supply' : 'Agency'
+                const desc = layer === 'demand' ? 'Vakanzen & Vorschläge' : layer === 'supply' ? 'Kandidaten-Profile' : 'Agentur-Schnittstelle'
                 const perms = LAYER_PERMISSIONS[layer]
                 return (
                   <button
@@ -1352,16 +1464,17 @@ export default function AdminPage() {
                             <TableHead>Agentur</TableHead>
                             <TableHead>Kontakt-E-Mail</TableHead>
                             <TableHead className="text-center">Benutzer</TableHead>
+                            <TableHead className="text-center">Webhook</TableHead>
                             <TableHead>Angelegt</TableHead>
                             <TableHead className="w-10" />
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {loadingAgenturen ? (
-                            <TableSkeletonRows cols={5} />
+                            <TableSkeletonRows cols={6} />
                           ) : agenturen.length === 0 ? (
                             <TableRow>
-                              <TableCell colSpan={5} className="py-10 text-center text-muted-foreground">Keine Agenturen vorhanden.</TableCell>
+                              <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">Keine Agenturen vorhanden.</TableCell>
                             </TableRow>
                           ) : (
                             agenturen.map((a) => (
@@ -1369,6 +1482,11 @@ export default function AdminPage() {
                                 <TableCell className="font-medium">{a.name}</TableCell>
                                 <TableCell className="text-sm text-muted-foreground">{a.kontakt_email}</TableCell>
                                 <TableCell className="text-center tabular-nums">{a.user_anzahl}</TableCell>
+                                <TableCell className="text-center">
+                                  <Badge variant="outline" className={a.agency_webhook_url ? "bg-green-100 text-green-700 border-green-200" : "bg-gray-100 text-gray-500 border-gray-200"}>
+                                    {a.agency_webhook_url ? "Konfiguriert" : "–"}
+                                  </Badge>
+                                </TableCell>
                                 <TableCell className="text-sm text-muted-foreground">{new Date(a.created_at).toLocaleDateString("de-DE")}</TableCell>
                                 <TableCell>
                                   <DropdownMenu>
@@ -1377,7 +1495,7 @@ export default function AdminPage() {
                                         <IconDotsVertical className="size-4" /><span className="sr-only">Aktionen</span>
                                       </Button>
                                     </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="w-40">
+                                    <DropdownMenuContent align="end" className="w-48">
                                       <DropdownMenuItem onClick={() => openAgenturEdit(a)}>
                                         <IconEdit className="mr-2 size-4" />Bearbeiten
                                       </DropdownMenuItem>
@@ -1565,7 +1683,7 @@ export default function AdminPage() {
         onSuccess={fetchAgenturen}
       />
 
-      <NeuerApiKeySheet open={apiKeySheetOpen} onOpenChange={setApiKeySheetOpen} onSuccess={fetchApiKeys} />
+      <NeuerApiKeySheet open={apiKeySheetOpen} onOpenChange={setApiKeySheetOpen} onSuccess={fetchApiKeys} agenturen={agenturen} />
       <ApiKeyBearbeitenSheet open={apiKeyEditOpen} onOpenChange={setApiKeyEditOpen} apiKey={apiKeyEditTarget} onSuccess={fetchApiKeys} />
 
       <AlertDialog open={keyLoeschenOpen} onOpenChange={(o) => { if (!keyLoeschenLoading) setKeyLoeschenOpen(o) }}>

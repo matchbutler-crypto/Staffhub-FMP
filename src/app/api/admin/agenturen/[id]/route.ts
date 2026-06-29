@@ -12,6 +12,8 @@ const updateSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   kontakt_email: z.string().email().optional(),
   features: featureRecord.optional(),
+  agency_webhook_url: z.string().url().nullable().optional(),
+  agency_webhook_secret: z.string().min(8).max(500).nullable().optional(),
 })
 
 async function requireAdmin(supabase: Awaited<ReturnType<typeof createClient>>) {
@@ -51,12 +53,14 @@ export async function PATCH(
   if (parsed.data.name !== undefined) updateData.name = parsed.data.name
   if (parsed.data.kontakt_email !== undefined) updateData.kontakt_email = parsed.data.kontakt_email
   if (parsed.data.features !== undefined) updateData.features = parsed.data.features
+  if (parsed.data.agency_webhook_url !== undefined) updateData.agency_webhook_url = parsed.data.agency_webhook_url
+  if (parsed.data.agency_webhook_secret !== undefined) updateData.agency_webhook_secret = parsed.data.agency_webhook_secret
 
   const { data, error } = await supabase
     .from('agenturen')
     .update(updateData)
     .eq('id', id)
-    .select('id, name, kontakt_email, features')
+    .select('id, name, kontakt_email, features, agency_webhook_url')
     .single()
 
   if (error) {
