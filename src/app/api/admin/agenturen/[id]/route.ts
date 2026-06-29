@@ -12,8 +12,14 @@ const updateSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   kontakt_email: z.string().email().optional(),
   features: featureRecord.optional(),
-  agency_webhook_url: z.string().url().nullable().optional(),
-  agency_webhook_secret: z.string().min(8).max(500).nullable().optional(),
+  agency_webhook_url: z.preprocess(
+    (v) => (v === '' ? null : v),
+    z.string().url().nullable().optional()
+  ),
+  agency_webhook_secret: z.preprocess(
+    (v) => (v === '' ? null : v),
+    z.string().min(8).max(500).nullable().optional()
+  ),
 })
 
 async function requireAdmin(supabase: Awaited<ReturnType<typeof createClient>>) {

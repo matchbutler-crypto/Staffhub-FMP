@@ -525,7 +525,11 @@ function AgenturBearbeitenSheet({ open, onOpenChange, agentur, onSuccess }: Agen
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       })
-      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error ?? "Fehler beim Speichern") }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        const details = err.details ? ' — Felder: ' + Object.keys(err.details).join(', ') : ''
+        throw new Error((err.error ?? "Fehler beim Speichern") + details)
+      }
       toast.success(`Agentur „${name}" wurde aktualisiert`)
       onOpenChange(false); onSuccess()
     } catch (err) {
