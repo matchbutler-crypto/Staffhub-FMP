@@ -30,15 +30,32 @@ import {
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
+interface RessourceRef {
+  id: string
+  name: string
+  ressource_code: string
+}
+
+interface VakanzRef {
+  id: string
+  titel: string
+  vakanz_nr: string | null
+}
+
 interface LogEntry {
   id: string
   text: string
   typ: "system" | "manuell"
   created_at: string
-  link_id: string | null
-  ressource_id: string
+  source: "ressource" | "vakanz"
   profiles: { id: string; name: string; rolle: string } | null
-  ressourcen: { id: string; name: string; ressource_code: string } | null
+  // ressource
+  link_id?: string | null
+  ressource_id?: string | null
+  ressourcen?: RessourceRef | null
+  // vakanz
+  vakanz_id?: string | null
+  vakanzen_data?: VakanzRef | null
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -194,7 +211,7 @@ export default function AdminLogsPage() {
                         <TableHead className="w-28">Rolle</TableHead>
                         <TableHead className="w-20">Typ</TableHead>
                         <TableHead>Aktivität</TableHead>
-                        <TableHead className="w-36">Ressource</TableHead>
+                        <TableHead className="w-36">Referenz</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -259,9 +276,18 @@ export default function AdminLogsPage() {
                               {log.text}
                             </TableCell>
 
-                            {/* Ressource */}
+                            {/* Referenz */}
                             <TableCell className="text-sm">
-                              {log.ressourcen ? (
+                              {log.source === 'vakanz' && log.vakanzen_data ? (
+                                <a
+                                  href={`/vakanzen/${log.vakanz_id}`}
+                                  className="font-medium text-primary hover:underline"
+                                >
+                                  {log.vakanzen_data.vakanz_nr
+                                    ? `${log.vakanzen_data.vakanz_nr} — ${log.vakanzen_data.titel}`
+                                    : log.vakanzen_data.titel}
+                                </a>
+                              ) : log.ressourcen ? (
                                 <a
                                   href={`/ressourcen/${log.ressource_id}`}
                                   className="font-medium text-primary hover:underline"
