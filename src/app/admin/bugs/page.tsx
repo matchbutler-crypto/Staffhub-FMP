@@ -24,7 +24,6 @@ import { toast } from 'sonner'
 import { AppSidebar } from '@/components/app-sidebar'
 import { SiteHeader } from '@/components/site-header'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import {
   Sheet,
   SheetContent,
@@ -129,8 +128,14 @@ function BugCardContent({ bug }: { bug: BugReport }) {
         <span>
           {formatDistanceToNow(new Date(bug.created_at), { addSuffix: true, locale: de })}
         </span>
-        {bug.screenshot_url && <IconPhoto size={12} className="ml-auto shrink-0" />}
       </div>
+      {bug.screenshot_url && (
+        <img
+          src={bug.screenshot_url}
+          alt="Screenshot"
+          className="mt-2 h-12 w-full rounded object-cover object-top"
+        />
+      )}
       {bug.seite_url && (
         <a
           href={bug.seite_url}
@@ -252,6 +257,7 @@ export default function AdminBugsPage() {
               sensors={sensors}
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
+              onDragCancel={() => setActiveBug(null)}
             >
               <div className="grid grid-cols-3 gap-4">
                 {COLUMNS.map((col) => (
