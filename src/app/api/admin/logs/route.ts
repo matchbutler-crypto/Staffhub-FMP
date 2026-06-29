@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     .select(`
       id, text, typ, created_at, link_id, ressource_id,
       profiles!erstellt_von(id, name, rolle),
-      ressourcen!ressource_id(id, name, code)
+      ressourcen!ressource_id(id, name, ressource_code)
     `)
     .order('created_at', { ascending: false })
     .limit(limit)

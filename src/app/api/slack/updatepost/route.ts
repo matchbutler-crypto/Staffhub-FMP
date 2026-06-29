@@ -11,7 +11,7 @@ import {
 
 const bodySchema = z.object({
   workspace: z.enum(['freelance', 'partner']),
-  channel: z.enum(['testing', 'germany', 'global']),
+  channel: z.enum(['testing', 'germany', 'global', 'pea']),
 })
 
 // ── Updatepost Block Builder ───────────────────────────────────────────────────

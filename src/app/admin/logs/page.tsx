@@ -38,7 +38,7 @@ interface LogEntry {
   link_id: string | null
   ressource_id: string
   profiles: { id: string; name: string; rolle: string } | null
-  ressourcen: { id: string; name: string; code: string } | null
+  ressourcen: { id: string; name: string; ressource_code: string } | null
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -266,8 +266,8 @@ export default function AdminLogsPage() {
                                   href={`/ressourcen/${log.ressource_id}`}
                                   className="font-medium text-primary hover:underline"
                                 >
-                                  {log.ressourcen.code
-                                    ? `${log.ressourcen.code} — ${log.ressourcen.name}`
+                                  {log.ressourcen.ressource_code
+                                    ? `${log.ressourcen.ressource_code} — ${log.ressourcen.name}`
                                     : log.ressourcen.name}
                                 </a>
                               ) : (

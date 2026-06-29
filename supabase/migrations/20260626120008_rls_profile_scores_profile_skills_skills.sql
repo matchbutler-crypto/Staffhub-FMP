@@ -9,19 +9,23 @@
 -- ============================================================
 ALTER TABLE public.skills ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "skills_select" ON public.skills;
 CREATE POLICY "skills_select"
   ON public.skills FOR SELECT
   USING (true);
 
+DROP POLICY IF EXISTS "skills_insert" ON public.skills;
 CREATE POLICY "skills_insert"
   ON public.skills FOR INSERT
   WITH CHECK (get_my_rolle() = ANY(ARRAY['Admin'::text, 'Staffhub Manager'::text]));
 
+DROP POLICY IF EXISTS "skills_update" ON public.skills;
 CREATE POLICY "skills_update"
   ON public.skills FOR UPDATE
   USING    (get_my_rolle() = ANY(ARRAY['Admin'::text, 'Staffhub Manager'::text]))
   WITH CHECK (get_my_rolle() = ANY(ARRAY['Admin'::text, 'Staffhub Manager'::text]));
 
+DROP POLICY IF EXISTS "skills_delete" ON public.skills;
 CREATE POLICY "skills_delete"
   ON public.skills FOR DELETE
   USING (get_my_rolle() = ANY(ARRAY['Admin'::text, 'Staffhub Manager'::text]));
@@ -34,6 +38,7 @@ CREATE POLICY "skills_delete"
 -- ============================================================
 ALTER TABLE public.profile_skills ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "profile_skills_select" ON public.profile_skills;
 CREATE POLICY "profile_skills_select"
   ON public.profile_skills FOR SELECT
   USING (
@@ -45,6 +50,7 @@ CREATE POLICY "profile_skills_select"
     )
   );
 
+DROP POLICY IF EXISTS "profile_skills_insert" ON public.profile_skills;
 CREATE POLICY "profile_skills_insert"
   ON public.profile_skills FOR INSERT
   WITH CHECK (
@@ -56,6 +62,7 @@ CREATE POLICY "profile_skills_insert"
     )
   );
 
+DROP POLICY IF EXISTS "profile_skills_update" ON public.profile_skills;
 CREATE POLICY "profile_skills_update"
   ON public.profile_skills FOR UPDATE
   USING (
@@ -75,6 +82,7 @@ CREATE POLICY "profile_skills_update"
     )
   );
 
+DROP POLICY IF EXISTS "profile_skills_delete" ON public.profile_skills;
 CREATE POLICY "profile_skills_delete"
   ON public.profile_skills FOR DELETE
   USING (
@@ -93,19 +101,23 @@ CREATE POLICY "profile_skills_delete"
 -- ============================================================
 ALTER TABLE public.profile_scores ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "profile_scores_select" ON public.profile_scores;
 CREATE POLICY "profile_scores_select"
   ON public.profile_scores FOR SELECT
   USING (get_my_rolle() = ANY(ARRAY['Admin'::text, 'Staffhub Manager'::text]));
 
+DROP POLICY IF EXISTS "profile_scores_insert" ON public.profile_scores;
 CREATE POLICY "profile_scores_insert"
   ON public.profile_scores FOR INSERT
   WITH CHECK (get_my_rolle() = ANY(ARRAY['Admin'::text, 'Staffhub Manager'::text]));
 
+DROP POLICY IF EXISTS "profile_scores_update" ON public.profile_scores;
 CREATE POLICY "profile_scores_update"
   ON public.profile_scores FOR UPDATE
   USING    (get_my_rolle() = ANY(ARRAY['Admin'::text, 'Staffhub Manager'::text]))
   WITH CHECK (get_my_rolle() = ANY(ARRAY['Admin'::text, 'Staffhub Manager'::text]));
 
+DROP POLICY IF EXISTS "profile_scores_delete" ON public.profile_scores;
 CREATE POLICY "profile_scores_delete"
   ON public.profile_scores FOR DELETE
   USING (get_my_rolle() = ANY(ARRAY['Admin'::text, 'Staffhub Manager'::text]));

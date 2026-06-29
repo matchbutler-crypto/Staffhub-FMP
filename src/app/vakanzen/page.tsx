@@ -229,7 +229,7 @@ function SlackPostDialog({ open, onOpenChange, postType, vakanzTitel, onConfirm 
 
   const availableChannels: SlackChannel[] = postType === "detail"
     ? ["testing", "germany", "global", "pea", "findyou", "novasearch"]
-    : ["testing", "germany", "global"]
+    : ["testing", "germany", "global", "pea"]
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
