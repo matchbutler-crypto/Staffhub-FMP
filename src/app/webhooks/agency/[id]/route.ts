@@ -86,9 +86,10 @@ export async function POST(
       }
       const d = parsed.data
 
+      let cvBuf: Buffer | null = null
       if (d.cvBase64) {
-        const buf = Buffer.from(d.cvBase64, 'base64')
-        if (buf.byteLength > MAX_CV_BYTES) {
+        cvBuf = Buffer.from(d.cvBase64, 'base64')
+        if (cvBuf.byteLength > MAX_CV_BYTES) {
           return NextResponse.json({ error: 'CV_TOO_LARGE', message: 'CV max 5 MB' }, { status: 413 })
         }
       }
@@ -118,7 +119,8 @@ export async function POST(
       let created: boolean
 
       if (existing) {
-        await supabase.from('ressourcen').update(payload).eq('id', existing.id)
+        const { error: updateError } = await supabase.from('ressourcen').update(payload).eq('id', existing.id)
+        if (updateError) return NextResponse.json({ error: 'DB_ERROR' }, { status: 500 })
         ressourceId = existing.id
         created = false
       } else {
@@ -129,8 +131,8 @@ export async function POST(
         created = true
       }
 
-      if (d.cvBase64) {
-        const buffer = Buffer.from(d.cvBase64, 'base64')
+      if (cvBuf) {
+        const buffer = cvBuf
         if (existing?.cv_pfad) {
           await supabase.storage.from('ressourcen-cvs').remove([existing.cv_pfad])
         }
@@ -168,7 +170,8 @@ export async function POST(
         return NextResponse.json({ error: 'NOT_FOUND', message: 'Profil nicht gefunden' }, { status: 404 })
       }
 
-      await supabase.from('ressourcen').update({ verfuegbarkeit: 'Deaktiviert' }).eq('id', ressource.id)
+      const { error: updateError } = await supabase.from('ressourcen').update({ verfuegbarkeit: 'Deaktiviert' }).eq('id', ressource.id)
+      if (updateError) return NextResponse.json({ error: 'DB_ERROR' }, { status: 500 })
 
       return NextResponse.json({ received: true, event: parsed.data.event, processed: { profileId: ressource.id } })
     }
@@ -223,13 +226,14 @@ export async function POST(
         return NextResponse.json({ error: 'DB_ERROR' }, { status: 500 })
       }
 
-      await supabase.from('ressource_historie').insert({
+      const { error: historieError } = await supabase.from('ressource_historie').insert({
         ressource_id: ressource.id,
         link_id: link.id,
         typ: 'system',
         text: `Via Inbound-Webhook auf Position "${vakanz.rolle}" eingereicht`,
         erstellt_von: null,
       })
+      if (historieError) console.error('ressource_historie insert failed:', historieError)
 
       return NextResponse.json({ received: true, event: parsed.data.event, processed: { submissionId: link.id } })
     }
@@ -269,7 +273,8 @@ export async function POST(
         return NextResponse.json({ error: 'INVALID_STATUS', message: 'Einreichung kann nicht zurückgezogen werden' }, { status: 400 })
       }
 
-      await supabase.from('ressource_vakanz_links').update({ status: 'Zurückgezogen' }).eq('id', link.id)
+      const { error: updateError } = await supabase.from('ressource_vakanz_links').update({ status: 'Zurückgezogen' }).eq('id', link.id)
+      if (updateError) return NextResponse.json({ error: 'DB_ERROR' }, { status: 500 })
 
       return NextResponse.json({ received: true, event: parsed.data.event, processed: { submissionId: link.id } })
     }

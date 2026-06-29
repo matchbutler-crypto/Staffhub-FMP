@@ -35,7 +35,7 @@ vi.mock('@/lib/supabase/service-role', () => ({
       if (table === 'ressourcen') return {
         select: vi.fn().mockReturnThis(),
         insert: vi.fn().mockReturnThis(),
-        update: vi.fn().mockReturnThis(),
+        update: vi.fn(() => ({ eq: vi.fn(() => mockRessourceUpdate()) })),
         eq: vi.fn().mockReturnThis(),
         maybeSingle: mockRessourceSelect,
         single: mockRessourceInsert,
@@ -82,6 +82,7 @@ function makeParams(id: string) {
 beforeEach(() => {
   vi.clearAllMocks()
   mockValidateAgencyKey.mockResolvedValue({ agencyId: AGENCY_ID, error: null })
+  mockRessourceUpdate.mockResolvedValue({ error: null })
   mockHistorieInsert.mockResolvedValue({ error: null })
   mockStorageRemove.mockResolvedValue({})
   mockStorageUpload.mockResolvedValue({ error: null })
