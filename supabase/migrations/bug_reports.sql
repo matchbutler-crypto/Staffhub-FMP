@@ -8,7 +8,7 @@ create table if not exists public.bug_reports (
   seite_url   text not null,
   status      text not null default 'offen'
                 check (status in ('offen', 'in_bearbeitung', 'erledigt')),
-  melder_id   uuid not null references public.profiles(id) on delete set null,
+  melder_id   uuid not null references public.profiles(id) on delete restrict,
   melder_rolle text not null,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
