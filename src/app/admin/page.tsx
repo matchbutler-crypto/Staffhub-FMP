@@ -763,7 +763,7 @@ const LAYER_LABELS: Record<'demand' | 'supply' | 'agency', string> = {
   agency: 'Agency-Layer',
 }
 
-function buildUebergabeText(keyName: string, key: string, activeLayers: Set<'demand' | 'supply' | 'agency'>): string {
+function buildUebergabeText(keyName: string, key: string, activeLayers: Set<'demand' | 'supply' | 'agency'>, agenturId?: string): string {
   const lines: string[] = [
     `=== Staffhub API – Zugangsdaten für „${keyName}" ===`,
     '',
@@ -778,6 +778,12 @@ function buildUebergabeText(keyName: string, key: string, activeLayers: Set<'dem
     for (const ep of LAYER_ENDPOINTS[layer]) {
       lines.push(`${ep.method.padEnd(6)} ${BASE_URL}${ep.path}`)
     }
+    lines.push('')
+  }
+  if (activeLayers.has('agency') && agenturId) {
+    lines.push('--- Inbound Webhook (Agentur → Staffhub) ---')
+    lines.push(`POST   ${BASE_URL}/webhooks/agency/${agenturId}`)
+    lines.push(`Header : Authorization: Bearer <API-Key>`)
     lines.push('')
   }
   return lines.join('\n').trimEnd()
@@ -846,7 +852,7 @@ function NeuerApiKeySheet({ open, onOpenChange, onSuccess, agenturen }: NeuerApi
 
   async function copyAll() {
     if (!generatedKey) return
-    await navigator.clipboard.writeText(buildUebergabeText(name, generatedKey, generatedLayers))
+    await navigator.clipboard.writeText(buildUebergabeText(name, generatedKey, generatedLayers, agenturId || undefined))
     setCopiedAll(true)
     setTimeout(() => setCopiedAll(false), 2000)
   }
@@ -920,6 +926,29 @@ function NeuerApiKeySheet({ open, onOpenChange, onSuccess, agenturen }: NeuerApi
                   </div>
                 </div>
               ))}
+
+              {/* Inbound Webhook — nur wenn Agency-Layer aktiv und agenturId bekannt */}
+              {generatedLayers.has('agency') && agenturId && (
+                <div className="space-y-1.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Inbound Webhook (Agentur → Staffhub)
+                  </p>
+                  <div className="rounded-md border bg-background divide-y">
+                    <div className="flex items-center gap-3 px-3 py-2">
+                      <Badge variant="outline" className="shrink-0 font-mono text-[10px] w-12 justify-center bg-blue-100 text-blue-700 border-blue-200">
+                        POST
+                      </Badge>
+                      <span className="flex-1 font-mono text-xs text-muted-foreground truncate">
+                        /webhooks/agency/{agenturId}
+                      </span>
+                      <span className="text-xs text-muted-foreground/70 shrink-0">Profile & Einreichungen pushen</span>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    Header: <span className="font-mono">Authorization: Bearer &lt;API-Key&gt;</span>
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         ) : (
