@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { VAKANZ_STATUS } from '@/lib/constants'
+import { logVakanzHistorie } from '@/lib/log-vakanz-historie'
 
 // ── Zod Schema ─────────────────────────────────────────────────────────────────
 
@@ -45,6 +46,13 @@ export async function PATCH(
     )
   }
 
+  // Alten Status laden für Log
+  const { data: oldVakanz } = await supabase
+    .from('vakanzen_data')
+    .select('status')
+    .eq('id', id)
+    .single()
+
   const updatePayload: Record<string, unknown> = { status: parsed.data.status }
   if (parsed.data.status === 'Besetzt') {
     updatePayload.besetzt_seit = new Date().toISOString()
@@ -66,6 +74,14 @@ export async function PATCH(
     }
     console.error('PATCH /api/vakanzen/[id]/status error:', { code: error.code, message: error.message })
     return NextResponse.json({ error: 'Fehler beim Aktualisieren des Status' }, { status: 500 })
+  }
+
+  if (oldVakanz?.status && oldVakanz.status !== parsed.data.status) {
+    await logVakanzHistorie({
+      vakanzId: id,
+      text: `Status geändert: ${oldVakanz.status} → ${parsed.data.status}`,
+      erstelltVon: user.id,
+    })
   }
 
   return NextResponse.json({ vakanz })
