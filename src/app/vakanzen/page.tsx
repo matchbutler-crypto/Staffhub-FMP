@@ -200,7 +200,7 @@ function SkillTags({ skills }: { skills: string[] }) {
 // ── SlackPostDialog ────────────────────────────────────────────────────────────
 
 type SlackWorkspace = "freelance" | "partner"
-type SlackChannel = "testing" | "germany" | "global" | "premiumpartner"
+type SlackChannel = "testing" | "germany" | "global" | "pea" | "findyou" | "novasearch"
 
 interface SlackPostDialogProps {
   open: boolean
@@ -211,12 +211,12 @@ interface SlackPostDialogProps {
 }
 
 function SlackPostDialog({ open, onOpenChange, postType, vakanzTitel, onConfirm }: SlackPostDialogProps) {
-  const [workspace, setWorkspace] = React.useState<SlackWorkspace>("freelance")
+  const workspace: SlackWorkspace = "partner"
   const [channel, setChannel] = React.useState<SlackChannel>("testing")
   const [posting, setPosting] = React.useState(false)
 
   React.useEffect(() => {
-    if (open) { setWorkspace("freelance"); setChannel("testing") }
+    if (open) { setChannel("testing") }
   }, [open])
 
   async function handleConfirm() {
@@ -225,8 +225,11 @@ function SlackPostDialog({ open, onOpenChange, postType, vakanzTitel, onConfirm 
     finally { setPosting(false) }
   }
 
-  const workspaceLabels: Record<SlackWorkspace, string> = { freelance: "Freelance", partner: "Partner" }
-  const channelLabels: Record<SlackChannel, string> = { testing: "Testing", germany: "Germany", global: "Global", premiumpartner: "Premium Partner" }
+  const channelLabels: Record<SlackChannel, string> = { testing: "Testing", germany: "Germany", global: "Global", pea: "PEA", findyou: "FindYou", novasearch: "Nova Search" }
+
+  const availableChannels: SlackChannel[] = postType === "detail"
+    ? ["testing", "germany", "global", "pea", "findyou", "novasearch"]
+    : ["testing", "germany", "global"]
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -244,22 +247,11 @@ function SlackPostDialog({ open, onOpenChange, postType, vakanzTitel, onConfirm 
         </DialogHeader>
         <div className="flex flex-col gap-4 py-2">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="sp-workspace">Workspace</Label>
-            <Select value={workspace} onValueChange={(v) => setWorkspace(v as SlackWorkspace)}>
-              <SelectTrigger id="sp-workspace"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {(Object.keys(workspaceLabels) as SlackWorkspace[]).map((ws) => (
-                  <SelectItem key={ws} value={ws}>{workspaceLabels[ws]}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex flex-col gap-1.5">
             <Label htmlFor="sp-channel">Ziel-Channel</Label>
             <Select value={channel} onValueChange={(v) => setChannel(v as SlackChannel)}>
               <SelectTrigger id="sp-channel"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {(Object.keys(channelLabels) as SlackChannel[]).map((ch) => (
+                {availableChannels.map((ch) => (
                   <SelectItem key={ch} value={ch}>{channelLabels[ch]}</SelectItem>
                 ))}
               </SelectContent>
@@ -267,7 +259,7 @@ function SlackPostDialog({ open, onOpenChange, postType, vakanzTitel, onConfirm 
           </div>
           <div className="rounded-md border border-border bg-muted px-3 py-2 text-xs text-muted-foreground">
             <span className="font-medium text-foreground">Channel:</span>{" "}
-            {workspaceLabels[workspace]} → {channelLabels[channel]}
+            Partner → {channelLabels[channel]}
             {channel === "testing" && (
               <span className="ml-2 inline-flex items-center rounded-full bg-yellow-100 px-1.5 py-0.5 text-[10px] font-medium text-yellow-700 border border-yellow-200">TEST</span>
             )}

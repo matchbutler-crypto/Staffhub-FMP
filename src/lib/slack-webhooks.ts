@@ -9,7 +9,7 @@
 //   SLACK_UPDATE_PARTNER_GERMANY=https://hooks.slack.com/services/...
 
 export type SlackWorkspace = 'freelance' | 'partner'
-export type SlackChannel = 'testing' | 'germany' | 'global' | 'premiumpartner'
+export type SlackChannel = 'testing' | 'germany' | 'global' | 'premiumpartner' | 'pea' | 'findyou' | 'novasearch'
 export type SlackPostType = 'detail' | 'update'
 
 // ── URL resolver ──────────────────────────────────────────────────────────────
@@ -35,4 +35,7 @@ export const CHANNEL_LABELS: Record<SlackChannel, string> = {
   germany: 'Germany',
   global: 'Global',
   premiumpartner: 'Premium Partner',
+  pea: 'PEA',
+  findyou: 'FindYou',
+  novasearch: 'Nova Search',
 }

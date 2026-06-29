@@ -39,7 +39,17 @@ Wichtige Regeln:
 - skills_nice_have: Nice-to-Have-Skills als Array
 - auslastung: Prozentsatz 1-100 (100 = Vollzeit)
 - fte_anzahl: Anzahl der benötigten Personen (meist 1.0)
-- onsite_anteil: nur setzen wenn arbeitsmodell = "Hybrid", sonst null`
+- onsite_anteil: nur setzen wenn arbeitsmodell = "Hybrid", sonst null
+
+Regeln für beschreibung (Projektkontext):
+- Formuliere den Projektkontext allgemein und anonym — er darf NICHT auf ein konkretes Projekt, einen konkreten Kunden oder eine spezifische Organisation zurückgeführt werden können
+- Verwende übergeordnete Oberbegriffe statt spezifischer Bezeichnungen (z.B. "Anwendung im öffentlichen Sektor" statt "Behördenanwendung für Amt XY", "Enterprise-Plattform" statt "internes Tooling der Firma Z")
+- Keine Kunden- oder Projektnamen, keine konkreten Behörden- oder Unternehmensbezeichnungen
+
+Regeln für skills und skills_nice_have:
+- Nimm nur allgemein bekannte, standardisierte Technologien, Methoden und Frameworks auf (z.B. "Java", "Scrum", "Kubernetes")
+- Ignoriere Skills, die indirekt auf einen technischen Bauplan, eine proprietäre Architektur oder ein kundenspezifisches Eigenentwicklungs-Framework hinweisen (z.B. interne Systemkürzel, projektspezifische Tool-Namen, Fachverfahren-Bezeichnungen)
+- Ignoriere Skills, die so speziell sind, dass sie die Vakanz auf ein bestimmtes Projekt oder einen bestimmten Kunden zurückführen lassen`
 
 const CV_SKILL_PROMPT = `Du bist ein Recruiting-Assistent. Lies diesen Lebenslauf und extrahiere die Top-Skills.
 
