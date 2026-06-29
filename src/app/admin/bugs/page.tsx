@@ -15,7 +15,6 @@ import { useDraggable } from '@dnd-kit/core'
 import {
   IconBug,
   IconExternalLink,
-  IconPhoto,
 } from '@tabler/icons-react'
 import { formatDistanceToNow } from 'date-fns'
 import { de } from 'date-fns/locale'
