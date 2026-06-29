@@ -29,9 +29,9 @@ export async function GET(request: NextRequest) {
 
   const admin = createAdminClient()
 
-  // ── 1. Logs ohne Profile-Join (kein FK-Constraint in DB) ──────────────────
+  // ── 1. ressource_historie ──────────────────────────────────────────────────
 
-  let query = admin
+  let ressourceQuery = admin
     .from('ressource_historie')
     .select(`
       id, text, typ, created_at, link_id, ressource_id, erstellt_von,
@@ -41,19 +41,46 @@ export async function GET(request: NextRequest) {
     .limit(limit)
 
   if (userId) {
-    query = query.eq('erstellt_von', userId)
+    ressourceQuery = ressourceQuery.eq('erstellt_von', userId)
   }
 
-  const { data, error } = await query
+  const { data: ressourceLogs, error: ressourceError } = await ressourceQuery
 
-  if (error) {
-    console.error('GET admin/logs error:', error)
+  if (ressourceError) {
+    console.error('GET admin/logs ressource_historie error:', ressourceError)
     return NextResponse.json({ error: 'Fehler beim Laden der Logs' }, { status: 500 })
   }
 
-  // ── 2. Profiles separat holen ──────────────────────────────────────────────
+  // ── 2. vakanz_historie ─────────────────────────────────────────────────────
 
-  const userIds = [...new Set((data ?? []).map((e) => e.erstellt_von).filter(Boolean))] as string[]
+  let vakanzQuery = admin
+    .from('vakanz_historie')
+    .select(`
+      id, text, typ, created_at, vakanz_id, erstellt_von,
+      vakanzen_data!vakanz_id(id, titel, vakanz_nr)
+    `)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (userId) {
+    vakanzQuery = vakanzQuery.eq('erstellt_von', userId)
+  }
+
+  const { data: vakanzLogs, error: vakanzError } = await vakanzQuery
+
+  if (vakanzError) {
+    console.error('GET admin/logs vakanz_historie error:', vakanzError)
+    return NextResponse.json({ error: 'Fehler beim Laden der Logs' }, { status: 500 })
+  }
+
+  // ── 3. Alle User-IDs sammeln + Profiles laden ──────────────────────────────
+
+  const allLogs = [
+    ...(ressourceLogs ?? []).map((e) => ({ ...e, source: 'ressource' as const })),
+    ...(vakanzLogs ?? []).map((e) => ({ ...e, source: 'vakanz' as const })),
+  ]
+
+  const userIds = [...new Set(allLogs.map((e) => e.erstellt_von).filter(Boolean))] as string[]
 
   const profilesMap: Record<string, { id: string; name: string; rolle: string }> = {}
   if (userIds.length > 0) {
@@ -66,12 +93,15 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // ── 3. Mergen + filtern ────────────────────────────────────────────────────
+  // ── 4. Mergen, Profiles anhängen, nach Datum sortieren, Rollen-Filter ──────
 
-  let logs = (data ?? []).map((entry) => ({
-    ...entry,
-    profiles: entry.erstellt_von ? (profilesMap[entry.erstellt_von] ?? null) : null,
-  }))
+  let logs = allLogs
+    .map((entry) => ({
+      ...entry,
+      profiles: entry.erstellt_von ? (profilesMap[entry.erstellt_von] ?? null) : null,
+    }))
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, limit)
 
   if (rolle && rolle !== 'alle') {
     logs = logs.filter((entry) => {
