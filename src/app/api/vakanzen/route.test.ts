@@ -3,11 +3,23 @@ import { NextRequest } from 'next/server'
 
 // ── Supabase Mock (vi.hoisted wegen Hoist-Reihenfolge) ────────────────────────
 
-const { mockGetUser, mockProfileSelect, mockVakanzenSelect, mockInsert } = vi.hoisted(() => ({
+const { mockGetUser, mockProfileSelect, mockVakanzenSelect, mockInsert, mockVakanzHistorieInsert } = vi.hoisted(() => ({
   mockGetUser: vi.fn(),
   mockProfileSelect: vi.fn(),
   mockVakanzenSelect: vi.fn(),
   mockInsert: vi.fn(),
+  mockVakanzHistorieInsert: vi.fn().mockResolvedValue({ error: null }),
+}))
+
+vi.mock('@/lib/supabase/admin', () => ({
+  createAdminClient: vi.fn().mockReturnValue({
+    from: vi.fn((table: string) => {
+      if (table === 'vakanz_historie') {
+        return { insert: mockVakanzHistorieInsert }
+      }
+      return {}
+    }),
+  }),
 }))
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -219,5 +231,28 @@ describe('POST /api/vakanzen', () => {
     const json = await res.json()
     expect(json.vakanz.id).toBe('new-id')
     expect(json.vakanz.status).toBe('Offen')
+  })
+
+  it('loggt Vakanz-Erstellung in vakanz_historie', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'user-2' } }, error: null })
+    mockProfileSelect.mockResolvedValue({
+      data: { rolle: 'Staffhub Manager', aktiv: true },
+      error: null,
+    })
+    mockInsert.mockResolvedValue({
+      data: { id: 'new-id', rolle: validVakanz.rolle, status: 'Offen', created_at: '2026-04-12T00:00:00Z' },
+      error: null,
+    })
+
+    const res = await POST(makeRequest(validVakanz))
+    expect(res.status).toBe(201)
+    expect(mockVakanzHistorieInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        vakanz_id: 'new-id',
+        text: `Vakanz erstellt: ${validVakanz.rolle}`,
+        typ: 'system',
+        erstellt_von: 'user-2',
+      })
+    )
   })
 })

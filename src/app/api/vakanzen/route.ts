@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { logVakanzHistorie } from '@/lib/log-vakanz-historie'
 
 // ── Zod Schema ─────────────────────────────────────────────────────────────────
 
@@ -173,6 +174,12 @@ export async function POST(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: 'Fehler beim Erstellen der Vakanz' }, { status: 500 })
   }
+
+  await logVakanzHistorie({
+    vakanzId: vakanz.id,
+    text: `Vakanz erstellt: ${vakanz.titel ?? parsed.data.rolle}`,
+    erstelltVon: user.id,
+  })
 
   return NextResponse.json({ vakanz }, { status: 201 })
 }
