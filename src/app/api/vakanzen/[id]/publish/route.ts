@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { logVakanzHistorie } from '@/lib/log-vakanz-historie'
 
 const publishSchema = z.object({ published: z.boolean() })
 
@@ -37,17 +38,15 @@ export async function PATCH(
     return NextResponse.json({ error: 'Ungültige Eingabe' }, { status: 400 })
   }
 
-  // Wenn published=true, prüfe ob Vakanz Status Besetzt ist
-  if (parsed.data.published === true) {
-    const { data: vakanz } = await supabase
-      .from('vakanzen_data')
-      .select('status')
-      .eq('id', id)
-      .single()
+  // Alten Status + published-Wert laden (Besetzt-Check + Log)
+  const { data: oldVakanz } = await supabase
+    .from('vakanzen_data')
+    .select('status, published')
+    .eq('id', id)
+    .single()
 
-    if (vakanz?.status === 'Besetzt') {
-      return NextResponse.json({ error: 'Besetzte Vakanzen können nicht veröffentlicht werden' }, { status: 400 })
-    }
+  if (parsed.data.published === true && oldVakanz?.status === 'Besetzt') {
+    return NextResponse.json({ error: 'Besetzte Vakanzen können nicht veröffentlicht werden' }, { status: 400 })
   }
 
   const { error } = await supabase
@@ -57,6 +56,14 @@ export async function PATCH(
 
   if (error) {
     return NextResponse.json({ error: 'Fehler beim Aktualisieren' }, { status: 500 })
+  }
+
+  if (oldVakanz?.published !== parsed.data.published) {
+    await logVakanzHistorie({
+      vakanzId: id,
+      text: parsed.data.published ? 'Veröffentlicht' : 'Veröffentlichung aufgehoben',
+      erstelltVon: user.id,
+    })
   }
 
   return NextResponse.json({ published: parsed.data.published })
