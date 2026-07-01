@@ -71,7 +71,8 @@ const ALL_NAV_MAIN: {
     title: 'Abrechnung',
     url: '/abrechnung',
     icon: IconReceipt,
-    roles: ['Admin', 'Staffhub Manager', 'Controller'],
+    roles: ['Admin', 'Staffhub Manager', 'Controller', 'Agentur'],
+    featureKey: 'abrechnung_agentur',
   },
   {
     title: 'Mein Pool',

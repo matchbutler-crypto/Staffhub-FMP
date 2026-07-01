@@ -69,8 +69,8 @@ export async function GET(request: NextRequest) {
   const { data: vakanzLogs, error: vakanzError } = await vakanzQuery
 
   if (vakanzError) {
-    console.error('GET admin/logs vakanz_historie error:', vakanzError)
-    return NextResponse.json({ error: 'Fehler beim Laden der Logs' }, { status: 500 })
+    // vakanz_historie table may not exist yet (migration 019 not applied)
+    console.error('GET admin/logs vakanz_historie error:', JSON.stringify(vakanzError))
   }
 
   // ── 3. Alle User-IDs sammeln + Profiles laden ──────────────────────────────

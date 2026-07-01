@@ -94,5 +94,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json(data ?? [])
+  const bugs = await Promise.all(
+    (data ?? []).map(async (bug) => {
+      if (!bug.screenshot_url || bug.screenshot_url.startsWith('http')) return bug
+      const { data: signed } = await supabase.storage
+        .from('bug-screenshots')
+        .createSignedUrl(bug.screenshot_url, 3600)
+      return { ...bug, screenshot_url: signed?.signedUrl ?? null }
+    })
+  )
+
+  return NextResponse.json(bugs)
 }

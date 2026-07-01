@@ -90,11 +90,7 @@ export function BugReportWidget() {
       return
     }
 
-    const { data: urlData } = supabase.storage
-      .from('bug-screenshots')
-      .getPublicUrl(uploadData.path)
-
-    await handleSubmit(urlData?.publicUrl)
+    await handleSubmit(uploadData.path)
   }
 
   function handleClose() {
