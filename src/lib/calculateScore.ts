@@ -1,129 +1,97 @@
 /**
  * Score Calculation Utility for Profile Matching
- * Calculates initial match score based on extracted skills and vacancy requirements.
+ * Scoring aligned with staffing-matrix skill:
+ *   Must-Have Skills  → 60 pts max
+ *   Nice-to-Have      → 25 pts max
+ *   Level/Seniority   → 15 pts max
  */
 
 export interface ScoreCalculationInput {
   extractedSkills: string[]
-  vacancySkills: string[]
+  vacancySkillsMustHave: string[]
+  vacancySkillsNiceToHave?: string[]
   extractedLevel: string
   vacancyLevel: string
-  cvLength: number // length of extracted CV text in characters
 }
+
+export type FitCategory = 'Perfect Fit' | 'Good Fit' | 'Partial Fit' | 'Low Fit'
 
 export interface ScoreResult {
-  skillMatchScore: number // 0-100 based on skill overlap
+  mustHaveMatchScore: number   // 0-100 % of must-haves matched
+  niceToHaveMatchScore: number // 0-100 % of nice-to-haves matched
   levelMatch: boolean
-  initialScore: number // 0-100 overall score
-  confidence: 'high' | 'medium' | 'low'
+  initialScore: number         // 0-100 weighted total
+  fitCategory: FitCategory
 }
 
-/**
- * Level hierarchy for experience level matching
- * Junior < Mid < Senior < Expert
- */
 const LEVEL_HIERARCHY: Record<string, number> = {
-  'Junior': 1,
-  'Mid': 2,
-  'Senior': 3,
-  'Expert': 4,
+  Junior: 1,
+  Mid: 2,
+  Senior: 3,
+  Expert: 4,
 }
 
 /**
- * Calculates a skill match score (0-100) based on overlap between
- * extracted skills and vacancy requirements.
- *
- * @param extractedSkills - Skills extracted from the CV
- * @param vacancySkills - Skills required by the vacancy
- * @returns Score 0-100
+ * Calculates percentage match between extracted skills and a required skill list.
+ * Case-insensitive exact match only.
  */
 export function calculateSkillMatchScore(
   extractedSkills: string[],
   vacancySkills: string[]
 ): number {
-  if (vacancySkills.length === 0) {
-    return 100 // No requirements = perfect match
-  }
+  if (vacancySkills.length === 0) return 100
+  if (extractedSkills.length === 0) return 0
 
-  if (extractedSkills.length === 0) {
-    return 0 // No skills extracted = no match
-  }
-
-  // Normalize for case-insensitive comparison
   const extractedNorm = new Set(extractedSkills.map((s) => s.toLowerCase().trim()))
-  const vacancyNorm = vacancySkills.map((s) => s.toLowerCase().trim())
-
-  // Count exact matches
-  let exactMatches = 0
-  for (const skill of vacancyNorm) {
-    if (extractedNorm.has(skill)) {
-      exactMatches++
-    }
+  let matched = 0
+  for (const skill of vacancySkills) {
+    if (extractedNorm.has(skill.toLowerCase().trim())) matched++
   }
-
-  // Calculate percentage match
-  return Math.round((exactMatches / vacancyNorm.length) * 100)
+  return Math.round((matched / vacancySkills.length) * 100)
 }
 
-/**
- * Determines if extracted experience level meets vacancy requirements
- * Allows match if extracted level >= required level
- *
- * @param extractedLevel - Extracted level (Junior, Mid, Senior, Expert)
- * @param vacancyLevel - Required level
- * @returns boolean indicating if level matches
- */
 function isLevelMatch(extractedLevel: string, vacancyLevel: string): boolean {
-  const extractedScore = LEVEL_HIERARCHY[extractedLevel] ?? 0
-  const vacancyScore = LEVEL_HIERARCHY[vacancyLevel] ?? 0
+  return (LEVEL_HIERARCHY[extractedLevel] ?? 0) >= (LEVEL_HIERARCHY[vacancyLevel] ?? 0)
+}
 
-  // Extracted level must be >= required level
-  return extractedScore >= vacancyScore
+export function getFitCategory(score: number): FitCategory {
+  if (score >= 75) return 'Perfect Fit'
+  if (score >= 60) return 'Good Fit'
+  if (score >= 40) return 'Partial Fit'
+  return 'Low Fit'
 }
 
 /**
- * Determines confidence level based on amount of extracted CV content
+ * Calculates initial match score for a profile against a vacancy.
+ * Used as fallback when OpenAI is unavailable.
  *
- * @param cvLength - Length of extracted CV text in characters
- * @returns 'high' if CV is substantial, 'medium' if partial, 'low' if minimal
- */
-function getConfidence(cvLength: number): 'high' | 'medium' | 'low' {
-  // High confidence: >5000 chars (substantial CV)
-  if (cvLength > 5000) return 'high'
-  // Medium confidence: 1000-5000 chars (decent amount of content)
-  if (cvLength >= 1000) return 'medium'
-  // Low confidence: <1000 chars (minimal content)
-  return 'low'
-}
-
-/**
- * Calculates initial match score for a profile against a vacancy
- *
- * This provides a baseline score before Ollama's detailed evaluation.
- * Score is weighted as follows:
- * - 70%: Skill match (exact matches of required skills)
- * - 20%: Experience level match
- * - 10%: Confidence bonus (based on CV content length)
- *
- * @param input - Calculation input with skills, levels, and CV length
- * @returns ScoreResult with breakdown and confidence level
+ * Weights:
+ *   Must-Have Skills   60 pts max
+ *   Nice-to-Have       25 pts max
+ *   Level/Seniority    15 pts
  */
 export function calculateInitialScore(input: ScoreCalculationInput): ScoreResult {
-  const skillScore = calculateSkillMatchScore(input.extractedSkills, input.vacancySkills)
+  const mustHaveMatchScore = calculateSkillMatchScore(
+    input.extractedSkills,
+    input.vacancySkillsMustHave
+  )
+  const niceToHaveMatchScore = calculateSkillMatchScore(
+    input.extractedSkills,
+    input.vacancySkillsNiceToHave ?? []
+  )
   const levelMatches = isLevelMatch(input.extractedLevel, input.vacancyLevel)
-  const confidence = getConfidence(input.cvLength)
 
-  // Weighted calculation
-  const skillComponent = skillScore * 0.7
-  const levelComponent = levelMatches ? 20 : 0 // 20 points if level matches
-  const confidenceBonus = confidence === 'high' ? 10 : confidence === 'medium' ? 5 : 0
+  const mustHaveComponent = (mustHaveMatchScore / 100) * 60
+  const niceToHaveComponent = (niceToHaveMatchScore / 100) * 25
+  const levelComponent = levelMatches ? 15 : 0
 
-  const initialScore = Math.round(skillComponent + levelComponent + confidenceBonus)
+  const initialScore = Math.min(100, Math.round(mustHaveComponent + niceToHaveComponent + levelComponent))
 
   return {
-    skillMatchScore: skillScore,
+    mustHaveMatchScore,
+    niceToHaveMatchScore,
     levelMatch: levelMatches,
-    initialScore: Math.min(100, Math.max(0, initialScore)),
-    confidence,
+    initialScore,
+    fitCategory: getFitCategory(initialScore),
   }
 }

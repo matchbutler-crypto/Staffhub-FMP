@@ -7,7 +7,9 @@ import {
   IconDotsVertical,
   IconPencil,
   IconPlayerStop,
+  IconSearch,
   IconUserCheck,
+  IconX,
 } from "@tabler/icons-react"
 
 import { useUser } from "@/context/user-context"
@@ -49,6 +51,13 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import {
@@ -75,6 +84,7 @@ interface Beauftragung {
   vakanz_titel: string
   vakanz_nr?: string | null
   agentur_name: string
+  kunde?: string | null
   einkaufspreis?: number
   agentur_rohpreis?: number
   marge_inkludiert?: boolean
@@ -131,6 +141,8 @@ export default function BeauftragungPage() {
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [nurAktive, setNurAktive] = React.useState(true)
+  const [searchQuery, setSearchQuery] = React.useState("")
+  const [selectedAgentur, setSelectedAgentur] = React.useState<string>("__all__")
 
   // Edit-Dialog
   const [editItem, setEditItem] = React.useState<Beauftragung | null>(null)
@@ -239,6 +251,26 @@ export default function BeauftragungPage() {
 
   const aktiveCount = items.filter((b) => b.aktiv).length
 
+  const agenturen = React.useMemo(() => {
+    const names = Array.from(new Set(items.map((b) => b.agentur_name).filter(Boolean)))
+    return names.sort((a, b) => a.localeCompare(b, 'de'))
+  }, [items])
+
+  const filteredItems = React.useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    return items.filter((b) => {
+      const matchesAgentur = selectedAgentur === "__all__" || b.agentur_name === selectedAgentur
+      if (!matchesAgentur) return false
+      if (!q) return true
+      return (
+        b.kandidatenname.toLowerCase().includes(q) ||
+        (b.vakanz_titel ?? "").toLowerCase().includes(q) ||
+        (b.vakanz_nr ?? "").toLowerCase().includes(q) ||
+        (b.kunde ?? "").toLowerCase().includes(q)
+      )
+    })
+  }, [items, searchQuery, selectedAgentur])
+
   return (
     <SidebarProvider
       style={{ "--sidebar-width": "18rem", "--header-height": "3rem" } as React.CSSProperties}
@@ -276,6 +308,40 @@ export default function BeauftragungPage() {
             </div>
 
 
+            {/* Search & Filter – nur für Manager */}
+            {isManager && (
+              <div className="flex flex-col gap-2 px-4 lg:px-6 sm:flex-row sm:items-center">
+                <div className="relative flex-1 max-w-sm">
+                  <IconSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+                  <Input
+                    placeholder="Kandidat, Vakanz oder Kunde…"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-8 pr-8"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      <IconX className="size-4" />
+                    </button>
+                  )}
+                </div>
+                <Select value={selectedAgentur} onValueChange={setSelectedAgentur}>
+                  <SelectTrigger className="w-full sm:w-48">
+                    <SelectValue placeholder="Agentur filtern" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Alle Agenturen</SelectItem>
+                    {agenturen.map((name) => (
+                      <SelectItem key={name} value={name}>{name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {/* Error */}
             {error && (
               <div className="mx-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive lg:mx-6">
@@ -305,15 +371,15 @@ export default function BeauftragungPage() {
                   <TableBody>
                     {loading ? (
                       <TableSkeletonRows cols={isManager ? 11 : 6} />
-                    ) : items.length === 0 ? (
+                    ) : filteredItems.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={isManager ? 11 : 6} className="h-32 text-center text-muted-foreground">
                           <IconUserCheck className="mx-auto mb-2 size-8 opacity-30" />
-                          Keine Beauftragungen gefunden.
+                          {items.length === 0 ? "Keine Beauftragungen gefunden." : "Keine Ergebnisse für diesen Filter."}
                         </TableCell>
                       </TableRow>
                     ) : (
-                      items.map((b) => {
+                      filteredItems.map((b) => {
                         const ek = b.einkaufspreis ?? 0
                         const marge = b.margenaufschlag ?? 0
                         const haysFee = Math.round((ek + marge) * 0.0134 * 100) / 100

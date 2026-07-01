@@ -240,7 +240,10 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     console.error('Ressource insert error:', { code: error.code, message: error.message, agenturId })
-    return NextResponse.json({ error: error.message || 'Fehler beim Erstellen der Ressource' }, { status: 500 })
+    const userMessage = error.code === '23505'
+      ? 'Ressource konnte nicht angelegt werden (interner Konflikt). Bitte erneut versuchen.'
+      : 'Fehler beim Erstellen der Ressource'
+    return NextResponse.json({ error: userMessage }, { status: 500 })
   }
 
   return NextResponse.json({ ressource }, { status: 201 })

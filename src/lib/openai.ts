@@ -24,9 +24,14 @@ export interface ParsedVakanz {
   teamgroesse: number | null
   kunde: string | null
   ansprechpartner: string | null
+  budget_extern: number | null    // Tagesrate aus Ausschreibung (€/Tag)
 }
 
-const SYSTEM_PROMPT = `Du bist ein Recruiting-Assistent. Extrahiere strukturierte Daten aus einer Stellenbeschreibung oder Projektanfrage.
+function buildSystemPrompt(): string {
+  const today = new Date().toISOString().split('T')[0]
+  return `Du bist ein Recruiting-Assistent. Extrahiere strukturierte Daten aus einer Stellenbeschreibung oder Projektanfrage.
+
+Heutiges Datum: ${today}
 
 Gib IMMER ein valides JSON-Objekt zurück. Felder die du nicht erkennen kannst, setze auf null.
 
@@ -35,11 +40,20 @@ Wichtige Regeln:
 - arbeitsmodell: Nur exakt einer dieser Werte: ${ARBEITSMODELL.join(', ')}
 - branche: Nur exakt einer dieser Werte: ${BRANCHEN.join(', ')} — wähle den passendsten
 - Datumsformat: YYYY-MM-DD (z.B. "2025-09-01")
-- skills: Must-Have-Skills als Array von kurzen Begriffen (z.B. ["Python", "React", "AWS"])
+- Relative Datumsangaben: "sofort" oder "ab sofort" → heutiges Datum (${today}), "nächsten Monat" → ersten des nächsten Monats, etc.
+- skills: Must-Have-Skills als Array von kurzen Begriffen
 - skills_nice_have: Nice-to-Have-Skills als Array
-- auslastung: Prozentsatz 1-100 (100 = Vollzeit)
-- fte_anzahl: Anzahl der benötigten Personen (meist 1.0)
+- auslastung: Prozentsatz 1-100 ("Vollzeit" = 100, "Teilzeit 50%" = 50)
+- fte_anzahl: Anzahl der gesuchten Freelancer/Kandidaten (fast immer 1.0, nur höher wenn explizit mehrere Personen gesucht werden)
+- teamgroesse: Größe des bestehenden Projektteams beim Kunden (z.B. "Team ca. 15 Personen" → 15) — NICHT die gesuchten FTEs
 - onsite_anteil: nur setzen wenn arbeitsmodell = "Hybrid", sonst null
+- budget_extern: genannte Tagesrate oder Budget in €/Tag als Zahl (z.B. "1.200 €/Tag" → 1200, "Tagesrate: 800" → 800) — nur die reine Zahl, kein €-Zeichen
+- erfahrungslevel nach Berufsjahren: < 2 Jahre → Junior, 2–5 Jahre → Mid, 5–10 Jahre → Senior, 10+ Jahre → Expert; "3+ Jahre" → Mid; "5+ Jahre" → Senior
+
+Regeln für rolle:
+- Extrahiere die gesuchte Rolle/Position wenn sie explizit genannt ist
+- Falls keine Rolle explizit genannt, leite sie aus dem Kontext ab (z.B. "Digitalisierung Öffentlicher Sektor" → "Digitalisierungsberater (m/w/d)", "Prozessoptimierung" → "Prozessberater (m/w/d)")
+- Sei präzise aber allgemein genug um keine spezifische Organisation zu verraten
 
 Regeln für beschreibung (Projektkontext):
 - Formuliere den Projektkontext allgemein und anonym — er darf NICHT auf ein konkretes Projekt, einen konkreten Kunden oder eine spezifische Organisation zurückgeführt werden können
@@ -47,9 +61,12 @@ Regeln für beschreibung (Projektkontext):
 - Keine Kunden- oder Projektnamen, keine konkreten Behörden- oder Unternehmensbezeichnungen
 
 Regeln für skills und skills_nice_have:
-- Nimm nur allgemein bekannte, standardisierte Technologien, Methoden und Frameworks auf (z.B. "Java", "Scrum", "Kubernetes")
-- Ignoriere Skills, die indirekt auf einen technischen Bauplan, eine proprietäre Architektur oder ein kundenspezifisches Eigenentwicklungs-Framework hinweisen (z.B. interne Systemkürzel, projektspezifische Tool-Namen, Fachverfahren-Bezeichnungen)
+- IT-Rollen: Bevorzuge Technologien, Frameworks, Tools (z.B. "Java", "Scrum", "Kubernetes")
+- Nicht-IT-Rollen (Beratung, Management, öffentlicher Sektor etc.): Nimm auch fachliche Kompetenzen und Methoden auf (z.B. "Prozessanalyse", "Prozessoptimierung", "Stakeholder-Management", "Erfahrung öffentlicher Sektor", "Behördenumfeld")
+- Sprachkenntnisse die als Anforderung genannt sind (z.B. "Verhandlungssicheres Deutsch") als Skill aufnehmen
+- Ignoriere Skills, die auf proprietäre Architekturen, interne Systemkürzel oder spezifische Fachverfahren hinweisen
 - Ignoriere Skills, die so speziell sind, dass sie die Vakanz auf ein bestimmtes Projekt oder einen bestimmten Kunden zurückführen lassen`
+}
 
 const CV_SKILL_PROMPT = `Du bist ein Recruiting-Assistent. Lies diesen Lebenslauf und extrahiere die Top-Skills.
 
@@ -104,7 +121,7 @@ export async function parseVakanzFromText(text: string): Promise<ParsedVakanz> {
     temperature: 0.1,
     max_tokens: 1000,
     messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: buildSystemPrompt() },
       {
         role: 'user',
         content: `Extrahiere die Vakanz-Daten aus diesem Text:\n\n${text.slice(0, 4000)}`,
@@ -151,6 +168,7 @@ export async function parseVakanzFromText(text: string): Promise<ParsedVakanz> {
     teamgroesse: typeof parsed.teamgroesse === 'number' ? parsed.teamgroesse : null,
     kunde: parsed.kunde ?? null,
     ansprechpartner: parsed.ansprechpartner ?? null,
+    budget_extern: typeof parsed.budget_extern === 'number' ? parsed.budget_extern : null,
   }
 }
 
@@ -168,7 +186,8 @@ const KI_BEWERTUNG_PROMPT = `Du bist ein Recruiting-Assistent. Bewerte das folge
 VAKANZ:
 Titel: {vakanz_titel}
 Erfahrungslevel: {vakanz_level}
-Geforderte Skills: {vakanz_skills}
+Must-Have Skills: {vakanz_must_have}
+Nice-to-Have Skills: {vakanz_nice_have}
 Beschreibung: {vakanz_beschreibung}
 
 KANDIDAT:
@@ -176,13 +195,21 @@ Erfahrungslevel: {kandidat_level}
 Skills: {kandidat_skills}
 Profil: {kandidat_profil}
 
+SCORING-REGELN (Score 0-100):
+- Must-Have Skills: max 60 Punkte (60 / Anzahl Must-Haves pro erfülltem Skill; ähnliche Technologie = halbe Punkte)
+- Nice-to-Have Skills: max 25 Punkte (25 / Anzahl Nice-to-Haves pro erfülltem Skill)
+- Seniority-Match (Kandidat >= Vakanz): 15 Punkte, sonst 0
+
+FIT-KATEGORIEN:
+- ≥75 → "Perfect Fit"  |  60–74 → "Good Fit"  |  40–59 → "Partial Fit"  |  <40 → "Low Fit"
+
 Antworte NUR mit einem validen JSON-Objekt (kein Markdown, kein Text davor/danach):
 {
   "score": <Ganzzahl 0-100>,
   "empfehlung": <"Empfohlen" | "Bedingt geeignet" | "Nicht geeignet">,
   "begruendung": <2-3 Sätze auf Deutsch>,
-  "skill_vorhanden": [<geforderte Skills die der Kandidat hat>],
-  "skill_fehlend": [<geforderte Skills die fehlen>]
+  "skill_vorhanden": [<Must-Have Skills die der Kandidat hat>],
+  "skill_fehlend": [<Must-Have Skills die fehlen>]
 }`
 
 export async function bewerteProfilMitOpenAI(
@@ -190,6 +217,7 @@ export async function bewerteProfilMitOpenAI(
     titel: string
     beschreibung: string
     skills: string[]
+    skills_nice_have?: string[]
     erfahrungslevel: string
   },
   profil: {
@@ -202,7 +230,8 @@ export async function bewerteProfilMitOpenAI(
   const prompt = KI_BEWERTUNG_PROMPT
     .replace('{vakanz_titel}', vakanz.titel)
     .replace('{vakanz_level}', vakanz.erfahrungslevel)
-    .replace('{vakanz_skills}', vakanz.skills.join(', ') || 'Keine spezifischen Skills gefordert')
+    .replace('{vakanz_must_have}', vakanz.skills.join(', ') || 'Keine spezifischen Skills gefordert')
+    .replace('{vakanz_nice_have}', vakanz.skills_nice_have?.join(', ') || 'Keine')
     .replace('{vakanz_beschreibung}', vakanz.beschreibung.slice(0, 500))
     .replace('{kandidat_level}', profil.erfahrungslevel)
     .replace('{kandidat_skills}', profil.skills.join(', ') || 'Keine Skills angegeben')

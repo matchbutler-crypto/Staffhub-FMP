@@ -350,6 +350,7 @@ export function VakanzFormSheet({ open, onOpenChange, mode, vakanz, showBudget, 
     if (data.teamgroesse !== null) setValue('teamgroesse', data.teamgroesse)
     if (data.kunde) setValue('kunde', data.kunde)
     if (data.ansprechpartner) setValue('ansprechpartner', data.ansprechpartner)
+    if (data.budget_extern !== null) setValue('budget_intern', data.budget_extern)
   }
 
   async function handleKiParse() {
