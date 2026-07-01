@@ -188,10 +188,13 @@ export default function AbrechnungPage() {
   const monatEnde = new Date(monatJahr, monatMonat, 0)
   const gefiltert = beauftragungen.filter((b) => new Date(b.startdatum) <= monatEnde && b.aktiv)
 
-  const isFinancial = rolle === 'Staffhub Manager' || rolle === 'Admin'
+  const isFinancial = rolle === 'Staffhub Manager' || rolle === 'Admin' || rolle === 'Controller'
+  const isAgentur = rolle === 'Agentur'
 
   // Filtered + sorted data
-  let filtered = gefiltert.filter((b) => filterAgentur === 'Alle' || b.agentur_id === filterAgentur)
+  let filtered = isAgentur
+    ? gefiltert
+    : gefiltert.filter((b) => filterAgentur === 'Alle' || b.agentur_id === filterAgentur)
 
   filtered.sort((a, b) => {
     let aVal: string | number = ''
@@ -378,7 +381,18 @@ export default function AbrechnungPage() {
     }
   }
 
-  const colCount = isFinancial ? 11 : 10
+  async function handleDownload(znId: string) {
+    try {
+      const res = await fetch(`/api/zeitnachweise/${znId}`)
+      if (!res.ok) throw new Error('Fehler beim Laden')
+      const { url } = await res.json()
+      window.open(url, '_blank')
+    } catch {
+      toast.error('Zeitnachweis konnte nicht geladen werden')
+    }
+  }
+
+  const colCount = isAgentur ? 9 : 11
 
   return (
     <SidebarProvider style={{ "--sidebar-width": "18rem", "--header-height": "3rem" } as React.CSSProperties}>
@@ -444,22 +458,24 @@ export default function AbrechnungPage() {
                     ))}
                   </select>
                 </div>
-                <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium">Agentur:</label>
-                  <select
-                    value={filterAgentur}
-                    onChange={(e) => setFilterAgentur(e.target.value)}
-                    className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  >
-                    <option value="Alle">Alle</option>
-                    {Array.from(new Set(beauftragungen.map((b) => b.agentur_id))).map((id) => {
-                      const b = beauftragungen.find((x) => x.agentur_id === id)
-                      return (
-                        <option key={id} value={id}>{b?.agentur_name ?? '–'}</option>
-                      )
-                    })}
-                  </select>
-                </div>
+                {!isAgentur && (
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium">Agentur:</label>
+                    <select
+                      value={filterAgentur}
+                      onChange={(e) => setFilterAgentur(e.target.value)}
+                      className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="Alle">Alle</option>
+                      {Array.from(new Set(beauftragungen.map((b) => b.agentur_id))).map((id) => {
+                        const b = beauftragungen.find((x) => x.agentur_id === id)
+                        return (
+                          <option key={id} value={id}>{b?.agentur_name ?? '–'}</option>
+                        )
+                      })}
+                    </select>
+                  </div>
+                )}
               </div>
 
               {/* ── Error ───────────────────────────────────────────────────── */}
@@ -480,8 +496,8 @@ export default function AbrechnungPage() {
                           <SortIcon active={sortColumn === 'Ressource'} direction={sortDirection} />
                         </div>
                       </TableHead>
-                      <TableHead>Agentur</TableHead>
-                      <TableHead>Kunde</TableHead>
+                      {!isAgentur && <TableHead>Agentur</TableHead>}
+                      {!isAgentur && <TableHead>Kunde</TableHead>}
                       <TableHead>Vakanz</TableHead>
                       <TableHead className="text-right cursor-pointer" onClick={() => handleSort('Marge/Tag')}>
                         <div className="flex items-center justify-end gap-2">
@@ -536,8 +552,8 @@ export default function AbrechnungPage() {
                         return (
                           <TableRow key={b.id}>
                             <TableCell className="font-medium">{b.kandidatenname}</TableCell>
-                            <TableCell className="text-sm text-muted-foreground">{b.agentur_name}</TableCell>
-                            <TableCell className="text-sm text-muted-foreground">{b.kunde ?? '–'}</TableCell>
+                            {!isAgentur && <TableCell className="text-sm text-muted-foreground">{b.agentur_name}</TableCell>}
+                            {!isAgentur && <TableCell className="text-sm text-muted-foreground">{b.kunde ?? '–'}</TableCell>}
                             <TableCell className="text-sm">
                               {b.vakanz_nr ?? '–'}
                             </TableCell>
@@ -587,29 +603,47 @@ export default function AbrechnungPage() {
                               {gesamtIst !== null ? fmt(gesamtIst) : '–'}
                             </TableCell>
 
-                            {/* ── Zeitnachweis — nur Beweis ── */}
+                            {/* ── Zeitnachweis ── */}
                             <TableCell className="text-sm">
-                              {uploadErrors[b.id] && (
-                                <span className="block text-xs text-destructive mb-1">{uploadErrors[b.id]}</span>
+                              {isAgentur ? (
+                                hasPdf && zn ? (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleDownload(zn.id)}
+                                    className="gap-1.5"
+                                  >
+                                    <IconFileText className="h-3.5 w-3.5" />
+                                    Download
+                                  </Button>
+                                ) : (
+                                  <span className="text-muted-foreground">–</span>
+                                )
+                              ) : (
+                                <>
+                                  {uploadErrors[b.id] && (
+                                    <span className="block text-xs text-destructive mb-1">{uploadErrors[b.id]}</span>
+                                  )}
+                                  <div className="flex items-center gap-2">
+                                    {hasPdf ? (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                                        <IconFileText className="h-3 w-3" />
+                                        PDF
+                                      </span>
+                                    ) : null}
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => triggerUpload(b.id)}
+                                      disabled={uploadingId === b.id}
+                                      className="gap-1.5"
+                                    >
+                                      <IconUpload className="h-3.5 w-3.5" />
+                                      {uploadingId === b.id ? '…' : hasPdf ? 'Ersetzen' : 'Upload'}
+                                    </Button>
+                                  </div>
+                                </>
                               )}
-                              <div className="flex items-center gap-2">
-                                {hasPdf ? (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                                    <IconFileText className="h-3 w-3" />
-                                    PDF
-                                  </span>
-                                ) : null}
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => triggerUpload(b.id)}
-                                  disabled={uploadingId === b.id}
-                                  className="gap-1.5"
-                                >
-                                  <IconUpload className="h-3.5 w-3.5" />
-                                  {uploadingId === b.id ? '…' : hasPdf ? 'Ersetzen' : 'Upload'}
-                                </Button>
-                              </div>
                             </TableCell>
 
                             {/* ── Status ── */}
