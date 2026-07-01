@@ -1016,6 +1016,7 @@ function ProfilEinreichenDialog({ open, onOpenChange, ressource, onSuccess }: Pr
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          ressource_id: ressource.id,
           vakanz_id: vakanzId,
           kandidatenname: ressource.name,
           verfuegbarkeit_stunden: parseInt(verfuegbarkeit, 10),

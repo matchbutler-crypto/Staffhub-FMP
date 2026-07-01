@@ -36,7 +36,7 @@ export async function GET(
 
   const { data, error } = await supabase
     .from('vakanzen')
-    .select('id, external_ref, vakanz_nr, branche, kunde, rolle, beschreibung, status, published, published_at, skills, skills_nice_have, erfahrungslevel, startdatum, enddatum, fte_anzahl, auslastung, arbeitsmodell, onsite_anteil, standort, ansprechpartner, budget_intern, weitere_kommentare, sourcing_erlaubt, created_at, updated_at')
+    .select('id, external_ref, vakanz_nr, branche, rolle, beschreibung, status, published, published_at, skills, skills_nice_have, erfahrungslevel, startdatum, enddatum, fte_anzahl, auslastung, arbeitsmodell, onsite_anteil, standort, ansprechpartner, budget_intern, weitere_kommentare, sourcing_erlaubt, created_at, updated_at')
     .eq('id', id)
     .single()
 

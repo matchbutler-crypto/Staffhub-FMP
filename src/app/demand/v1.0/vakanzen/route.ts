@@ -128,7 +128,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('vakanzen')
-    .select('id, external_ref, vakanz_nr, branche, kunde, rolle, status, published, published_at, startdatum, enddatum, fte_anzahl, auslastung, arbeitsmodell, erfahrungslevel, standort, budget_intern, created_at, updated_at')
+    .select('id, external_ref, vakanz_nr, branche, rolle, status, published, published_at, startdatum, enddatum, fte_anzahl, auslastung, arbeitsmodell, erfahrungslevel, standort, budget_intern, created_at, updated_at')
     .order('updated_at', { ascending: false })
     .limit(limit)
 

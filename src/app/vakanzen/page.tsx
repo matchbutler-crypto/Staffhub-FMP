@@ -863,7 +863,7 @@ export default function VakanzenPage() {
       const matchesStatus = statusFilter === "alle" || v.status === statusFilter
       const matchesKunde = kundeFilter === "alle" || (v.kunde ?? "") === kundeFilter
       const q = searchQuery.toLowerCase()
-      const matchesSearch = q === "" || v.rolle.toLowerCase().includes(q) || (v.kunde ?? "").toLowerCase().includes(q)
+      const matchesSearch = q === "" || v.rolle.toLowerCase().includes(q) || (!isAgentur && (v.kunde ?? "").toLowerCase().includes(q))
       return matchesStatus && matchesKunde && matchesSearch
     })
     .sort((a, b) => {
@@ -950,7 +950,7 @@ export default function VakanzenPage() {
               <div className="flex flex-wrap items-center gap-3 px-4 lg:px-6">
                 <div className="relative min-w-[200px] flex-1 max-w-sm">
                   <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input className="pl-9" placeholder="Rolle oder Kunde suchen…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                  <Input className="pl-9" placeholder={isAgentur ? "Rolle suchen…" : "Rolle oder Kunde suchen…"} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                 </div>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger className="w-[160px]"><SelectValue placeholder="Status" /></SelectTrigger>
@@ -964,7 +964,7 @@ export default function VakanzenPage() {
                     <SelectItem value="Geschlossen">Geschlossen</SelectItem>
                   </SelectContent>
                 </Select>
-                {kundenListe.length > 0 && (
+                {!isAgentur && kundenListe.length > 0 && (
                   <Select value={kundeFilter} onValueChange={setKundeFilter}>
                     <SelectTrigger className="w-[180px]"><SelectValue placeholder="Kunde" /></SelectTrigger>
                     <SelectContent>
