@@ -5,6 +5,8 @@ import {
   IconArrowDown,
   IconArrowUp,
   IconArrowsUpDown,
+  IconChevronDown,
+  IconChevronUp,
   IconPencil,
   IconUpload,
   IconFileText,
@@ -144,6 +146,17 @@ export default function AbrechnungPage() {
   const [statusMap, setStatusMap] = React.useState<Map<string, string>>(new Map())
   const [savingStatusId, setSavingStatusId] = React.useState<string | null>(null)
 
+  // Expand state
+  const [expandedRows, setExpandedRows] = React.useState<Set<string>>(new Set())
+  function toggleRow(id: string) {
+    setExpandedRows((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   const monate = React.useMemo(() => monateListe(), [])
 
   React.useEffect(() => {
@@ -206,16 +219,16 @@ export default function AbrechnungPage() {
         bVal = b.kandidatenname
         break
       case 'Marge/Tag':
-        aVal = getTgSatz(a)
-        bVal = getTgSatz(b)
+        aVal = isAgentur ? (a.einkaufspreis ?? 0) : (a.margenaufschlag ?? 0)
+        bVal = isAgentur ? (b.einkaufspreis ?? 0) : (b.margenaufschlag ?? 0)
         break
       case 'Gesamtbetrag (Forecast)':
-        aVal = getTgSatz(a) * 20
-        bVal = getTgSatz(b) * 20
+        aVal = getGesamtRate(a) * 20
+        bVal = getGesamtRate(b) * 20
         break
       case 'Gesamtbetrag (IST)':
-        aVal = getTgSatz(a) * ((calcStundenIst(zeitnachweise.get(a.id)) ?? 0) / 8)
-        bVal = getTgSatz(b) * ((calcStundenIst(zeitnachweise.get(b.id)) ?? 0) / 8)
+        aVal = getGesamtRate(a) * ((calcStundenIst(zeitnachweise.get(a.id)) ?? 0) / 8)
+        bVal = getGesamtRate(b) * ((calcStundenIst(zeitnachweise.get(b.id)) ?? 0) / 8)
         break
       default:
         aVal = a.kandidatenname
@@ -229,17 +242,19 @@ export default function AbrechnungPage() {
   })
 
   // ── KPI Berechnungen ──────────────────────────────────────────────────────────
-  const getTgSatz = (b: Beauftragung) => isAgentur ? (b.einkaufspreis ?? 0) : (b.margenaufschlag ?? 0)
-  const kpiGesamtForecast = filtered.reduce((sum, b) => sum + getTgSatz(b) * 20, 0)
+  // Gesamtbetrag basiert auf Verkaufspreis (non-Agentur) bzw. Einkaufspreis (Agentur)
+  const getGesamtRate = (b: Beauftragung) => isAgentur ? (b.einkaufspreis ?? 0) : (b.verkaufspreis ?? 0)
+  const kpiGesamtForecast = filtered.reduce((sum, b) => sum + getGesamtRate(b) * 20, 0)
   const kpiGesamtIstWerte = filtered
     .map((b) => {
       const stundenIst = calcStundenIst(zeitnachweise.get(b.id))
-      return stundenIst !== null ? getTgSatz(b) * (stundenIst / 8) : null
+      return stundenIst !== null ? getGesamtRate(b) * (stundenIst / 8) : null
     })
     .filter((v): v is number => v !== null)
   const kpiGesamtIst = kpiGesamtIstWerte.length > 0 ? kpiGesamtIstWerte.reduce((a, b) => a + b, 0) : null
   const kpiAnzahl = filtered.length
-  const kpiMargeSum = filtered.reduce((sum, b) => sum + getTgSatz(b), 0)
+  // Marge-KPI: Summe Margenaufschlag/Tag (für Agentur: Einkaufspreis/Tag)
+  const kpiMargeSum = filtered.reduce((sum, b) => sum + (isAgentur ? (b.einkaufspreis ?? 0) : (b.margenaufschlag ?? 0)), 0)
 
   function handleSort(column: string) {
     if (sortColumn === column) {
@@ -393,7 +408,7 @@ export default function AbrechnungPage() {
     }
   }
 
-  const colCount = isAgentur ? 9 : 11
+  const colCount = isAgentur ? 9 : 12
 
   return (
     <SidebarProvider style={{ "--sidebar-width": "18rem", "--header-height": "3rem" } as React.CSSProperties}>
@@ -528,6 +543,7 @@ export default function AbrechnungPage() {
                       </TableHead>
                       <TableHead>Zeitnachweis</TableHead>
                       <TableHead>Status</TableHead>
+                      {isFinancial && <TableHead className="w-8" />}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -543,22 +559,37 @@ export default function AbrechnungPage() {
                       filtered.map((b) => {
                         const zn = zeitnachweise.get(b.id)
                         const stundenIst = calcStundenIst(zn)
-                        const tagessatz = isAgentur ? (b.einkaufspreis ?? 0) : (b.margenaufschlag ?? 0)
-                        const gesamtForecast = tagessatz * 20  // 160 Std / 8 = 20 Tage
-                        const gesamtIst = stundenIst !== null ? tagessatz * (stundenIst / 8) : null
+                        const margeTag = isAgentur ? (b.einkaufspreis ?? 0) : (b.margenaufschlag ?? 0)
+                        const gesamtRate = getGesamtRate(b)
+                        const gesamtForecast = gesamtRate * 20
+                        const gesamtIst = stundenIst !== null ? gesamtRate * (stundenIst / 8) : null
                         const isEditing = inlineEditId === b.id
                         const isSaving = savingInlineId === b.id
                         const hasPdf = !!(zn?.pdf_path)
+                        const isExpanded = expandedRows.has(b.id)
+
+                        // Breakdown für isFinancial
+                        const staffhubFeeTag = b.margenaufschlag ?? 0
+                        const staffhubFeeMonatForecast = staffhubFeeTag * 20
+                        const staffhubFeeMonatIST = stundenIst !== null ? staffhubFeeTag * (stundenIst / 8) : null
+                        const agenturGesamtForecast = gesamtForecast - staffhubFeeMonatForecast
+                        const agenturGesamtIST = gesamtIst !== null && staffhubFeeMonatIST !== null
+                          ? gesamtIst - staffhubFeeMonatIST
+                          : null
 
                         return (
-                          <TableRow key={b.id}>
+                          <React.Fragment key={b.id}>
+                          <TableRow
+                            className={isFinancial ? "cursor-pointer" : ""}
+                            onClick={() => isFinancial && toggleRow(b.id)}
+                          >
                             <TableCell className="font-medium">{b.kandidatenname}</TableCell>
                             {!isAgentur && <TableCell className="text-sm text-muted-foreground">{b.agentur_name}</TableCell>}
                             {!isAgentur && <TableCell className="text-sm text-muted-foreground">{b.kunde ?? '–'}</TableCell>}
                             <TableCell className="text-sm">
                               {b.vakanz_nr ?? '–'}
                             </TableCell>
-                            <TableCell className="text-right text-sm">{fmt(tagessatz)}</TableCell>
+                            <TableCell className="text-right text-sm">{fmt(margeTag)}</TableCell>
                             <TableCell className="text-right text-sm">160</TableCell>
                             <TableCell className="text-right text-sm">{fmt(gesamtForecast)}</TableCell>
 
@@ -652,8 +683,9 @@ export default function AbrechnungPage() {
                               {isFinancial ? (
                                 <select
                                   value={statusMap.get(b.id) ?? 'Offen'}
-                                  onChange={(e) => handleStatusChange(b, e.target.value)}
+                                  onChange={(e) => { e.stopPropagation(); handleStatusChange(b, e.target.value) }}
                                   disabled={savingStatusId === b.id}
+                                  onClick={(e) => e.stopPropagation()}
                                   className="rounded border border-input bg-background px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
                                 >
                                   <option>Offen</option>
@@ -664,7 +696,57 @@ export default function AbrechnungPage() {
                                 <span>{statusMap.get(b.id) ?? 'Offen'}</span>
                               )}
                             </TableCell>
+
+                            {/* ── Expand-Toggle ── */}
+                            {isFinancial && (
+                              <TableCell className="w-8 text-center">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); toggleRow(b.id) }}
+                                  className="rounded p-1 hover:bg-muted transition-colors"
+                                >
+                                  {isExpanded
+                                    ? <IconChevronUp className="h-4 w-4 text-muted-foreground" />
+                                    : <IconChevronDown className="h-4 w-4 text-muted-foreground" />
+                                  }
+                                </button>
+                              </TableCell>
+                            )}
                           </TableRow>
+
+                          {/* ── Expanded Breakdown Row ── */}
+                          {isFinancial && isExpanded && (
+                            <TableRow className="bg-muted/30 hover:bg-muted/30">
+                              <TableCell colSpan={colCount} className="py-3 px-6">
+                                <div className="grid grid-cols-2 gap-x-12 gap-y-1.5 text-sm md:grid-cols-5">
+                                  <div className="flex flex-col gap-0.5">
+                                    <span className="text-xs text-muted-foreground font-medium">StaffHub Fee / Tag</span>
+                                    <span className="font-semibold">{fmt(staffhubFeeTag)}</span>
+                                  </div>
+                                  <div className="flex flex-col gap-0.5">
+                                    <span className="text-xs text-muted-foreground font-medium">StaffHub Fee / Monat (Forecast)</span>
+                                    <span className="font-semibold">{fmt(staffhubFeeMonatForecast)}</span>
+                                  </div>
+                                  <div className="flex flex-col gap-0.5">
+                                    <span className="text-xs text-muted-foreground font-medium">StaffHub Fee / Monat (IST)</span>
+                                    <span className="font-semibold">
+                                      {staffhubFeeMonatIST !== null ? fmt(staffhubFeeMonatIST) : '–'}
+                                    </span>
+                                  </div>
+                                  <div className="flex flex-col gap-0.5">
+                                    <span className="text-xs text-muted-foreground font-medium">Agentur Gesamtbetrag (Forecast)</span>
+                                    <span className="font-semibold">{fmt(agenturGesamtForecast)}</span>
+                                  </div>
+                                  <div className="flex flex-col gap-0.5">
+                                    <span className="text-xs text-muted-foreground font-medium">Agentur Gesamtbetrag (IST)</span>
+                                    <span className="font-semibold">
+                                      {agenturGesamtIST !== null ? fmt(agenturGesamtIST) : '–'}
+                                    </span>
+                                  </div>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                          </React.Fragment>
                         )
                       })
                     )}
