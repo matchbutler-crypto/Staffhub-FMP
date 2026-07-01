@@ -34,11 +34,20 @@ export async function GET(request: NextRequest) {
     .select('id, beauftragung_id, monat, stunden_ist, tage_ist_override, abrechnung_status, uploaded_at, pdf_path')
     .eq('monat', monat)
 
-  // 'all' = alle Zeitnachweise für den Monat laden (kein UUID-Filter)
   if (idsParam !== 'all') {
     const ids = idsParam.split(',').filter(Boolean)
     if (ids.length === 0) return NextResponse.json({ zeitnachweise: [] })
     query = query.in('beauftragung_id', ids)
+  } else if (profile.rolle === 'Agentur') {
+    // Agentur darf nur Zeitnachweise ihrer eigenen Beauftragungen sehen
+    if (!profile.agentur_id) return NextResponse.json({ zeitnachweise: [] })
+    const { data: baufIds } = await supabase
+      .from('beauftragungen')
+      .select('id')
+      .eq('agentur_id', profile.agentur_id)
+      .eq('aktiv', true)
+    if (!baufIds || baufIds.length === 0) return NextResponse.json({ zeitnachweise: [] })
+    query = query.in('beauftragung_id', baufIds.map((b) => b.id))
   }
 
   const { data, error } = await query

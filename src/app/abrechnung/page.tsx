@@ -206,16 +206,16 @@ export default function AbrechnungPage() {
         bVal = b.kandidatenname
         break
       case 'Marge/Tag':
-        aVal = a.margenaufschlag ?? 0
-        bVal = b.margenaufschlag ?? 0
+        aVal = getTgSatz(a)
+        bVal = getTgSatz(b)
         break
       case 'Gesamtbetrag (Forecast)':
-        aVal = (a.margenaufschlag ?? 0) * 20
-        bVal = (b.margenaufschlag ?? 0) * 20
+        aVal = getTgSatz(a) * 20
+        bVal = getTgSatz(b) * 20
         break
       case 'Gesamtbetrag (IST)':
-        aVal = (a.margenaufschlag ?? 0) * ((calcStundenIst(zeitnachweise.get(a.id)) ?? 0) / 8)
-        bVal = (b.margenaufschlag ?? 0) * ((calcStundenIst(zeitnachweise.get(b.id)) ?? 0) / 8)
+        aVal = getTgSatz(a) * ((calcStundenIst(zeitnachweise.get(a.id)) ?? 0) / 8)
+        bVal = getTgSatz(b) * ((calcStundenIst(zeitnachweise.get(b.id)) ?? 0) / 8)
         break
       default:
         aVal = a.kandidatenname
@@ -229,16 +229,17 @@ export default function AbrechnungPage() {
   })
 
   // ── KPI Berechnungen ──────────────────────────────────────────────────────────
-  const kpiGesamtForecast = filtered.reduce((sum, b) => sum + (b.margenaufschlag ?? 0) * 20, 0)
+  const getTgSatz = (b: Beauftragung) => isAgentur ? (b.einkaufspreis ?? 0) : (b.margenaufschlag ?? 0)
+  const kpiGesamtForecast = filtered.reduce((sum, b) => sum + getTgSatz(b) * 20, 0)
   const kpiGesamtIstWerte = filtered
     .map((b) => {
       const stundenIst = calcStundenIst(zeitnachweise.get(b.id))
-      return stundenIst !== null ? (b.margenaufschlag ?? 0) * (stundenIst / 8) : null
+      return stundenIst !== null ? getTgSatz(b) * (stundenIst / 8) : null
     })
     .filter((v): v is number => v !== null)
   const kpiGesamtIst = kpiGesamtIstWerte.length > 0 ? kpiGesamtIstWerte.reduce((a, b) => a + b, 0) : null
   const kpiAnzahl = filtered.length
-  const kpiMargeSum = filtered.reduce((sum, b) => sum + (b.margenaufschlag ?? 0), 0)
+  const kpiMargeSum = filtered.reduce((sum, b) => sum + getTgSatz(b), 0)
 
   function handleSort(column: string) {
     if (sortColumn === column) {
@@ -435,7 +436,7 @@ export default function AbrechnungPage() {
 
                 {/* Marge in Summe */}
                 <div className="flex flex-col gap-0.5 rounded-lg border bg-card p-3 min-w-[160px]">
-                  <span className="text-xs text-muted-foreground font-medium">Marge in Summe</span>
+                  <span className="text-xs text-muted-foreground font-medium">{isAgentur ? 'Tagessatz in Summe' : 'Marge in Summe'}</span>
                   {loading ? (
                     <Skeleton className="h-5 w-24 mt-1" />
                   ) : (
@@ -501,7 +502,7 @@ export default function AbrechnungPage() {
                       <TableHead>Vakanz</TableHead>
                       <TableHead className="text-right cursor-pointer" onClick={() => handleSort('Marge/Tag')}>
                         <div className="flex items-center justify-end gap-2">
-                          Marge/Tag
+                          {isAgentur ? 'Tagessatz' : 'Marge/Tag'}
                           <SortIcon active={sortColumn === 'Marge/Tag'} direction={sortDirection} />
                         </div>
                       </TableHead>
@@ -542,9 +543,9 @@ export default function AbrechnungPage() {
                       filtered.map((b) => {
                         const zn = zeitnachweise.get(b.id)
                         const stundenIst = calcStundenIst(zn)
-                        const margeTg = b.margenaufschlag ?? 0
-                        const gesamtForecast = margeTg * 20  // 160 Std / 8 = 20 Tage
-                        const gesamtIst = stundenIst !== null ? margeTg * (stundenIst / 8) : null
+                        const tagessatz = isAgentur ? (b.einkaufspreis ?? 0) : (b.margenaufschlag ?? 0)
+                        const gesamtForecast = tagessatz * 20  // 160 Std / 8 = 20 Tage
+                        const gesamtIst = stundenIst !== null ? tagessatz * (stundenIst / 8) : null
                         const isEditing = inlineEditId === b.id
                         const isSaving = savingInlineId === b.id
                         const hasPdf = !!(zn?.pdf_path)
@@ -557,7 +558,7 @@ export default function AbrechnungPage() {
                             <TableCell className="text-sm">
                               {b.vakanz_nr ?? '–'}
                             </TableCell>
-                            <TableCell className="text-right text-sm">{fmt(margeTg)}</TableCell>
+                            <TableCell className="text-right text-sm">{fmt(tagessatz)}</TableCell>
                             <TableCell className="text-right text-sm">160</TableCell>
                             <TableCell className="text-right text-sm">{fmt(gesamtForecast)}</TableCell>
 
