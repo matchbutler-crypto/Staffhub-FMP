@@ -408,7 +408,7 @@ export default function AbrechnungPage() {
     }
   }
 
-  const colCount = isAgentur ? 9 : 12
+  const colCount = isAgentur ? 10 : 12
 
   return (
     <SidebarProvider style={{ "--sidebar-width": "18rem", "--header-height": "3rem" } as React.CSSProperties}>
@@ -543,7 +543,7 @@ export default function AbrechnungPage() {
                       </TableHead>
                       <TableHead>Zeitnachweis</TableHead>
                       <TableHead>Status</TableHead>
-                      {isFinancial && <TableHead className="w-8" />}
+                      <TableHead className="w-8" />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -580,8 +580,8 @@ export default function AbrechnungPage() {
                         return (
                           <React.Fragment key={b.id}>
                           <TableRow
-                            className={isFinancial ? "cursor-pointer" : ""}
-                            onClick={() => isFinancial && toggleRow(b.id)}
+                            className="cursor-pointer"
+                            onClick={() => toggleRow(b.id)}
                           >
                             <TableCell className="font-medium">{b.kandidatenname}</TableCell>
                             {!isAgentur && <TableCell className="text-sm text-muted-foreground">{b.agentur_name}</TableCell>}
@@ -698,51 +698,68 @@ export default function AbrechnungPage() {
                             </TableCell>
 
                             {/* ── Expand-Toggle ── */}
-                            {isFinancial && (
-                              <TableCell className="w-8 text-center">
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); toggleRow(b.id) }}
-                                  className="rounded p-1 hover:bg-muted transition-colors"
-                                >
-                                  {isExpanded
-                                    ? <IconChevronUp className="h-4 w-4 text-muted-foreground" />
-                                    : <IconChevronDown className="h-4 w-4 text-muted-foreground" />
-                                  }
-                                </button>
-                              </TableCell>
-                            )}
+                            <TableCell className="w-8 text-center">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); toggleRow(b.id) }}
+                                className="rounded p-1 hover:bg-muted transition-colors"
+                              >
+                                {isExpanded
+                                  ? <IconChevronUp className="h-4 w-4 text-muted-foreground" />
+                                  : <IconChevronDown className="h-4 w-4 text-muted-foreground" />
+                                }
+                              </button>
+                            </TableCell>
                           </TableRow>
 
                           {/* ── Expanded Breakdown Row ── */}
-                          {isFinancial && isExpanded && (
+                          {isExpanded && (
                             <TableRow className="bg-muted/30 hover:bg-muted/30">
                               <TableCell colSpan={colCount} className="py-3 px-6">
-                                <div className="grid grid-cols-2 gap-x-12 gap-y-1.5 text-sm md:grid-cols-5">
-                                  <div className="flex flex-col gap-0.5">
-                                    <span className="text-xs text-muted-foreground font-medium">StaffHub Fee / Tag</span>
-                                    <span className="font-semibold">{fmt(staffhubFeeTag)}</span>
+                                {isAgentur ? (
+                                  <div className="grid grid-cols-2 gap-x-12 gap-y-1.5 text-sm md:grid-cols-3">
+                                    <div className="flex flex-col gap-0.5">
+                                      <span className="text-xs text-muted-foreground font-medium">Tagessatz</span>
+                                      <span className="font-semibold">{fmt(b.einkaufspreis ?? 0)}</span>
+                                    </div>
+                                    <div className="flex flex-col gap-0.5">
+                                      <span className="text-xs text-muted-foreground font-medium">Gesamtbetrag (Forecast)</span>
+                                      <span className="font-semibold">{fmt(gesamtForecast)}</span>
+                                    </div>
+                                    <div className="flex flex-col gap-0.5">
+                                      <span className="text-xs text-muted-foreground font-medium">Gesamtbetrag (IST)</span>
+                                      <span className="font-semibold">
+                                        {gesamtIst !== null ? fmt(gesamtIst) : '–'}
+                                      </span>
+                                    </div>
                                   </div>
-                                  <div className="flex flex-col gap-0.5">
-                                    <span className="text-xs text-muted-foreground font-medium">StaffHub Fee / Monat (Forecast)</span>
-                                    <span className="font-semibold">{fmt(staffhubFeeMonatForecast)}</span>
+                                ) : (
+                                  <div className="grid grid-cols-2 gap-x-12 gap-y-1.5 text-sm md:grid-cols-5">
+                                    <div className="flex flex-col gap-0.5">
+                                      <span className="text-xs text-muted-foreground font-medium">StaffHub Fee / Tag</span>
+                                      <span className="font-semibold">{fmt(staffhubFeeTag)}</span>
+                                    </div>
+                                    <div className="flex flex-col gap-0.5">
+                                      <span className="text-xs text-muted-foreground font-medium">StaffHub Fee / Monat (Forecast)</span>
+                                      <span className="font-semibold">{fmt(staffhubFeeMonatForecast)}</span>
+                                    </div>
+                                    <div className="flex flex-col gap-0.5">
+                                      <span className="text-xs text-muted-foreground font-medium">StaffHub Fee / Monat (IST)</span>
+                                      <span className="font-semibold">
+                                        {staffhubFeeMonatIST !== null ? fmt(staffhubFeeMonatIST) : '–'}
+                                      </span>
+                                    </div>
+                                    <div className="flex flex-col gap-0.5">
+                                      <span className="text-xs text-muted-foreground font-medium">Agentur Gesamtbetrag (Forecast)</span>
+                                      <span className="font-semibold">{fmt(agenturGesamtForecast)}</span>
+                                    </div>
+                                    <div className="flex flex-col gap-0.5">
+                                      <span className="text-xs text-muted-foreground font-medium">Agentur Gesamtbetrag (IST)</span>
+                                      <span className="font-semibold">
+                                        {agenturGesamtIST !== null ? fmt(agenturGesamtIST) : '–'}
+                                      </span>
+                                    </div>
                                   </div>
-                                  <div className="flex flex-col gap-0.5">
-                                    <span className="text-xs text-muted-foreground font-medium">StaffHub Fee / Monat (IST)</span>
-                                    <span className="font-semibold">
-                                      {staffhubFeeMonatIST !== null ? fmt(staffhubFeeMonatIST) : '–'}
-                                    </span>
-                                  </div>
-                                  <div className="flex flex-col gap-0.5">
-                                    <span className="text-xs text-muted-foreground font-medium">Agentur Gesamtbetrag (Forecast)</span>
-                                    <span className="font-semibold">{fmt(agenturGesamtForecast)}</span>
-                                  </div>
-                                  <div className="flex flex-col gap-0.5">
-                                    <span className="text-xs text-muted-foreground font-medium">Agentur Gesamtbetrag (IST)</span>
-                                    <span className="font-semibold">
-                                      {agenturGesamtIST !== null ? fmt(agenturGesamtIST) : '–'}
-                                    </span>
-                                  </div>
-                                </div>
+                                )}
                               </TableCell>
                             </TableRow>
                           )}
